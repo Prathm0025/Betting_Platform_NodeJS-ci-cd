@@ -10,8 +10,8 @@ import bcrypt from "bcrypt";
 // const transactionController = new TransactionController();
 
 export const rolesHierarchy = {
-  superadmin: ["admin", "player"],
-  admin: ["player"],
+  superadmin: ["agent", "player"],
+  agent: ["player"],
 };
 
 export interface DecodedToken {
@@ -89,7 +89,6 @@ export const updatePassword = async (
     // Update password
     client.password = await bcrypt.hash(password, 10);
   } catch (error) {
-    console.log(error);
     throw error;
   }
 };
