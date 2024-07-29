@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 import { Player, User } from "./userModel";
 import { IPlayer, IUser } from "./userType";
-// import { TransactionController } from "../transactions/transactionController";
+import { TransactionController } from "../transactions/transactionController";
 
-// const transactionController = new TransactionController();
+const transactionController = new TransactionController();
 
 export default class UserService {
   async findUserByUsername(username: string, session?: mongoose.ClientSession) {
@@ -61,21 +61,21 @@ export default class UserService {
     return player;
   }
 
-//   async createTransaction(
-//     type: string,
-//     creator: IUser,
-//     user: IUser | IPlayer,
-//     amount: number,
-//     session: mongoose.ClientSession
-//   ) {
-//     return transactionController.createTransaction(
-//       type,
-//       creator,
-//       user,
-//       amount,
-//       session
-//     );
-//   }
+  async createTransaction(
+    type: string,
+    creator: IUser | IPlayer,
+    user: IUser,
+    amount: number,
+    session: mongoose.ClientSession
+  ) {
+    return transactionController.createTransaction(
+      type,
+      creator,
+      user,
+      amount,
+      session
+    );
+  }
 
   async findUsersByIds(
     ids: mongoose.Types.ObjectId[],
@@ -104,5 +104,4 @@ export default class UserService {
   ) {
     return Player.findByIdAndDelete(id).session(session || null);
   }
-
 }
