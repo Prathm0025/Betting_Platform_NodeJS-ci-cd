@@ -13,7 +13,7 @@ import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import { User, Player } from "./userModel";
 import UserService from "./userService";
-// import Transaction from "../transactions/transactionModel";
+import Transaction from "../transactions/transactionModel";
 
 export class UserController {
   private userService: UserService;
@@ -164,17 +164,17 @@ export class UserController {
         );
       }
 
-      //   if (user.credits > 0) {
-      //     const transaction = await this.userService.createTransaction(
-      //       "recharge",
-      //       admin,
-      //       newUser,
-      //       user.credits,
-      //       session
-      //     );
-      //     newUser.transactions.push(transaction._id as mongoose.Types.ObjectId);
-      //     admin.transactions.push(transaction._id as mongoose.Types.ObjectId);
-      //   }
+      if (user.credits > 0) {
+        const transaction = await this.userService.createTransaction(
+          "recharge",
+          newUser,
+          admin,
+          user.credits,
+          session
+        );
+        newUser.transactions.push(transaction._id as mongoose.Types.ObjectId);
+        admin.transactions.push(transaction._id as mongoose.Types.ObjectId);
+      }
 
       await newUser.save({ session });
       admin.subordinates.push(newUser._id);
@@ -540,10 +540,10 @@ export class UserController {
 
         switch (user.role) {
           case "superadmin":
-            // client = await User.findById(subordinateId).populate({
-            //   path: "transactions",
-            //   model: Transaction,
-            // });
+            client = await User.findById(subordinateId).populate({
+              path: "transactions",
+              model: Transaction,
+            });
             const userSubordinates = await User.find({
               createdBy: subordinateId,
             });
@@ -558,11 +558,12 @@ export class UserController {
             break;
 
           case "agent":
-            client = await User.findById(subordinateId).populate({
-              path: "subordinates",
-              model: Player,
-            });
-            // .populate({ path: "transactions", model: Transaction });
+            client = await User.findById(subordinateId)
+              .populate({
+                path: "subordinates",
+                model: Player,
+              })
+              .populate({ path: "transactions", model: Transaction });
             break;
 
           case "player":
@@ -570,11 +571,12 @@ export class UserController {
             break;
 
           default:
-            client = await User.findById(subordinateObjectId).populate({
-              path: "subordinates",
-              model: User,
-            });
-          // .populate({ path: "transactions", model: Transaction })
+            client = await User.findById(subordinateObjectId)
+              .populate({
+                path: "subordinates",
+                model: User,
+              })
+              .populate({ path: "transactions", model: Transaction });
         }
 
         if (!client) {
@@ -724,7 +726,6 @@ export class UserController {
         throw createHttpError(400, "Username is required");
       }
 
-      // Clear the user token cookie
       res.clearCookie("userToken", {
         httpOnly: true,
         sameSite: "none",

@@ -3,11 +3,11 @@ import { JwtPayload } from "jsonwebtoken";
 import { IPlayer, IUser } from "../dashboard/users/userType";
 import createHttpError from "http-errors";
 import mongoose from "mongoose";
-// import { TransactionController } from "../dashboard/transactions/transactionController";
+import { TransactionController } from "../dashboard/transactions/transactionController";
 import { config } from "../config/config";
 import bcrypt from "bcrypt";
 
-// const transactionController = new TransactionController();
+const transactionController = new TransactionController();
 
 export const rolesHierarchy = {
   superadmin: ["agent", "player"],
@@ -115,18 +115,19 @@ export const updateCredits = async (
         "Credits must include a valid type ('recharge' or 'redeem') and a numeric amount"
       );
     }
+    console.log("debtor:", client, "creditor", creator);
 
-    // const transaction = await transactionController.createTransaction(
-    //   type,
-    //   creator,
-    //   client,
-    //   amount,
-    //   session
-    // );
+    const transaction = await transactionController.createTransaction(
+      type,
+      client,
+      creator,
+      amount,
+      session
+    );
 
     // // Add the transaction to both users' transactions arrays
-    // client.transactions.push(transaction._id as mongoose.Types.ObjectId);
-    // creator.transactions.push(transaction._id as mongoose.Types.ObjectId);
+    client.transactions.push(transaction._id as mongoose.Types.ObjectId);
+    creator.transactions.push(transaction._id as mongoose.Types.ObjectId);
 
     await client.save({ session });
     await creator.save({ session });
