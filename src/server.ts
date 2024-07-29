@@ -4,6 +4,7 @@ import { createServer } from "http";
 import superadminRoutes from "./dashboard/superadmin/superadminRoutes";
 import globalErrorHandler from "./utils/globalHandler";
 import userRoutes from "./dashboard/users/userRoutes";
+import transactionRoutes from "./dashboard/transactions/transactionRoutes";
 
 const app = express();
 
@@ -20,6 +21,7 @@ const server = createServer(app);
 
 app.use("/api/superadmin", superadminRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/transactions", transactionRoutes);
 
 app.get("/", (req, res, next) => {
   const health = {

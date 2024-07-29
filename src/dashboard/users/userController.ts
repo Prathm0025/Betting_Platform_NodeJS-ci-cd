@@ -13,13 +13,13 @@ import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import { User, Player } from "./userModel";
 import UserService from "./userService";
-// import Transaction from "../transactions/transactionModel";
+import Transaction from "../transactions/transactionModel";
 
 export class UserController {
   private userService: UserService;
   private static rolesHierarchy = {
-    superadmin: ["admin", "player"],
-    admin: ["player"],
+    superadmin: ["agent", "player"],
+    agent: ["player"],
   };
 
   constructor() {
@@ -30,6 +30,11 @@ export class UserController {
     this.getAllSubordinates = this.getAllSubordinates.bind(this);
     this.getCurrentUserSubordinates =
       this.getCurrentUserSubordinates.bind(this);
+    this.getSubordinateById = this.getSubordinateById.bind(this);
+    this.updateClient = this.updateClient.bind(this);
+    this.deleteUser = this.deleteUser.bind(this);
+    this.deleteAllSubordinates = this.deleteAllSubordinates.bind(this);
+    this.logoutUser = this.logoutUser.bind(this);
   }
 
   public static getSubordinateRoles(role: string): string[] {
@@ -88,8 +93,6 @@ export class UserController {
         role: user.role,
       });
     } catch (error) {
-      console.log(error);
-
       next(error);
     }
   }
@@ -102,7 +105,6 @@ export class UserController {
       const _req = req as AuthRequest;
       const { user } = req.body;
       const { username, role } = _req.user;
-      console.log(req.body);
 
       if (
         !user ||
@@ -120,6 +122,11 @@ export class UserController {
         !UserController.isRoleValid(role, user.role)
       ) {
         throw createHttpError(403, `A ${role} cannot create a ${user.role}`);
+      } else if (
+        role === "superadmin" &&
+        !UserController.isRoleValid(role, user.role)
+      ) {
+        throw createHttpError(403, `${user.role} is not a valid role `);
       }
 
       const admin = await this.userService.findUserByUsername(
@@ -157,17 +164,17 @@ export class UserController {
         );
       }
 
-      //   if (user.credits > 0) {
-      //     const transaction = await this.userService.createTransaction(
-      //       "recharge",
-      //       admin,
-      //       newUser,
-      //       user.credits,
-      //       session
-      //     );
-      //     newUser.transactions.push(transaction._id as mongoose.Types.ObjectId);
-      //     admin.transactions.push(transaction._id as mongoose.Types.ObjectId);
-      //   }
+      if (user.credits > 0) {
+        const transaction = await this.userService.createTransaction(
+          "recharge",
+          newUser,
+          admin,
+          user.credits,
+          session
+        );
+        newUser.transactions.push(transaction._id as mongoose.Types.ObjectId);
+        admin.transactions.push(transaction._id as mongoose.Types.ObjectId);
+      }
 
       await newUser.save({ session });
       admin.subordinates.push(newUser._id);
@@ -433,7 +440,7 @@ export class UserController {
       let subordinates;
       let totalSubordinates;
 
-      if (userToCheck.role === "admin") {
+      if (userToCheck.role === "agent") {
         totalSubordinates = await Player.countDocuments(query);
         subordinates = await Player.find(query)
           .skip(skip)
@@ -495,6 +502,237 @@ export class UserController {
         totalPages,
         currentPage: page,
         subordinates,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getSubordinateById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { subordinateId } = req.params;
+      const { username: loggedUserName, role: loggedUserRole } = _req.user;
+
+      const subordinateObjectId = new mongoose.Types.ObjectId(subordinateId);
+      const loggedUser = await this.userService.findUserByUsername(
+        loggedUserName
+      );
+
+      let user;
+
+      user = await this.userService.findUserById(subordinateObjectId);
+
+      if (!user) {
+        user = await this.userService.findPlayerById(subordinateObjectId);
+
+        if (!user) {
+          throw createHttpError(404, "User not found");
+        }
+      }
+
+      if (
+        loggedUserRole === "superadmin" ||
+        loggedUser.subordinates.includes(subordinateObjectId) ||
+        user._id.toString() == loggedUser._id.toString()
+      ) {
+        let client;
+
+        switch (user.role) {
+          case "superadmin":
+            client = await User.findById(subordinateId).populate({
+              path: "transactions",
+              model: Transaction,
+            });
+            const userSubordinates = await User.find({
+              createdBy: subordinateId,
+            });
+
+            const playerSubordinates = await Player.find({
+              createdBy: subordinateId,
+            });
+
+            client = client.toObject();
+            client.subordinates = [...userSubordinates, ...playerSubordinates];
+
+            break;
+
+          case "agent":
+            client = await User.findById(subordinateId)
+              .populate({
+                path: "subordinates",
+                model: Player,
+              })
+              .populate({ path: "transactions", model: Transaction });
+            break;
+
+          case "player":
+            client = user;
+            break;
+
+          default:
+            client = await User.findById(subordinateObjectId)
+              .populate({
+                path: "subordinates",
+                model: User,
+              })
+              .populate({ path: "transactions", model: Transaction });
+        }
+
+        if (!client) {
+          throw createHttpError(404, "Client not found");
+        }
+
+        res.status(200).json(client);
+      } else {
+        throw createHttpError(
+          403,
+          "Forbidden: You do not have the necessary permissions to access this resource."
+        );
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateClient(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { username, role } = _req.user;
+      const { clientId } = req.params;
+      const { status, credits, password, existingPassword } = req.body;
+
+      if (!clientId) {
+        throw createHttpError(400, "Client Id is required");
+      }
+
+      const clientObjectId = new mongoose.Types.ObjectId(clientId);
+
+      let admin;
+
+      admin = await this.userService.findUserByUsername(username);
+      if (!admin) {
+        admin = await this.userService.findPlayerByUsername(username);
+
+        if (!admin) {
+          throw createHttpError(404, "Creator not found");
+        }
+      }
+
+      const client =
+        (await this.userService.findUserById(clientObjectId)) ||
+        (await this.userService.findPlayerById(clientObjectId));
+
+      if (!client) {
+        throw createHttpError(404, "Client not found");
+      }
+
+      if (status) {
+        updateStatus(client, status);
+      }
+
+      if (password) {
+        await updatePassword(client, password, existingPassword);
+      }
+
+      if (credits) {
+        credits.amount = Number(credits.amount);
+        await updateCredits(client, admin, credits);
+      }
+
+      await admin.save();
+      await client.save();
+
+      res.status(200).json({ message: "Client updated successfully", client });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { username, role } = _req.user;
+      const { clientId } = req.params;
+
+      if (!clientId) {
+        throw createHttpError(400, "Client Id is required");
+      }
+
+      const clientObjectId = new mongoose.Types.ObjectId(clientId);
+
+      const admin = await this.userService.findUserByUsername(username);
+      if (!admin) {
+        throw createHttpError(404, "Admin Not Found");
+      }
+
+      const client =
+        (await this.userService.findUserById(clientObjectId)) ||
+        (await this.userService.findPlayerById(clientObjectId));
+
+      if (!client) {
+        throw createHttpError(404, "User not found");
+      }
+
+      if (
+        role != "superadmin" &&
+        !admin.subordinates.some((id) => id.equals(clientObjectId))
+      ) {
+        throw createHttpError(403, "Client does not belong to the creator");
+      }
+
+      const clientRole = client.role;
+      if (
+        !UserController.rolesHierarchy[role] ||
+        !UserController.rolesHierarchy[role].includes(clientRole)
+      ) {
+        throw createHttpError(403, `A ${role} cannot delete a ${clientRole}`);
+      }
+
+      await this.deleteAllSubordinates(clientObjectId);
+
+      admin.subordinates = admin.subordinates.filter(
+        (id) => !id.equals(clientObjectId)
+      );
+      await admin.save();
+
+      res.status(200).json({ message: "Client deleted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteAllSubordinates(userId: mongoose.Types.ObjectId) {
+    const user = await this.userService.findUserById(userId);
+    if (user) {
+      for (const subordinateId of user.subordinates) {
+        await this.deleteAllSubordinates(subordinateId);
+      }
+      await this.userService.deleteUserById(userId);
+    } else {
+      const player = await this.userService.findPlayerById(userId);
+      if (player) {
+        await this.userService.deletePlayerById(userId);
+      }
+    }
+  }
+
+  async logoutUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { username, role } = _req.user;
+
+      if (!username) {
+        throw createHttpError(400, "Username is required");
+      }
+
+      res.clearCookie("userToken", {
+        httpOnly: true,
+        sameSite: "none",
+      });
+
+      res.status(200).json({
+        message: "Logout successful",
       });
     } catch (error) {
       next(error);
