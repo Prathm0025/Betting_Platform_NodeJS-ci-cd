@@ -43,6 +43,7 @@ const PlayerSchema = new Schema<IPlayer>(
     credits: { type: Number, default: 0 },
     favouriteGames: { type: [String], default: [] },
     transactions: [{ type: mongoose.Types.ObjectId, ref: "Transaction" }],
+    betTransaction: [{ type: mongoose.Types.ObjectId, ref: "BetTransaction" }],
     createdBy: { type: Types.ObjectId as any, ref: "User", default: null },
   },
   { timestamps: true }
