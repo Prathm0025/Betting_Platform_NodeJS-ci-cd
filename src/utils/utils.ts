@@ -4,7 +4,6 @@ import { IPlayer, IUser } from "../dashboard/users/userType";
 import createHttpError from "http-errors";
 import mongoose from "mongoose";
 import { TransactionController } from "../dashboard/transactions/transactionController";
-import { config } from "../config/config";
 import bcrypt from "bcrypt";
 
 const transactionController = new TransactionController();
