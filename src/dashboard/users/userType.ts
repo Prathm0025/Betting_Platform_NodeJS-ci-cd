@@ -30,6 +30,7 @@ export interface IPlayer extends Document {
   credits: number;
   favouriteGames: string[];
   transactions: Types.ObjectId[];
+  betTransaction: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
   createdBy: Types.ObjectId | null;
