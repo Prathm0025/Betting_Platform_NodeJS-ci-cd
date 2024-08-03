@@ -4,7 +4,6 @@ import BetTransaction from "./betTransactionModel";
 import { Player } from "../users/userModel";
 
 export class BetTransactionService {
-  
   async createBetTransaction(
     matchId: string,
     betAmount: number,
@@ -24,6 +23,12 @@ export class BetTransactionService {
     return bet;
   }
 
+  async findPlayerById(
+    id: mongoose.Types.ObjectId,
+    session?: mongoose.ClientSession
+  ) {
+    return Player.findById(id).session(session || null);
+  }
 }
 
 export default BetTransactionService;
