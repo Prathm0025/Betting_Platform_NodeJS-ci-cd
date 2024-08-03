@@ -14,7 +14,7 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
     (authHeaders &&
       authHeaders.startsWith("Bearer") &&
       authHeaders.split(" ")[1]);
-
+//
   if (token) {
     jwt.verify(
       token,
