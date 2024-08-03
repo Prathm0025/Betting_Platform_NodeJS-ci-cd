@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const middleware_1 = require("../../utils/middleware");
+const userController_1 = require("./userController");
+const userRoutes = express_1.default.Router();
+const userController = new userController_1.UserController();
+userRoutes.post("/login", userController.loginUser);
+userRoutes.post("/", middleware_1.checkUser, userController.createUser);
+userRoutes.get("/", middleware_1.checkUser, userController.getCurrentUser);
+userRoutes.get("/all", middleware_1.checkUser, userController.getAllSubordinates);
+userRoutes.get("/subordinates", middleware_1.checkUser, userController.getCurrentUserSubordinates);
+userRoutes.get("/:subordinateId", middleware_1.checkUser, userController.getSubordinateById);
+userRoutes.put("/:clientId", middleware_1.checkUser, userController.updateClient);
+userRoutes.delete("/:clientId", middleware_1.checkUser, userController.deleteUser);
+userRoutes.post("/logout", middleware_1.checkUser, userController.logoutUser);
+exports.default = userRoutes;
