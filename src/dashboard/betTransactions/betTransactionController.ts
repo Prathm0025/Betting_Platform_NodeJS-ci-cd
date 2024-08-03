@@ -1,11 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { Player, User } from "../users/userModel";
+import { Player } from "../users/userModel";
 import BetTransaction from "./betTransactionModel";
 import createHttpError from "http-errors";
 import mongoose from "mongoose";
 import { AuthRequest } from "../../utils/utils";
-import { IPlayer, IUser } from "../users/userType";
-import { BTransaction } from "./betTransactionType";
 import BetTransactionService from "./betTransactionServices";
 
 export class BetTransactionController {
@@ -15,6 +13,7 @@ export class BetTransactionController {
     this.betTransactionService = new BetTransactionService();
     this.createBet = this.createBet.bind(this);
     this.getAllbets = this.getAllbets.bind(this);
+    this.getPlayerBets = this.getPlayerBets.bind(this);
   }
 
   async createBet(req: Request, res: Response, next: NextFunction) {
@@ -24,6 +23,7 @@ export class BetTransactionController {
       const _req = req as AuthRequest;
       const { username, role } = _req.user;
       const { matchId, betOdds, betAmount, teamId } = req.body;
+      console.log("body", req.body);
 
       if (role !== "player") {
         throw createHttpError(
@@ -60,7 +60,6 @@ export class BetTransactionController {
       await player.save();
       await session.commitTransaction();
       session.endSession();
-
       res.status(200).json({ message: "Bet Placed Successfully!", bet });
     } catch (error) {
       await session.abortTransaction();
@@ -78,6 +77,33 @@ export class BetTransactionController {
         throw createHttpError(400, "You don't have access to this");
       }
       const bets = await BetTransaction.find();
+      res.status(200).json({ bets });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getPlayerBets(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { role } = _req.user;
+      if (role !== "superadmin") {
+        throw createHttpError(400, "You don't have access to this");
+      }
+      const { playerId } = req.params;
+      const playerObjectId = new mongoose.Types.ObjectId(playerId);
+      const player = await this.betTransactionService.findPlayerById(
+        playerObjectId
+      );
+      if (!player) {
+        throw createHttpError(404, "Player not found");
+      }
+      const betTransactionIds = player.betTransaction;
+
+      const bets = await BetTransaction.find({
+        _id: { $in: betTransactionIds },
+      });
+
       res.status(200).json({ bets });
     } catch (error) {
       next(error);
