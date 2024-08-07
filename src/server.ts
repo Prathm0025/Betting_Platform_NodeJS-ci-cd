@@ -23,7 +23,7 @@ app.use(express.json());
 const server = createServer(app);
 
 app.use("/api/auth", userRoutes);
-app.use("/api/payer", checkUser,playerRoutes);
+app.use("/api/player", checkUser,playerRoutes);
 app.use("/api/admin",checkUser, adminRoutes);
 app.use("/api/agent",checkUser, agentRoutes);
 

@@ -34,7 +34,7 @@ class UserController {
       await user.save();
 
       const token = jwt.sign(
-        { id: user._id, username: user.username, role: user.role },
+        { userId: user._id, username: user.username, role: user.role },
         config.jwtSecret,
         { expiresIn: "24h" }
       );
