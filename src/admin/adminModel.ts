@@ -1,9 +1,8 @@
 import mongoose, { Model, Schema } from "mongoose";
 import { IAdmin } from "./adminType";
-import User, { userSchemaFields } from "../users/userModel";
+import User from "../users/userModel";
 
 const adminSchemaFields: Partial<Record<keyof IAdmin, any>> = {
-    ...userSchemaFields,
     agents: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Agent',
@@ -14,16 +13,20 @@ const adminSchemaFields: Partial<Record<keyof IAdmin, any>> = {
     }],
 };
 
-const adminSchema: Schema<IAdmin> = new Schema(adminSchemaFields, { discriminatorKey: 'role' });
+const adminSchema: Schema<IAdmin> = new Schema(adminSchemaFields);
 
-
-adminSchema.path('credits').validate(function (value) {
-    return value === Infinity;
-}, 'Admin credits should be infinite.');
-
-adminSchema.path('createdBy').validate(function (value) {
-    return this.role !== 'admin' || value === undefined;
-}, 'Admin should not have createdBy.');
+// Pre-save hook to validate fields
+adminSchema.pre('save', function (next) {
+    if (this.role === 'admin') {
+        if (this.credits !== Infinity) {
+            return next(new Error('Admin credits should be infinite.'));
+        }
+        if (this.createdBy !== undefined) {
+            return next(new Error('Admin should not have createdBy.'));
+        }
+    }
+    next();
+});
 
 const Admin: Model<IAdmin> = User.discriminator<IAdmin>('admin', adminSchema);
-export default Admin
+export default Admin;

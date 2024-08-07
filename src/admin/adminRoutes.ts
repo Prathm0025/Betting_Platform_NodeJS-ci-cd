@@ -3,5 +3,5 @@ import adminController from "./adminController";
 
 const adminRoutes = express.Router();
 
-adminRoutes.get("/", adminController.sayHello);
+adminRoutes.post("/", adminController.createAdmin);
 export default adminRoutes;
