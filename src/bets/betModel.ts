@@ -48,6 +48,10 @@ const betSchema: Schema<IBet> = new Schema({
         type: Number,
         required: true,
     },
+    status: {
+        type: String,
+        enum: ['success', 'fail', 'pending']
+    }
 })
 
 const Bet: Model<IBet> = mongoose.model<IBet>('Bet', betSchema);
