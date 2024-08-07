@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import jwt from "jsonwebtoken";
 import { AuthRequest, DecodedToken } from "./utils";
 import createHttpError from "http-errors";
+import { config } from "../config/config";
 
 export function checkUser(req: Request, res: Response, next: NextFunction) {
   const cookie = req.headers.cookie
@@ -46,7 +47,7 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-const API_KEY = process.env.ADMIN_API_KEY;
+const API_KEY = config.adminApiKey;
 
 export const verifyApiKey = (req: Request, res: Response, next: NextFunction) => {
     const apiKey = req.headers['x-api-key'];
