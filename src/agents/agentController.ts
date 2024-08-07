@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import Agent from "./agentModel";
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
+import Admin from "../admin/adminModel";
 
 class AgentController {
     static saltRounds: Number = 10;
@@ -26,6 +27,14 @@ class AgentController {
              const newAgent = new Agent({username, password: hashedPassword, createdBy:userId});
              newAgent.role = "agent";
              await newAgent.save();
+
+             const admin = await Admin.findById(userId);
+            if (admin) {
+                admin.players.push(newAgent._id as unknown as mongoose.Schema.Types.ObjectId);
+                await admin.save();
+            } else {
+                throw createHttpError(404, "Agent not found");
+            }
              res.status(201).json({ message :"Agent Created Succesfully", Agent:newAgent});
         } catch (err) {
             console.log(err);

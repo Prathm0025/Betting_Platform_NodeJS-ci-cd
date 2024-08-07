@@ -1,8 +1,11 @@
 import express from "express";
 import playerController from "./playerController";
+import { verifyRole } from "../utils/middleware";
 
-const agentRoutes = express.Router();
+const playerRoutes = express.Router();
 
-agentRoutes.get("/", playerController.sayHello)
+playerRoutes.get("/", playerController.sayHello)
+playerRoutes.post("/create-player", verifyRole(['player']), playerController.createPlayer)
 
-export default agentRoutes;
+
+export default playerRoutes;

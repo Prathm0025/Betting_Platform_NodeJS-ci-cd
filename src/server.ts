@@ -6,6 +6,7 @@ import userRoutes from "./users/userRoutes";
 import adminRoutes from "./admin/adminRoutes";
 import agentRoutes from "./agents/agentRoutes";
 import { checkUser } from "./utils/middleware";
+import playerRoutes from "./players/playerRoutes";
 
 
 const app = express();
@@ -21,7 +22,8 @@ app.use(express.json());
 
 const server = createServer(app);
 
-app.use("/api/user", checkUser,userRoutes);
+app.use("/api/auth", checkUser,userRoutes);
+app.use("/api/payer", checkUser,playerRoutes);
 app.use("/api/admin",checkUser, adminRoutes);
 app.use("/api/agent",checkUser, agentRoutes);
 
