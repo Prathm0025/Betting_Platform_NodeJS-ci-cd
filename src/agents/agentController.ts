@@ -5,6 +5,7 @@ import Agent from "./agentModel";
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import Admin from "../admin/adminModel";
+import { IAgent } from "./agentType";
 
 class AgentController {
     static saltRounds: Number = 10;
@@ -41,6 +42,78 @@ class AgentController {
             res.status(500).json({ message : "Internal Server Error"});
         }
     }
+
+    async getAgent(req: Request, res: Response, next: NextFunction) {
+        const { id } = req.params;
+        try {
+            const agent = await Agent.findById(id);
+            if (!agent) {
+                return next(createHttpError(404, "Agent not found"));
+            }
+            res.status(200).json({ agent });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError (500, "Internal Server Error"));
+        }
+    }
+
+    async getAllAgents(req: Request, res: Response, next: NextFunction) {
+        try {
+            const agents = await Agent.find();
+            res.status(200).json({ agents });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
+        }
+    }
+
+    async updateAgent(req: Request, res: Response, next: NextFunction) {
+        const { id } = req.params;
+        const { username, password, status } = req.body;
+        try {
+            const updateData: Partial<Record<keyof IAgent, any>> = {
+                ...(username && { username }),
+                ...(password && { password: await bcrypt.hash(password, AgentController.saltRounds) }),
+                ...(status && { status})
+            };
+            
+
+            const updatedAgent = await Agent.findByIdAndUpdate(id, updateData, { new: true });
+            if (!updatedAgent) {
+                return next(createHttpError(404, "Agent not found"));
+            }
+
+            res.status(200).json({ message: "Agent updated successfully", agent: updatedAgent });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
+        }
+    }
+
+    async deleteAgent(req: Request, res: Response, next: NextFunction) {
+        const { id } = req.params;
+        try {
+            const deletedAgent = await Agent.findByIdAndDelete(id);
+            if (!deletedAgent) {
+                return next(createHttpError(404, "Agent not found"));
+            }
+
+            const _req = req as AuthRequest;
+           const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
+            const admin = await Admin.findById(userId);
+           if (admin) {
+            admin.agents = admin.agents.filter(agentId => agentId.toString() !== id);
+            await admin.save();
+           }
+
+            res.status(200).json({ message: "Agent deleted successfully" });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
+        }
+    }
+
+
 }
 
 export default new AgentController()

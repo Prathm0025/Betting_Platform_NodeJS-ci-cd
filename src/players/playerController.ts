@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import Player from "../players/playerModel";
 import bcrypt from "bcrypt";
 import Agent from "../agents/agentModel";
+import { IPlayer } from "./playerType";
 
 class PlayerController {
     static saltRounds: Number = 10;
@@ -40,6 +41,75 @@ class PlayerController {
         } catch (err) {
             console.log(err);
             res.status(500).json({ message : "Internal Server Error"});
+        }
+    }
+
+    async getPlayer(req: Request, res: Response, next: NextFunction) {
+        const { id } = req.params;
+        try {
+            const player = await Player.findById(id);
+            if (!player) {
+                return next(createHttpError(404, "Player not found"));
+            }
+            res.status(200).json({ player });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
+        }
+    }
+
+    async getAllPlayers(req: Request, res: Response, next: NextFunction) {
+        try {
+            const players = await Player.find();
+            res.status(200).json({ players });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
+        }
+    }
+
+    async updatePlayer(req: Request, res: Response, next: NextFunction) {
+        const { id } = req.params;
+        const { username, password, status } = req.body;
+        try {
+            const updateData: Partial<IPlayer> = {
+                ...(username && { username }),
+                ...(password && { password: await bcrypt.hash(password, PlayerController.saltRounds) }),
+                ...(status && { status })
+            };
+
+            const updatedPlayer = await Player.findByIdAndUpdate(id, updateData, { new: true });
+            if (!updatedPlayer) {
+                return next(createHttpError(404, "Player not found"));
+            }
+
+            res.status(200).json({ message: "Player updated successfully", player: updatedPlayer });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
+        }
+    }
+
+    async deletePlayer(req: Request, res: Response, next: NextFunction) {
+        const { id } = req.params;
+        try {
+            const deletedPlayer = await Player.findByIdAndDelete(id);
+            if (!deletedPlayer) {
+                return next(createHttpError(404, "Player not found"));
+            }
+
+            const _req = req as AuthRequest;
+            const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
+            const agent = await Agent.findById(userId);
+            if (agent) {
+                agent.players = agent.players.filter(playerId => playerId.toString() !== id);
+                await agent.save();
+            }
+
+            res.status(200).json({ message: "Player deleted successfully" });
+        } catch (err) {
+            console.error(err);
+            next(createHttpError(500, "Internal Server Error"));
         }
     }
 }
