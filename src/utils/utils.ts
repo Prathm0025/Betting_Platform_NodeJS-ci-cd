@@ -1,4 +1,4 @@
-// import { Request } from "express";
+import { Request } from "express";
 import { JwtPayload } from "jsonwebtoken";
 // import { IPlayer, IUser } from "../dashboard/users/userType";
 // import createHttpError from "http-errors";
@@ -14,22 +14,20 @@ import bcrypt from "bcrypt";
 // };
 
 export interface DecodedToken {
+  userId: string;
   username: string;
   role: string;
 }
 
 export interface AuthRequest extends Request {
   user: {
+    userId: string;
     username: string;
     role: string;
   };
 }
 
-export interface AuthRequest extends Request {
-  userId: string;
-  userRole: string;
-  userName: string;
-}
+
 
 export interface CustomJwtPayload extends JwtPayload {
   role: string;

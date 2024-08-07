@@ -75,23 +75,23 @@
 //       user.loginTimes = (user.loginTimes || 0) + 1;
 //       await user.save();
 
-//       const token = jwt.sign(
-//         { id: user._id, username: user.username, role: user.role },
-//         config.jwtSecret!,
-//         { expiresIn: "24h" }
-//       );
+    //   const token = jwt.sign(
+    //     { id: user._id, username: user.username, role: user.role },
+    //     config.jwtSecret!,
+    //     { expiresIn: "24h" }
+    //   );
 
-//       res.cookie("userToken", token, {
-//         maxAge: 1000 * 60 * 60 * 24 * 7,
-//         httpOnly: true,
-//         sameSite: "none",
-//       });
+    //   res.cookie("userToken", token, {
+    //     maxAge: 1000 * 60 * 60 * 24 * 7,
+    //     httpOnly: true,
+    //     sameSite: "none",
+    //   });
 
-//       res.status(200).json({
-//         message: "Login successful",
-//         token: token,
-//         role: user.role,
-//       });
+    //   res.status(200).json({
+    //     message: "Login successful",
+    //     token: token,
+    //     role: user.role,
+    //   });
 //     } catch (error) {
 //       next(error);
 //     }

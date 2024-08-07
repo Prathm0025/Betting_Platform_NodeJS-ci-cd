@@ -13,7 +13,7 @@ export const userSchemaFields: Partial<Record<keyof IUser, any>> = {
     },
     role: {
         type: String,
-        required: true,
+        // required: true,
     },
     credits: {
         type: Number,
