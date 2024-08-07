@@ -13,7 +13,7 @@ const playerSchemaFields: Partial<Record<keyof IPlayer, any>> = {
     },
     role: {
         type: String,
-        enum: ['player'],
+        default:'player',
         required: true,
     },
     credits: {

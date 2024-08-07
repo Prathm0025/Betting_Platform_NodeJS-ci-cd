@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
+import Player from "../players/playerModel";
 
 class UserController {
     static saltRounds: Number = 10;
@@ -19,9 +20,13 @@ class UserController {
       throw createHttpError(400, "Username, password are required");
     }
     try {
-      const user = await User.findOne({ username });
+      let user;  
+       user = await User.findOne({ username });
       if (!user) {
+        user = await Player.findOne({ username});
+        if(!user){
         throw createHttpError(401, "User not found");
+        }
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -62,12 +67,12 @@ class UserController {
     try {
         const _req = req as AuthRequest;
         const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
-        const existingUser = await User.findOne({ username:username });
+        const existingUser = await Player.findOne({ username:username });
         if(existingUser){
             return res.status(400).json({message: "username already exists"});
         }  
          const hashedPassword = await bcrypt.hash(password, UserController.saltRounds);
-         const newUser = new User({username, password: hashedPassword, createdBy:userId});
+         const newUser = new Player({username, password: hashedPassword, createdBy:userId});
          await newUser.save();
          res.status(201).json({ message :"User Created Succesfully", User:newUser});
     } catch (err) {
