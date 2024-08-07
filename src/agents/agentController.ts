@@ -30,7 +30,7 @@ class AgentController {
 
              const admin = await Admin.findById(userId);
             if (admin) {
-                admin.players.push(newAgent._id as unknown as mongoose.Schema.Types.ObjectId);
+                admin.agents.push(newAgent._id as unknown as mongoose.Schema.Types.ObjectId);
                 await admin.save();
             } else {
                 throw createHttpError(404, "Agent not found");
