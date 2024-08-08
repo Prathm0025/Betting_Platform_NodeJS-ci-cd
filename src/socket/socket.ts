@@ -7,10 +7,8 @@ const socketController = (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
-      const userAgent = socket.request.headers["user-agent"];
       const decoded = await verifySocketToken(socket);
       (socket as any).decoded = decoded;
-      (socket as any).userAgent = userAgent;
       next();
     } catch (error) {
       console.error("Authentication error:", error.message);
@@ -37,19 +35,21 @@ const socketController = (io: Server) => {
     }
 
     const username = decoded.username;
-    const existingUser = users.get(username);
+    const existingSocket = users.get(username);
 
-    if (existingUser) {
-      socket.emit(
-        "AnotherDevice",
-        "You are already playing on another browser."
-      );
-      socket.disconnect(true);
-      return;
+    if (existingSocket) {
+      if (existingSocket.connected) {
+        socket.emit(
+          "AnotherDevice",
+          "You are already playing on another browser."
+        );
+        socket.disconnect(true);
+      } else {
+        users.set(username, socket);
+      }
     } else {
       users.set(username, socket);
     }
-    console.log("MAP", users);
     console.log(`Player ${username} entered the platform.`);
   });
 };
