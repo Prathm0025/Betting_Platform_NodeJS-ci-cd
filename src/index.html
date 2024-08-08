@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket.IO Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Socket.IO Test</h1>
+    <button>Disconnect</button>
+
+
+    
+    <script>
+      const socket = io("http://localhost:5000", {
+        auth: {
+          token:
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmI0NjY5ZGY1MGMwZGE1MDY3OWM4MjEiLCJ1c2VybmFtZSI6InBsYXllcjIiLCJyb2xlIjoicGxheWVyIiwiaWF0IjoxNzIzMTAxMDc3LCJleHAiOjE3MjMxODc0Nzd9.wDxAxtBCnDGGyvJ2b-bg7_0XP4UnDrnk1c3D1pW1ioI",
+        },
+      });
+
+      socket.on("connect", () => {
+        console.log("Connected to server");
+      });
+
+      socket.on("AnotherDevice", (data) => {
+        console.log("Message from server:", data);
+      });
+
+      socket.on("error", (err) => {
+        console.error("Socket Error:", err);
+      });
+
+      socket.on("disconnect", () => {
+        console.log("Disconnected from server");
+      });
+    </script>
+  </body>
+</html>

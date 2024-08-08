@@ -19,6 +19,12 @@ export interface DecodedToken {
   role: string;
 }
 
+export interface SocketToken {
+  username: string;
+  role: string;
+  credits: Number;
+}
+
 export interface AuthRequest extends Request {
   user: {
     userId: string;
