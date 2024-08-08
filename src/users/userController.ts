@@ -5,10 +5,11 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Player from "../players/playerModel";
 import { config } from "../config/config";
+import { AuthRequest } from "../utils/utils";
 
 class UserController {
-    static saltRounds: Number = 10;
-  
+  static saltRounds: Number = 10;
+
   sayHello(req: Request, res: Response, next: NextFunction) {
     res.status(200).json({ message: "Admin" });
   }
@@ -19,11 +20,13 @@ class UserController {
       throw createHttpError(400, "Username, password are required");
     }
     try {
-        const user = await User.findOne({ username }) || await Player.findOne({ username });
+      const user =
+        (await User.findOne({ username })) ||
+        (await Player.findOne({ username }));
 
-        if (!user) {
-            throw createHttpError(401, "User not found");
-        }
+      if (!user) {
+        throw createHttpError(401, "User not found");
+      }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
@@ -50,12 +53,25 @@ class UserController {
         role: user.role,
       });
     } catch (err) {
-        console.log(err);
-        next(err);        
+      console.log(err);
+      next(err);
     }
   }
 
-  
+  async getCurrentUser(req: Request, res: Response, next: NextFunction) {
+    const _req = req as AuthRequest;
+    const { userId, role } = _req.user;
+    if (!userId) throw createHttpError(400, "Invalid Request, Missing User");
+    try {
+      const user =
+        (await User.findById({ _id: userId })) ||
+        (await Player.findById({ _id: userId }));
+      if (!user) throw createHttpError(404, "User not found");
+      res.status(200).json(user);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export default new UserController();

@@ -1,3 +1,68 @@
+import { NextFunction, Request, Response } from "express";
+import createHttpError from "http-errors";
+import { AuthRequest } from "../utils/utils";
+import User from "../users/userModel";
+import Player from "../players/playerModel";
+import { TransactionService } from "./transactionService";
+import mongoose from "mongoose";
+
+class TransactionController {
+  async transaction(req: Request, res: Response, next: NextFunction) {
+    const { reciever: receiverId, amount, type } = req.body;
+
+    try {
+      if (!receiverId || !amount || amount <= 0)
+        throw createHttpError(400, "Reciever or Amount is missing");
+      const _req = req as AuthRequest;
+      const { userId, role } = _req.user;
+      const sender =
+        (await User.findById({ _id: userId })) ||
+        (await Player.findById({ _id: userId }));
+      if (!sender) throw createHttpError(404, "User Not Found");
+      const reciever =
+        (await User.findById({ _id: receiverId })) ||
+        (await Player.findById({ _id: receiverId }));
+      if (!reciever) throw createHttpError(404, "Reciever does not exist");
+      const senderModelName =
+        sender instanceof User
+          ? "User"
+          : sender instanceof Player
+          ? "Player"
+          : (() => {
+              throw createHttpError(500, "Unknown sender model");
+            })();
+      const recieverModelName =
+        reciever instanceof User
+          ? "User"
+          : reciever instanceof Player
+          ? "Player"
+          : (() => {
+              throw createHttpError(500, "Unknown reciever model");
+            })();
+
+      const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
+        userId
+      );
+      await TransactionService.performTransaction(
+        newObjectId,
+        receiverId,
+        senderModelName,
+        recieverModelName,
+        type,
+        amount,
+        role
+      );
+      res.status(200).json({ message: "Transaction successful" });
+    } catch (err) {
+      console.log(err);
+
+      next(err);
+    }
+  }
+}
+
+export default new TransactionController();
+
 // import { Request, Response, NextFunction } from "express";
 // import { Player, User } from "../usersTest/userModel";
 // import Transaction from "./transactionModel";

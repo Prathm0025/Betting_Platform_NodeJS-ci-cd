@@ -21,7 +21,7 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
   if (token) {
     jwt.verify(
       token,
-      process.env.JWT_SECRET!,
+      config.jwtSecret!,
       (err, decoded: DecodedToken | undefined) => {
         if (err) {
           if (err.name === "TokenExpiredError") {
@@ -32,8 +32,6 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
             return next(createHttpError(401, "You are not authenticated"));
           }
         } else {
-            console.log(decoded!.userId, 's');
-            
           const _req = req as AuthRequest;
           _req.user = {
             userId:decoded!.userId,

@@ -1,3 +1,24 @@
+import express from "express";
+// import { checkUser } from "../utils/middleware";
+import transactionController from "./transactionController";
+const transactionRoutes = express.Router();
+
+transactionRoutes.post("/",  transactionController.transaction );
+
+export default transactionRoutes;
+
+
+
+
+
+
+
+
+
+
+
+
+
 // import express from "express";
 // import { TransactionController } from "./transactionController";
 // import { checkUser } from "../utils/middleware";

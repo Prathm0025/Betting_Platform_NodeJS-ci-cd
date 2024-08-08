@@ -1,3 +1,91 @@
+import mongoose, { ClientSession } from "mongoose";
+import { IUser } from "../users/userType";
+import { IPlayer } from "../players/playerType";
+import User from "../users/userModel";
+import Player from "../players/playerModel";
+import Transaction from "./transactionModel";
+
+export class TransactionService {
+  static async performTransaction(
+    senderId: mongoose.Types.ObjectId,
+    receiverId: mongoose.Types.ObjectId,
+    senderModel: "User" | "Player",
+    receiverModel: "User" | "Player",
+    type: "recharge" | "redeem",
+    amount: number,
+    role: string
+  ): Promise<void> {
+    const session: ClientSession = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      let senderModelInstance: mongoose.Model<IUser | IPlayer>;
+      let receiverModelInstance: mongoose.Model<IUser | IPlayer>;
+
+      if (senderModel === "User") {
+        senderModelInstance = User;
+      } else if (senderModel === "Player") {
+        senderModelInstance = Player;
+      }
+
+      if (receiverModel === "User") {
+        receiverModelInstance = User;
+      } else if (receiverModel === "Player") {
+        receiverModelInstance = Player;
+      }
+
+      if (type==="recharge") {
+        await senderModelInstance.updateOne(
+          { _id: senderId },
+          { $inc: { credits: -amount } },
+          { session }
+        );
+
+        await receiverModelInstance.updateOne(
+            { _id: receiverId },
+            { $inc: { credits: amount } },
+            { session }
+          );
+      }
+      if (type==="redeem") {
+        await senderModelInstance.updateOne(
+            { _id: senderId },
+            { $inc: { credits: amount } },
+            { session }
+          );
+        await receiverModelInstance.updateOne(
+            { _id: receiverId },
+            { $inc: { credits: -amount } },
+            { session }
+          );
+      }
+     
+
+      await Transaction.create(
+        [
+          {
+            sender: senderId,
+            receiver: receiverId,
+            senderModel,
+            receiverModel,
+            type,
+            amount,
+          },
+        ],
+        { session }
+      );
+
+      await session.commitTransaction();
+      console.log("Transaction committed successfully");
+    } catch (error) {
+      await session.abortTransaction();
+      console.error("Transaction aborted due to error:", error);
+    } finally {
+      session.endSession();
+    }
+  }
+}
+
 // import mongoose from "mongoose";
 // import { ITransaction } from "./transactionType";
 // import { rolesHierarchy } from "../utils/utils";
