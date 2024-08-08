@@ -8,5 +8,7 @@ const _config = {
     databaseUrl: process.env.MONGOURL,
     env: process.env.NODE_ENV,
     jwtSecret: process.env.JWT_SECRET,
+    oddsApiKey: process.env.ODDS_API_KEY,
+    adminApiKey: process.env.ADMIN_API_KEY
 };
 exports.config = Object.freeze(_config);
