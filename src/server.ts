@@ -7,6 +7,7 @@ import adminRoutes from "./admin/adminRoutes";
 import agentRoutes from "./agents/agentRoutes";
 import { checkUser } from "./utils/middleware";
 import playerRoutes from "./players/playerRoutes";
+import storeRoutes from "./store/storeRoutes";
 
 
 const app = express();
@@ -23,9 +24,12 @@ app.use(express.json());
 const server = createServer(app);
 
 app.use("/api/auth", userRoutes);
-app.use("/api/player", checkUser,playerRoutes);
-app.use("/api/admin",checkUser, adminRoutes);
-app.use("/api/agent",checkUser, agentRoutes);
+app.use("/api/player", checkUser, playerRoutes);
+app.use("/api/admin", checkUser, adminRoutes);
+app.use("/api/agent", checkUser, agentRoutes);
+
+// STOR
+app.use("/api/store", checkUser, storeRoutes)
 
 
 // app.use("/api/superadmin", superadminRoutes);
