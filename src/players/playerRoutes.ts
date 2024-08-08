@@ -1,8 +1,16 @@
 import express from "express";
 import playerController from "./playerController";
+import { verifyRole } from "../utils/middleware";
 
-const agentRoutes = express.Router();
+const playerRoutes = express.Router();
 
-agentRoutes.get("/", playerController.sayHello)
+playerRoutes.post("/", verifyRole(['agent', 'admin']), playerController.createPlayer)
+playerRoutes.get("/all", verifyRole(['agent', 'admin']), playerController.getAllPlayers)
+playerRoutes.get("/:id", verifyRole(['agent', 'admin']), playerController.getPlayer)
+playerRoutes.put("/:id", verifyRole(['agent', 'admin']), playerController.updatePlayer)
+playerRoutes.delete("/:id", verifyRole(['agent', 'admin']), playerController.deletePlayer)
 
-export default agentRoutes;
+
+
+
+export default playerRoutes;

@@ -4,6 +4,5 @@ import { verifyApiKey } from "../utils/middleware";
 
 const adminRoutes = express.Router();
 
-adminRoutes.get("/", adminController.sayHello);
-adminRoutes.post("/create-admin", verifyApiKey, adminController.createAdmin);
+adminRoutes.post("/", adminController.createAdmin);
 export default adminRoutes;
