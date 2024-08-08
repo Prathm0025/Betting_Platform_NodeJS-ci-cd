@@ -1,11 +1,13 @@
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import { createServer } from "http";
-import superadminRoutes from "./dashboard/superadmin/superadminRoutes";
 import globalErrorHandler from "./utils/globalHandler";
-import userRoutes from "./dashboard/users/userRoutes";
-import transactionRoutes from "./dashboard/transactions/transactionRoutes";
-import betTransactionRoutes from "./dashboard/betTransactions/betTransactionRoutes";
+import userRoutes from "./users/userRoutes";
+import adminRoutes from "./admin/adminRoutes";
+import agentRoutes from "./agents/agentRoutes";
+import { checkUser } from "./utils/middleware";
+import playerRoutes from "./players/playerRoutes";
+
 
 const app = express();
 
@@ -20,12 +22,19 @@ app.use(express.json());
 
 const server = createServer(app);
 
-app.use("/api/superadmin", superadminRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/transactions", transactionRoutes);
-app.use("/api/superadmin", superadminRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/bets", betTransactionRoutes);
+app.use("/api/auth", userRoutes);
+app.use("/api/player", checkUser,playerRoutes);
+app.use("/api/admin",checkUser, adminRoutes);
+app.use("/api/agent",checkUser, agentRoutes);
+
+
+// app.use("/api/superadmin", superadminRoutes);
+// app.use("/api/users", userRoutes);
+// app.use("/api/transactions", transactionRoutes);
+// app.use("/api/superadmin", superadminRoutes);
+// app.use("/api/users", userRoutes);
+// app.use("/api/bets", betTransactionRoutes);
+
 
 app.get("/", (req, res, next) => {
   const health = {
