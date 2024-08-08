@@ -6,6 +6,8 @@ import userRoutes from "./users/userRoutes";
 import adminRoutes from "./admin/adminRoutes";
 import agentRoutes from "./agents/agentRoutes";
 import { checkUser } from "./utils/middleware";
+import { Server } from "socket.io";
+import socketController from "./socket/socket";
 
 
 const app = express();
@@ -42,6 +44,16 @@ app.get("/", (req, res, next) => {
   };
   res.status(200).json(health);
 });
+
+app.use(express.static("src"));
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+socketController(io);
 
 app.use(globalErrorHandler);
 
