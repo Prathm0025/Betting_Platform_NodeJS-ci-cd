@@ -10,7 +10,6 @@ import { Server } from "socket.io";
 import socketController from "./socket/socket";
 import playerRoutes from "./players/playerRoutes";
 
-
 const app = express();
 
 app.use(
@@ -25,10 +24,9 @@ app.use(express.json());
 const server = createServer(app);
 
 app.use("/api/auth", userRoutes);
-app.use("/api/player", checkUser,playerRoutes);
-app.use("/api/admin",verifyApiKey, adminRoutes);
-app.use("/api/agent",checkUser, agentRoutes);
-
+app.use("/api/player", checkUser, playerRoutes);
+app.use("/api/admin", verifyApiKey, adminRoutes);
+app.use("/api/agent", checkUser, agentRoutes);
 
 // app.use("/api/superadmin", superadminRoutes);
 // app.use("/api/users", userRoutes);
@@ -36,7 +34,6 @@ app.use("/api/agent",checkUser, agentRoutes);
 // app.use("/api/superadmin", superadminRoutes);
 // app.use("/api/users", userRoutes);
 // app.use("/api/bets", betTransactionRoutes);
-
 
 app.get("/", (req, res, next) => {
   const health = {

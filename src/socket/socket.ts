@@ -1,15 +1,13 @@
 import { Server, Socket } from "socket.io";
 import { verifySocketToken } from "./socketMiddleware";
-import Player from "../players/playerModel";
 
-export let users: Map<string, string> = new Map();
+export let users: Map<string, Socket> = new Map();
 
 const socketController = (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
       const userAgent = socket.request.headers["user-agent"];
-      console.log("agent", userAgent);
       const decoded = await verifySocketToken(socket);
       (socket as any).decoded = decoded;
       (socket as any).userAgent = userAgent;
@@ -32,7 +30,6 @@ const socketController = (io: Server) => {
 
   io.on("connection", async (socket) => {
     const decoded = (socket as any).decoded;
-    console.log("from socket connection", decoded);
     if (!decoded || !decoded.username || !decoded.role) {
       console.error("Connection rejected: missing required fields in token");
       socket.disconnect(true);
@@ -50,7 +47,7 @@ const socketController = (io: Server) => {
       socket.disconnect(true);
       return;
     } else {
-      users.set(username, decoded.role);
+      users.set(username, socket);
     }
     console.log("MAP", users);
     console.log(`Player ${username} entered the platform.`);

@@ -8,14 +8,14 @@
   </head>
   <body>
     <h1>Socket.IO Test</h1>
+    <button>Disconnect</button>
     <script>
-    
       const socket = io("http://localhost:5000", {
         auth: {
           token:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmIzNTczY2I4YTYyYmNmMzlhODdmNDYiLCJ1c2VybmFtZSI6InBsYXllciIsInJvbGUiOiJwbGF5ZXIiLCJpYXQiOjE3MjMwMjk2NTgsImV4cCI6MTcyMzExNjA1OH0.bLjmk46xQquogmrqxTMWGT9B8eUBw22ee41q3VOkIp0",
-        }, 
-      }); 
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmI0NjY5ZGY1MGMwZGE1MDY3OWM4MjEiLCJ1c2VybmFtZSI6InBsYXllcjIiLCJyb2xlIjoicGxheWVyIiwiaWF0IjoxNzIzMTAxMDc3LCJleHAiOjE3MjMxODc0Nzd9.wDxAxtBCnDGGyvJ2b-bg7_0XP4UnDrnk1c3D1pW1ioI",
+        },
+      });
 
       socket.on("connect", () => {
         console.log("Connected to server");

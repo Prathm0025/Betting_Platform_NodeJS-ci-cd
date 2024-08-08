@@ -1,10 +1,10 @@
 import express, { Router } from "express";
 import userController from "./userController";
-import { loginRateLimiter } from "../utils/middleware";
+import { checkUser, loginRateLimiter } from "../utils/middleware";
 
-const userRoutes = express.Router()
+const userRoutes = express.Router();
 
-userRoutes.post("/login", loginRateLimiter,  userController.login)
-
+userRoutes.post("/login", loginRateLimiter, userController.login);
+userRoutes.get("/", checkUser, userController.currentUser);
 
 export default userRoutes;

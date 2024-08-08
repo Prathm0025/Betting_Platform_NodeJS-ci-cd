@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Player from "../players/playerModel";
 import { config } from "../config/config";
+import { AuthRequest } from "../utils/utils";
 
 class UserController {
   static saltRounds: Number = 10;
@@ -50,6 +51,29 @@ class UserController {
     } catch (err) {
       console.log(err);
       next(err);
+    }
+  }
+  
+  async currentUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { username, role } = _req.user;
+
+      let user;
+
+      if (role === "player") {
+        user = await Player.findOne({ username });
+      } else {
+        user = await User.findOne({ username });
+      }
+
+      if (!user) {
+        throw createHttpError(404, "User not found");
+      }
+
+      res.status(200).json(user);
+    } catch (error) {
+      next(error);
     }
   }
 }

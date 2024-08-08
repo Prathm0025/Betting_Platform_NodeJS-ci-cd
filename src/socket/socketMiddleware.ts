@@ -9,8 +9,6 @@ export const verifySocketToken = async (
 ): Promise<SocketToken> => {
   try {
     const token = socket.handshake.auth.token;
-    console.log("TOKEN from Socket", token);
-
     if (!token) {
       throw new Error("No authentication token provided");
     }
