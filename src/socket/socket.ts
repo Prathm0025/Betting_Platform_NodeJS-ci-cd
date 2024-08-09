@@ -4,6 +4,7 @@ import Player from "../players/playerSocket";
 
 export let users: Map<string, Player> = new Map();
 
+
 const socketController = (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {

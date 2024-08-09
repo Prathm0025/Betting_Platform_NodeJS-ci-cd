@@ -65,14 +65,15 @@ class Store {
         console.log('Scheduled events data fetch every 40 seconds');
     }
 
-    async getSports(req: Request, res: Response, next: NextFunction): Promise<void> {
+    async getSports(): Promise<Sport[]> {
         try {
             if (this.sports.length === 0) {
                 await this.updateSportsData();
             }
-            res.status(200).json(this.sports)
+            return this.sports
         } catch (error) {
-            next(error)
+            console.log(error);
+
         }
     }
 
@@ -101,4 +102,4 @@ class Store {
     }
 }
 
-export default Store
+export default new Store()
