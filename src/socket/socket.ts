@@ -1,7 +1,8 @@
 import { Server, Socket } from "socket.io";
 import { verifySocketToken } from "./socketMiddleware";
+import Player from "../players/playerSocket";
 
-export let users: Map<string, Socket> = new Map();
+export let users: Map<string, Player> = new Map();
 
 const socketController = (io: Server) => {
   // socket authentication middleware
@@ -27,8 +28,10 @@ const socketController = (io: Server) => {
   });
 
   io.on("connection", async (socket) => {
+    console.log("users", users);
     const decoded = (socket as any).decoded;
-    if (!decoded || !decoded.username || !decoded.role) {
+    console.log(decoded);
+    if (!decoded || !decoded.username || !decoded.role || !decoded.userId) {
       console.error("Connection rejected: missing required fields in token");
       socket.disconnect(true);
       return;
@@ -38,17 +41,29 @@ const socketController = (io: Server) => {
     const existingSocket = users.get(username);
 
     if (existingSocket) {
-      if (existingSocket.connected) {
+      if (existingSocket.socket.connected) {
         socket.emit(
           "AnotherDevice",
           "You are already playing on another browser."
         );
         socket.disconnect(true);
       } else {
-        users.set(username, socket);
+        const newUser = new Player(
+          socket,
+          decoded.userId,
+          username,
+          decoded.credits
+        );
+        users.set(username, newUser);
       }
     } else {
-      users.set(username, socket);
+      const newUser = new Player(
+        socket,
+        decoded.userId,
+        username,
+        decoded.credits
+      );
+      users.set(username, newUser);
     }
     console.log(`Player ${username} entered the platform.`);
   });
