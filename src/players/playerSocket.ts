@@ -2,6 +2,8 @@ import { Socket } from "socket.io";
 import PlayerModel from "./playerModel";
 import { IBet } from "../bets/betsType";
 import mongoose from "mongoose";
+import Store from "../store/storeController";
+import StoreController from "../store/storeController";
 
 export default class Player {
   private userId: mongoose.Types.ObjectId;
@@ -9,7 +11,6 @@ export default class Player {
   private credits: number;
   public socket: Socket;
   // private previousBets: IBet[]
-  public bets: IBet[];
 
   constructor(
     socket: Socket,
@@ -21,6 +22,26 @@ export default class Player {
     this.userId = userId;
     this.username = username;
     this.credits = credits;
+    this.socket.on("getSports", async (message) => {
+      console.log("Get SPORT CALLED:", message);
+
+      try {
+        const sports = await StoreController.getSports();
+        console.log("sports", sports);
+        this.sendMessage(sports);
+      } catch (error) {
+        console.error(
+          `Error fetching sports data for player ${this.userId}:`,
+          error
+        );
+        this.socket.emit("error", { message: "Error fetching sports data" });
+      }
+    });
+    // this.sendSports();
+  }
+
+  public updateSocket(socket: Socket) {
+    this.socket = socket;
   }
 
   public async updateBalance(
@@ -72,4 +93,6 @@ export default class Player {
       console.error(`Error sending alert for player ${this.userId}:`, error);
     }
   }
+
+  public sendSports() {}
 }
