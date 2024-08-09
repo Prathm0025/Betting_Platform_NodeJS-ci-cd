@@ -2,7 +2,7 @@ import { Socket } from "socket.io";
 import PlayerModel from "./playerModel";
 import { IBet } from "../bets/betsType";
 import mongoose from "mongoose";
-import Store from "../store/storeController";
+import BetController from "../bets/betController";
 import StoreController from "../store/storeController";
 
 export default class Player {
@@ -10,7 +10,6 @@ export default class Player {
   private username: string;
   private credits: number;
   public socket: Socket;
-  // private previousBets: IBet[]
 
   constructor(
     socket: Socket,
@@ -22,26 +21,8 @@ export default class Player {
     this.userId = userId;
     this.username = username;
     this.credits = credits;
-    this.socket.on("getSports", async (message) => {
-      console.log("Get SPORT CALLED:", message);
-
-      try {
-        const sports = await StoreController.getSports();
-        console.log("sports", sports);
-        this.sendMessage(sports);
-      } catch (error) {
-        console.error(
-          `Error fetching sports data for player ${this.userId}:`,
-          error
-        );
-        this.socket.emit("error", { message: "Error fetching sports data" });
-      }
-    });
-    // this.sendSports();
-  }
-
-  public updateSocket(socket: Socket) {
-    this.socket = socket;
+    this.messageHandler();
+    this.betHandler();
   }
 
   public async updateBalance(
@@ -70,6 +51,11 @@ export default class Player {
     }
   }
 
+  public updateSocket(socket: Socket) {
+    this.socket = socket;
+    this.messageHandler();
+  }
+
   public sendMessage(message: any): void {
     try {
       this.socket.emit("message", message);
@@ -94,5 +80,39 @@ export default class Player {
     }
   }
 
-  public sendSports() {}
+  public messageHandler() {
+    this.socket.on("message", async (message) => {
+      try {
+        const initData = await StoreController.getSports();
+        console.log("MESSAGE RECIVED : ", message);
+        this.sendMessage(initData);
+      } catch (error) {
+        console.log(error);
+      }
+    });
+  }
+
+  public betHandler() {
+    this.socket.on("bet", (message) => {
+      try {
+        const res = message;
+
+        switch (res.action) {
+          case "ADD":
+            const payload = res.payload;
+            BetController.addBet(payload);
+            console.log("BET RECEIVED : ", res.payload);
+            break;
+
+          case "START":
+            break;
+
+          default:
+            console.log("UNKOWN ACTION : ", res.payload);
+        }
+      } catch (error) {
+        console.error("Error processing bet event:", error);
+      }
+    });
+  }
 }

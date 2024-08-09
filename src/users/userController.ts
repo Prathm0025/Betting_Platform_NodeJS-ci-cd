@@ -10,6 +10,7 @@ import { AuthRequest } from "../utils/utils";
 class UserController {
   static saltRounds: Number = 10;
 
+
   async login(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -53,27 +54,20 @@ class UserController {
       next(err);
     }
   }
-  
-  async currentUser(req: Request, res: Response, next: NextFunction) {
+
+  async getCurrentUser(req: Request, res: Response, next: NextFunction) {
+    const _req = req as AuthRequest;
+    const { userId, role } = _req.user;
+    if (!userId) throw createHttpError(400, "Invalid Request, Missing User");
     try {
-      const _req = req as AuthRequest;
-      const { username, role } = _req.user;
-
-      let user;
-
-      if (role === "player") {
-        user = await Player.findOne({ username });
-      } else {
-        user = await User.findOne({ username });
-      }
-
-      if (!user) {
-        throw createHttpError(404, "User not found");
-      }
-
+      const user =
+        (await User.findById({ _id: userId })) ||
+        (await Player.findById({ _id: userId }));
+      if (!user) throw createHttpError(404, "User not found");
       res.status(200).json(user);
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
+
     }
   }
 }

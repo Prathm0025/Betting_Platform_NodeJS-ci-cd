@@ -3,6 +3,5 @@ import betController from "./betController";
 
 const agentRoutes = express.Router();
 
-agentRoutes.get("/", betController.sayHello)
 
 export default agentRoutes;

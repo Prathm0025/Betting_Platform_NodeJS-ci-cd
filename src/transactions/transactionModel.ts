@@ -26,7 +26,7 @@ const transactionSchema: Schema<ITransaction> = new Schema({
   },
   type: {
     type: String,
-    enum: ['recharge', 'redeem', 'bet'],
+    enum: ['recharge', 'redeem'],
     required: true,
   },
   amount: {

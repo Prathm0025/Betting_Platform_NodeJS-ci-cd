@@ -22,7 +22,7 @@
       });
 
       socket.on("connect", () => {
-        socket.emit("getSports", { action: "INIT" });
+        socket.emit("message", { action: "INIT" });
         console.log("Connected to server");
       });
 

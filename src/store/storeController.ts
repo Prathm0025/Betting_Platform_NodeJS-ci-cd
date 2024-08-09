@@ -29,6 +29,7 @@ class Store {
   private async updateSportsData(): Promise<void> {
     try {
       this.sports = await this.dataService.fetchSportsData();
+      console.log("Sports data updated:", this.sports);
     } catch (error) {
       console.error("Error updating sports data:", error);
       throw createHttpError(500, "Error updating sports data");
@@ -63,14 +64,13 @@ class Store {
   }
 
   async getSports(): Promise<Sport[]> {
-    console.log("test");
     try {
       if (this.sports.length === 0) {
         await this.updateSportsData();
       }
       return this.sports;
     } catch (error) {
-      console.log("error getting sports: ", error);
+      console.log(error);
     }
   }
 

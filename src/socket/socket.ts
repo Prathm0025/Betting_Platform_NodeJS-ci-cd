@@ -37,7 +37,6 @@ const socketController = (io: Server) => {
 
     const username = decoded.username;
     const existingSocket = users.get(username);
-
     if (existingSocket) {
       if (existingSocket.socket.connected) {
         socket.emit(
@@ -47,6 +46,7 @@ const socketController = (io: Server) => {
         socket.disconnect(true);
       } else {
         existingSocket.updateSocket(socket);
+        console.log(existingSocket);
       }
     } else {
       const newUser = new Player(
