@@ -9,7 +9,9 @@ import { checkUser, verifyApiKey } from "./utils/middleware";
 import { Server } from "socket.io";
 import socketController from "./socket/socket";
 import playerRoutes from "./players/playerRoutes";
+import transactionRoutes from "./transactions/transactionRoutes";
 import storeRoutes from "./store/storeRoutes";
+
 
 const app = express();
 
@@ -29,11 +31,9 @@ app.use("/api/player", checkUser, playerRoutes);
 app.use("/api/admin", verifyApiKey, adminRoutes);
 app.use("/api/agent", checkUser, agentRoutes);
 app.use("/api/store", checkUser, storeRoutes);
+app.use("/api/transaction", checkUser, transactionRoutes);
 
-// app.use("/api/users", userRoutes);
-// app.use("/api/transactions", transactionRoutes);
-// app.use("/api/users", userRoutes);
-// app.use("/api/bets", betTransactionRoutes);
+
 
 app.get("/", (req, res, next) => {
   const health = {
