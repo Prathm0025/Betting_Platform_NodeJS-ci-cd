@@ -5,6 +5,7 @@ import { JwtPayload } from "jsonwebtoken";
 // import mongoose from "mongoose";
 // import { TransactionController } from "../dashboard/transactions/transactionController";
 import bcrypt from "bcrypt";
+import mongoose from "mongoose";
 
 // const transactionController = new TransactionController();
 
@@ -19,6 +20,13 @@ export interface DecodedToken {
   role: string;
 }
 
+export interface SocketToken {
+  username: string;
+  role: string;
+  credits: Number;
+  userId: mongoose.Types.ObjectId;
+}
+
 export interface AuthRequest extends Request {
   user: {
     userId: string;
@@ -26,8 +34,6 @@ export interface AuthRequest extends Request {
     role: string;
   };
 }
-
-
 
 export interface CustomJwtPayload extends JwtPayload {
   role: string;

@@ -10,9 +10,6 @@ import { AuthRequest } from "../utils/utils";
 class UserController {
   static saltRounds: Number = 10;
 
-  sayHello(req: Request, res: Response, next: NextFunction) {
-    res.status(200).json({ message: "Admin" });
-  }
 
   async login(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
@@ -70,6 +67,7 @@ class UserController {
       res.status(200).json(user);
     } catch (err) {
       next(err);
+
     }
   }
 }
