@@ -43,7 +43,7 @@ export default class Player {
         }
     }
 
-    
+
 
     public sendMessage(message: any): void {
         try {
@@ -70,11 +70,27 @@ export default class Player {
     }
 
     public messageHandler() {
-        this.socket.on("message", async (message) => {
+        this.socket.on("data", async (message) => {
             try {
-                const initData = await StoreController.getSports();
-                console.log("MESSAGE RECIVED : ", message);
-                this.sendMessage(initData)
+                const res = message;
+
+                switch (res.action) {
+                    case "INIT":
+                        const initData = await StoreController.getSports();
+                        this.sendMessage(initData);
+                        break;
+
+                    case "EVENT":
+                        const event = res.payload;
+                        console.log("Event : ", event);
+
+                        const eventData = await StoreController.getSportEvents(event);
+                        console.log("Event Data : ", eventData);
+
+                        this.sendMessage(eventData)
+                        break;
+                }
+
 
             } catch (error) {
                 console.log(error);
