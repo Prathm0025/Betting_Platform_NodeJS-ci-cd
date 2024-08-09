@@ -15,6 +15,9 @@ class TransactionController {
         throw createHttpError(400, "Reciever or Amount is missing");
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
+      if(receiverId==userId){
+        throw createHttpError(500, "Can't Recharge or redeem Yourself");
+      }
       const sender =
         (await User.findById({ _id: userId })) ||
         (await Player.findById({ _id: userId }));
@@ -46,6 +49,8 @@ class TransactionController {
       await TransactionService.performTransaction(
         newObjectId,
         receiverId,
+        sender,
+        reciever,
         senderModelName,
         recieverModelName,
         type,
