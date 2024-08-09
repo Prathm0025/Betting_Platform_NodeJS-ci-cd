@@ -1,16 +1,15 @@
 import { Server, Socket } from "socket.io";
 import { verifySocketToken } from "./socketMiddleware";
+import Player from "../players/playerSocket";
 
-export let users: Map<string, Socket> = new Map();
+export let users: Map<string, Player> = new Map();
 
 const socketController = (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
-      const userAgent = socket.request.headers["user-agent"];
       const decoded = await verifySocketToken(socket);
       (socket as any).decoded = decoded;
-      (socket as any).userAgent = userAgent;
       next();
     } catch (error) {
       console.error("Authentication error:", error.message);
@@ -29,28 +28,43 @@ const socketController = (io: Server) => {
   });
 
   io.on("connection", async (socket) => {
+    console.log("users", users);
     const decoded = (socket as any).decoded;
-    if (!decoded || !decoded.username || !decoded.role) {
+    console.log(decoded);
+    if (!decoded || !decoded.username || !decoded.role || !decoded.userId) {
       console.error("Connection rejected: missing required fields in token");
       socket.disconnect(true);
       return;
     }
 
     const username = decoded.username;
-    const existingUser = users.get(username);
+    const existingSocket = users.get(username);
 
-    if (existingUser) {
-
-      users.set(username, socket);
-      console.log(`Updated socket for user ${username}`);
-
-
-      // socket.disconnect(true);
-      return;
+    if (existingSocket) {
+      if (existingSocket.socket.connected) {
+        socket.emit(
+          "AnotherDevice",
+          "You are already playing on another browser."
+        );
+        socket.disconnect(true);
+      } else {
+        const newUser = new Player(
+          socket,
+          decoded.userId,
+          username,
+          decoded.credits
+        );
+        users.set(username, newUser);
+      }
     } else {
-      users.set(username, socket);
+      const newUser = new Player(
+        socket,
+        decoded.userId,
+        username,
+        decoded.credits
+      );
+      users.set(username, newUser);
     }
-    console.log("MAP", users);
     console.log(`Player ${username} entered the platform.`);
   });
 };

@@ -11,7 +11,6 @@ import socketController from "./socket/socket";
 import playerRoutes from "./players/playerRoutes";
 import storeRoutes from "./store/storeRoutes";
 
-
 const app = express();
 
 app.use(
@@ -29,12 +28,10 @@ app.use("/api/auth", userRoutes);
 app.use("/api/player", checkUser, playerRoutes);
 app.use("/api/admin", verifyApiKey, adminRoutes);
 app.use("/api/agent", checkUser, agentRoutes);
-app.use("/api/store", checkUser, storeRoutes)
+app.use("/api/store", checkUser, storeRoutes);
 
-// app.use("/api/superadmin", superadminRoutes);
 // app.use("/api/users", userRoutes);
 // app.use("/api/transactions", transactionRoutes);
-// app.use("/api/superadmin", superadminRoutes);
 // app.use("/api/users", userRoutes);
 // app.use("/api/bets", betTransactionRoutes);
 

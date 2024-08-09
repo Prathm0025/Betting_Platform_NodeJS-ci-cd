@@ -40,7 +40,7 @@ export const verifySocketToken = async (
       throw new Error("Player not found");
     }
 
-    return { ...decoded, credits: player.credits } as SocketToken;
+    return { ...decoded, userId: player._id, credits: player.credits } as SocketToken;
   } catch (error) {
     console.error("Error in token verification:", error.message);
     throw new Error("You are not authenticated");
