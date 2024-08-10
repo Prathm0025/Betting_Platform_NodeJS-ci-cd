@@ -4,7 +4,7 @@
   "description": "BackendsByMTT/Betting_Platform_Nodejs",
   "main": "index.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node dist/app.js",
     "dev": "tsc-watch --onSuccess \"nodemon dist/app.js\"",
     "build": "tsc"
   },
@@ -13,18 +13,27 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.12",
+    "@types/node-cron": "^3.0.11",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.5.4"
   },
   "dependencies": {
+    "axios": "^1.7.3",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
+    "declare": "^0.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.5.1"
+    "module": "^1.2.5",
+    "mongoose": "^8.5.1",
+    "node-cron": "^3.0.3",
+    "socket.io": "^4.7.5",
+    "svg-captcha": "^1.4.0",
+    "uuid": "^10.0.0"
   }
 }
