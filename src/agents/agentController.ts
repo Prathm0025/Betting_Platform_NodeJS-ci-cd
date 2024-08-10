@@ -125,6 +125,17 @@ class AgentController {
       next(error);
     }
   }
+   async getPlayersUnderAgent(req:Request, res:Response, next:NextFunction){
+    const {agentId} = req.params;
+    if(!agentId) throw createHttpError(400, "Agent Id not Found");
+    const agent = await Agent.findById({_id:agentId}).populate("players");
+    if(!agent) throw createHttpError(404, "Agent Not Found");
+    const playerUnderAgent =agent.players;
+    if(playerUnderAgent.length===0) 
+      res.status(200).json({message:"No Players Under Agent"});
+   
+      res.status(200).json({message:"Success!", players:playerUnderAgent})
+}
 }
 
 export default new AgentController();
