@@ -26,7 +26,7 @@ class StoreService {
     public async fetchSportsData(): Promise<Sport[]> {
         try {
             const response = await axios.get(`${this.apiUrl}/sports`, {
-                params: { apiKey: this.apiKey },
+                params: { apiKey: this.apiKey, all: true },
             });
             this.incrementRequestCount()
             return response.data;

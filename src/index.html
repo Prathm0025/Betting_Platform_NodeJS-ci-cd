@@ -32,6 +32,7 @@
       });
 
       socket.on("message", (data) => {
+        console.log(data);
         if (Array.isArray(data)) {
           if (data.length > 0 && data[0].sport_key) {
             renderEvents(data); // Render event data

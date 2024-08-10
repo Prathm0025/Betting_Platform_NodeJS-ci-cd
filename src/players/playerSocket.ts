@@ -76,7 +76,7 @@ export default class Player {
 
                 switch (res.action) {
                     case "INIT":
-                        const initData = await StoreController.getSports();
+                        const initData = await StoreController.getAllSports();
                         this.sendMessage(initData);
                         break;
 
@@ -89,6 +89,10 @@ export default class Player {
 
                         this.sendMessage(eventData)
                         break;
+
+
+                    case "CATEGORY":
+                        
                 }
 
 

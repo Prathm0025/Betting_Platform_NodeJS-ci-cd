@@ -4,36 +4,48 @@ import cron from 'node-cron';
 import { config } from '../config/config';
 import StoreService from './storeServices';
 
-
 class Store {
-    private sports: Sport[] = [];
+    private sportsByGroup: { [group: string]: Sport[] } = {};
     private events: { [sport: string]: Event[] } = {};
     private odds: { [eventId: string]: any } = {}; // Store odds data by event ID
-    private requestedEvents: Set<string> = new Set()
+    private requestedEvents: Set<string> = new Set();
     private dataService: StoreService;
 
     constructor() {
         this.dataService = new StoreService(config.oddsApi.url, config.oddsApi.key);
-        this.getSports = this.getSports.bind(this);
+        this.getSportsByGroup = this.getSportsByGroup.bind(this);
+        this.getAllSports = this.getAllSports.bind(this);
+        this.getAllCategories = this.getAllCategories.bind(this);
         this.getSportEvents = this.getSportEvents.bind(this);
-        this.init()
+        this.init();
     }
 
     private async init() {
         await this.updateSportsData();
         this.scheduleSportsFetch();
-        this.scheduleEventsFetch()
+        this.scheduleEventsFetch();
     }
-
 
     private async updateSportsData(): Promise<void> {
         try {
-            this.sports = await this.dataService.fetchSportsData();
-            console.log('Sports data updated:', this.sports);
+            const sports = await this.dataService.fetchSportsData();
+            this.categorizeSportsByGroup(sports);
+            console.log('Sports data updated:', this.sportsByGroup);
         } catch (error) {
             console.error('Error updating sports data:', error);
             throw createHttpError(500, 'Error updating sports data');
         }
+    }
+
+    private categorizeSportsByGroup(sports: Sport[]): void {
+        this.sportsByGroup = sports.reduce((acc: { [group: string]: Sport[] }, sport: Sport) => {
+            const group = sport.group;
+            if (!acc[group]) {
+                acc[group] = [];
+            }
+            acc[group].push(sport);
+            return acc;
+        }, {});
     }
 
     private async updateSportEvents(): Promise<void> {
@@ -85,22 +97,45 @@ class Store {
         console.log(`Scheduled odds data fetch for sport ${sport} every 10 minutes`);
     }
 
-    async getSports(): Promise<Sport[]> {
+    async getSportsByGroup(): Promise<{ [group: string]: Sport[] }> {
         try {
-            if (this.sports.length === 0) {
+            if (Object.keys(this.sportsByGroup).length === 0) {
                 await this.updateSportsData();
             }
-            return this.sports
+            return this.sportsByGroup;
         } catch (error) {
             console.log(error);
+        }
+    }
 
+    async getAllSports(): Promise<Sport[]> {
+        try {
+            if (Object.keys(this.sportsByGroup).length === 0) {
+                await this.updateSportsData();
+            }
+            // Flatten the sportsByGroup object into a single array
+            return Object.values(this.sportsByGroup).flat();
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    async getAllCategories(): Promise<string[]> {
+        try {
+            if (Object.keys(this.sportsByGroup).length === 0) {
+                await this.updateSportsData();
+            }
+            // Return all unique categories (groups)
+            return Object.keys(this.sportsByGroup);
+        } catch (error) {
+            console.log(error);
         }
     }
 
     public async getSportEvents(sport: string): Promise<Event[]> {
         try {
             if (this.events[sport] && this.events[sport].length > 0) {
-                return this.events[sport]
+                return this.events[sport];
             } else {
                 this.requestedEvents.add(sport);
                 const events = await this.dataService.fetchSportEvents(sport);
@@ -126,8 +161,6 @@ class Store {
             throw createHttpError(500, `Error fetching odds for event ${eventId}`);
         }
     }
-
-   
 }
 
-export default new Store()
+export default new Store();
