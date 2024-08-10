@@ -5,6 +5,11 @@ import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import StoreController from "../store/storeController";
 
+interface IMessage {
+    action: string;
+    payload?: any;
+}
+
 export default class Player {
     private userId: mongoose.Types.ObjectId;
     private username: string;
@@ -16,7 +21,7 @@ export default class Player {
         this.userId = userId;
         this.username = username;
         this.credits = credits;
-        this.messageHandler()
+        this.messageHandler();
         this.betHandler();
     }
 
@@ -43,8 +48,6 @@ export default class Player {
         }
     }
 
-
-
     public sendMessage(message: any): void {
         try {
             this.socket.emit("message", message);
@@ -70,66 +73,86 @@ export default class Player {
     }
 
     public messageHandler() {
-        this.socket.on("data", async (message) => {
+        this.socket.on("data", async (message: IMessage) => {
             try {
-                const res = message;
-
-                switch (res.action) {
+                switch (message.action) {
                     case "INIT":
-                        const sports = await StoreController.getSportsByGroup();
-                        const categories = await StoreController.getAllCategories()
-                        this.sendMessage({
-                            categories: categories,
-                            sports: sports
-                        });
+                        await this.handleInit();
                         break;
 
-                    case "EVENT":
-                        const event = res.payload;
-                        console.log("Event : ", event);
-
-                        const eventData = await StoreController.getSportEvents(event);
-                        console.log("Event Data : ", eventData);
-
-                        this.sendMessage(eventData)
+                    case "GET_ALL_CATEGORIES":
+                        await this.handleGetAllCategories();
                         break;
 
-
-                    case "CATEGORY":
-
-                }
-
-
-            } catch (error) {
-                console.log(error);
-            }
-        })
-    }
-
-    public betHandler() {
-        this.socket.on("bet", (message) => {
-            try {
-                const res = message;
-
-                switch (res.action) {
-                    case "ADD":
-                        const payload = res.payload
-                        BetController.addBet(payload)
-                        console.log("BET RECEIVED : ", res.payload);
+                    case "GET_SPORTS_BY_CATEGORY":
+                        await this.handleGetSportsByCategory(message.payload);
                         break;
 
-                    case "START":
+                    case "GET_SPORT_EVENTS":
+                        await this.handleGetSportEvents(message.payload);
+                        break;
+
+                    case "GET_SPORT_EVENT_ODDS":
+                        await this.handleGetSportEventOdds(message.payload);
                         break;
 
                     default:
-                        console.log("UNKOWN ACTION : ", res.payload);
+                        console.warn("Unknown action received:", message.action);
+                }
+            } catch (error) {
+                console.error("Error handling message:", error);
+                this.sendError("An error occurred while processing your request.");
+            }
+        });
+    }
 
+    private async handleInit() {
+        const sports = await StoreController.getSportsByGroup();
+        const categories = await StoreController.getAllCategories();
+        this.sendMessage({ categories, sports });
+    }
+
+    private async handleGetAllCategories() {
+        const categories = await StoreController.getAllCategories();
+        this.sendMessage(categories);
+    }
+
+    private async handleGetSportsByCategory(category: string) {
+        const sports = await StoreController.getSportsByCategoryName(category);
+        this.sendMessage(sports);
+    }
+
+    private async handleGetSportEvents(sport: string) {
+        const events = await StoreController.getSportEvents(sport);
+        this.sendMessage(events);
+    }
+
+    private async handleGetSportEventOdds({ sport, eventId }: { sport: string; eventId: string }) {
+        console.log(sport, eventId);
+
+        const odds = await StoreController.getSportEventOdds(sport, eventId);
+        this.sendMessage(odds);
+    }
+
+    public betHandler() {
+        this.socket.on("bet", (message: IMessage) => {
+            try {
+                switch (message.action) {
+                    case "ADD":
+                        BetController.addBet(message.payload);
+                        console.log("BET RECEIVED:", message.payload);
+                        break;
+
+                    case "START":
+                        // Handle START action if needed
+                        break;
+
+                    default:
+                        console.warn("Unknown action received in bet handler:", message.action);
                 }
             } catch (error) {
                 console.error("Error processing bet event:", error);
             }
         });
     }
-
-
 }

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Categories</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Categories</h1>
+    <div id="categories"></div>
+
+    <script>
+      const socket = io("http://localhost:5000", {
+        auth: {
+          token:
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmIzNTczY2I4YTYyYmNmMzlhODdmNDYiLCJ1c2VybmFtZSI6InBsYXllciIsInJvbGUiOiJwbGF5ZXIiLCJpYXQiOjE3MjMyMDM5MDksImV4cCI6MTcyMzI5MDMwOX0.Fc1OPR1L7P1L3rDv3ZN2z4DPvd0RRxN1uhdcvkbG42w",
+        },
+      });
+
+      socket.on("connect", () => {
+        socket.emit("data", { action: "GET_ALL_CATEGORIES" });
+        console.log("Connected to server and requested all categories");
+      });
+
+      socket.on("message", (data) => {
+        console.log("Categories received:", data);
+        if (Array.isArray(data)) {
+          renderCategories(data);
+        }
+      });
+
+      socket.on("error", (err) => {
+        console.error("Socket Error:", err);
+      });
+
+      socket.on("disconnect", () => {
+        console.log("Disconnected from server");
+      });
+
+      function renderCategories(categories) {
+        const categoriesContainer = document.getElementById("categories");
+        categoriesContainer.innerHTML = ""; // Clear the container before rendering
+
+        categories.forEach((category) => {
+          const button = document.createElement("button");
+          button.textContent = category;
+          button.onclick = () => {
+            window.location.href = `sports.html?category=${encodeURIComponent(
+              category
+            )}`;
+          };
+          categoriesContainer.appendChild(button);
+        });
+      }
+    </script>
+  </body>
+</html>

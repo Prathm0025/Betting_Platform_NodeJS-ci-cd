@@ -68,7 +68,7 @@ class Store {
                 return;
             }
             for (const event of this.events[sport]) {
-                await this.getOddsForEvent(event.id);
+                await this.getSportEventOdds(sport, event.id);
             }
             console.log(`Odds data for sport ${sport} updated.`);
         } catch (error) {
@@ -97,17 +97,7 @@ class Store {
         console.log(`Scheduled odds data fetch for sport ${sport} every 10 minutes`);
     }
 
-    async getSportsByGroup(): Promise<{ [group: string]: Sport[] }> {
-        try {
-            if (Object.keys(this.sportsByGroup).length === 0) {
-                await this.updateSportsData();
-            }
-            return this.sportsByGroup;
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
+    // GET ALL SPORTS 
     async getAllSports(): Promise<Sport[]> {
         try {
             if (Object.keys(this.sportsByGroup).length === 0) {
@@ -120,6 +110,31 @@ class Store {
         }
     }
 
+    // GET ALL SPORTS BY GROUP
+    async getSportsByGroup(): Promise<{ [group: string]: Sport[] }> {
+        try {
+            if (Object.keys(this.sportsByGroup).length === 0) {
+                await this.updateSportsData();
+            }
+            return this.sportsByGroup;
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    // GET SPORTS BY CATEGORY NAME
+    async getSportsByCategoryName(category: string): Promise<Sport[]> {
+        try {
+            if (Object.keys(this.sportsByGroup).length === 0) {
+                await this.updateSportsData();
+            }
+            return this.sportsByGroup[category] || [];
+        } catch (error) {
+            console.error(`Error fetching sports by group name ${category}:`, error);
+        }
+    }
+
+    // GET ALL SPORTS CATEGORIES NAME
     async getAllCategories(): Promise<string[]> {
         try {
             if (Object.keys(this.sportsByGroup).length === 0) {
@@ -132,6 +147,7 @@ class Store {
         }
     }
 
+    // GET ALL SPORTS EVENTS
     public async getSportEvents(sport: string): Promise<Event[]> {
         try {
             if (this.events[sport] && this.events[sport].length > 0) {
@@ -147,12 +163,12 @@ class Store {
         }
     }
 
-    public async getOddsForEvent(eventId: string): Promise<any> {
+    public async getSportEventOdds(sport: string, eventId: string): Promise<any> {
         try {
             if (this.odds[eventId]) {
                 return this.odds[eventId]; // Return cached odds if available
             } else {
-                const oddsData = await this.dataService.fetchOddsData(eventId);
+                const oddsData = await this.dataService.fetchOddsData(sport, eventId);
                 this.odds[eventId] = oddsData; // Store the fetched odds
                 return oddsData;
             }
