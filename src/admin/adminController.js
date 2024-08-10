@@ -15,31 +15,46 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const adminModel_1 = __importDefault(require("./adminModel"));
 const http_errors_1 = __importDefault(require("http-errors"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
+const agentModel_1 = __importDefault(require("../agents/agentModel"));
 class AdminController {
-    sayHello(req, res, next) {
-        res.status(200).json({ message: "Admin" });
-    }
     createAdmin(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { username, password } = req.body;
-            if (!username || !password) {
-                throw (0, http_errors_1.default)(400, "Username, password are required");
-            }
             try {
+                if (!username || !password) {
+                    throw (0, http_errors_1.default)(400, "Username, password are required");
+                }
                 const existingAdmin = yield adminModel_1.default.findOne({ username: username });
                 if (existingAdmin) {
-                    return res.status(400).json({ message: "username already exists" });
+                    throw (0, http_errors_1.default)(400, "username already exists");
                 }
                 const hashedPassword = yield bcrypt_1.default.hash(password, AdminController.saltRounds);
                 const newAdmin = new adminModel_1.default({ username, password: hashedPassword });
                 newAdmin.credits = Infinity;
                 newAdmin.role = "admin";
                 yield newAdmin.save();
-                res.status(201).json({ message: "Admin Created Succesfully", admin: newAdmin });
+                res
+                    .status(201)
+                    .json({ message: "Admin Created Succesfully", admin: newAdmin });
             }
-            catch (err) {
-                console.log(err);
-                res.status(500).json({ message: "Internal Server Error" });
+            catch (error) {
+                next(error);
+            }
+        });
+    }
+    getAdminAgentsandAgentPlayers(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { adminId } = req.params;
+                if (!adminId)
+                    throw (0, http_errors_1.default)(400, "Admin Not Found");
+                const agents = yield agentModel_1.default.find({ createdBy: adminId }).populate("players");
+                if (agents.length === 0)
+                    res.status(200).json({ message: "No Agents for Admin" });
+                res.status(200).json({ message: "Success!", agents: agents });
+            }
+            catch (error) {
+                next(error);
             }
         });
     }

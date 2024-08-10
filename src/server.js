@@ -11,7 +11,11 @@ const userRoutes_1 = __importDefault(require("./users/userRoutes"));
 const adminRoutes_1 = __importDefault(require("./admin/adminRoutes"));
 const agentRoutes_1 = __importDefault(require("./agents/agentRoutes"));
 const middleware_1 = require("./utils/middleware");
+const socket_io_1 = require("socket.io");
+const socket_1 = __importDefault(require("./socket/socket"));
 const playerRoutes_1 = __importDefault(require("./players/playerRoutes"));
+const transactionRoutes_1 = __importDefault(require("./transactions/transactionRoutes"));
+const storeRoutes_1 = __importDefault(require("./store/storeRoutes"));
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
     origin: "*",
@@ -22,14 +26,10 @@ app.use(express_1.default.json());
 const server = (0, http_1.createServer)(app);
 app.use("/api/auth", userRoutes_1.default);
 app.use("/api/player", middleware_1.checkUser, playerRoutes_1.default);
-app.use("/api/admin", middleware_1.checkUser, adminRoutes_1.default);
+app.use("/api/admin", middleware_1.verifyApiKey, adminRoutes_1.default);
 app.use("/api/agent", middleware_1.checkUser, agentRoutes_1.default);
-// app.use("/api/superadmin", superadminRoutes);
-// app.use("/api/users", userRoutes);
-// app.use("/api/transactions", transactionRoutes);
-// app.use("/api/superadmin", superadminRoutes);
-// app.use("/api/users", userRoutes);
-// app.use("/api/bets", betTransactionRoutes);
+app.use("/api/store", middleware_1.checkUser, storeRoutes_1.default);
+app.use("/api/transaction", middleware_1.checkUser, transactionRoutes_1.default);
 app.get("/", (req, res, next) => {
     const health = {
         uptime: process.uptime(),
@@ -38,5 +38,13 @@ app.get("/", (req, res, next) => {
     };
     res.status(200).json(health);
 });
+app.use(express_1.default.static("src"));
+const io = new socket_io_1.Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
+    },
+});
+(0, socket_1.default)(io);
 app.use(globalHandler_1.default);
 exports.default = server;

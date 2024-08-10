@@ -18,18 +18,42 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const playerModel_1 = __importDefault(require("../players/playerModel"));
 const config_1 = require("../config/config");
+const svg_captcha_1 = __importDefault(require("svg-captcha"));
+const uuid_1 = require("uuid");
+const captchaStore = {};
 class UserController {
-    sayHello(req, res, next) {
-        res.status(200).json({ message: "Admin" });
+    getCaptcha(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const captcha = svg_captcha_1.default.create();
+                console.log(captcha.text);
+                const captchaId = (0, uuid_1.v4)();
+                captchaStore[captchaId] = captcha.text;
+                const captchaToken = jsonwebtoken_1.default.sign({ captchaId }, config_1.config.jwtSecret, {
+                    expiresIn: "5m",
+                });
+                res.status(200).json({ captcha: captcha.data, token: captchaToken });
+            }
+            catch (err) {
+                next(err);
+            }
+        });
     }
     login(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { username, password } = req.body;
-            if (!username || !password) {
-                throw (0, http_errors_1.default)(400, "Username, password are required");
+            const { username, password, captchaToken, captcha } = req.body;
+            if (!username || !password || !captchaToken || !captcha) {
+                throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
             }
             try {
-                const user = (yield userModel_1.default.findOne({ username })) || (yield playerModel_1.default.findOne({ username }));
+                const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
+                const expectedCaptcha = captchaStore[decoded.captchaId];
+                if (captcha !== expectedCaptcha) {
+                    throw (0, http_errors_1.default)(400, "Invalid CAPTCHA");
+                }
+                delete captchaStore[decoded.captchaId];
+                const user = (yield userModel_1.default.findOne({ username })) ||
+                    (yield playerModel_1.default.findOne({ username }));
                 if (!user) {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
@@ -53,6 +77,24 @@ class UserController {
             }
             catch (err) {
                 console.log(err);
+                next(err);
+            }
+        });
+    }
+    getCurrentUser(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const _req = req;
+            const { userId } = _req.user;
+            if (!userId)
+                throw (0, http_errors_1.default)(400, "Invalid Request, Missing User");
+            try {
+                const user = (yield userModel_1.default.findById({ _id: userId })) ||
+                    (yield playerModel_1.default.findById({ _id: userId }));
+                if (!user)
+                    throw (0, http_errors_1.default)(404, "User not found");
+                res.status(200).json(user);
+            }
+            catch (err) {
                 next(err);
             }
         });

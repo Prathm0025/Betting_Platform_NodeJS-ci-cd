@@ -18,9 +18,6 @@ const agentModel_1 = __importDefault(require("./agentModel"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const adminModel_1 = __importDefault(require("../admin/adminModel"));
 class AgentController {
-    sayHello(req, res, next) {
-        res.status(200).json({ message: "Agent" });
-    }
     createAgent(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
@@ -33,10 +30,14 @@ class AgentController {
                 const userId = new mongoose_1.default.Types.ObjectId((_a = _req === null || _req === void 0 ? void 0 : _req.user) === null || _a === void 0 ? void 0 : _a.userId);
                 const existingAgent = yield agentModel_1.default.findOne({ username: username });
                 if (existingAgent) {
-                    return res.status(400).json({ message: "username already exists" });
+                    throw (0, http_errors_1.default)(400, "username already exists");
                 }
                 const hashedPassword = yield bcrypt_1.default.hash(password, AgentController.saltRounds);
-                const newAgent = new agentModel_1.default({ username, password: hashedPassword, createdBy: userId });
+                const newAgent = new agentModel_1.default({
+                    username,
+                    password: hashedPassword,
+                    createdBy: userId,
+                });
                 newAgent.role = "agent";
                 yield newAgent.save();
                 const admin = yield adminModel_1.default.findById(userId);
@@ -47,11 +48,12 @@ class AgentController {
                 else {
                     throw (0, http_errors_1.default)(404, "Agent not found");
                 }
-                res.status(201).json({ message: "Agent Created Succesfully", Agent: newAgent });
+                res
+                    .status(201)
+                    .json({ message: "Agent Created Succesfully", Agent: newAgent });
             }
-            catch (err) {
-                console.log(err);
-                res.status(500).json({ message: "Internal Server Error" });
+            catch (error) {
+                next(error);
             }
         });
     }
@@ -61,25 +63,24 @@ class AgentController {
             try {
                 const agent = yield agentModel_1.default.findById(id);
                 if (!agent) {
-                    return next((0, http_errors_1.default)(404, "Agent not found"));
+                    throw (0, http_errors_1.default)(404, "Agent not found");
                 }
                 res.status(200).json({ agent });
             }
-            catch (err) {
-                console.error(err);
-                next((0, http_errors_1.default)(500, "Internal Server Error"));
+            catch (error) {
+                next(error);
             }
         });
     }
     getAllAgents(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                console.log("HERE");
                 const agents = yield agentModel_1.default.find();
                 res.status(200).json({ agents });
             }
-            catch (err) {
-                console.error(err);
-                next((0, http_errors_1.default)(500, "Internal Server Error"));
+            catch (error) {
+                next(error);
             }
         });
     }
@@ -88,16 +89,22 @@ class AgentController {
             const { id } = req.params;
             const { username, password, status } = req.body;
             try {
-                const updateData = Object.assign(Object.assign(Object.assign({}, (username && { username })), (password && { password: yield bcrypt_1.default.hash(password, AgentController.saltRounds) })), (status && { status }));
-                const updatedAgent = yield agentModel_1.default.findByIdAndUpdate(id, updateData, { new: true });
+                const updateData = Object.assign(Object.assign(Object.assign({}, (username && { username })), (password && {
+                    password: yield bcrypt_1.default.hash(password, AgentController.saltRounds),
+                })), (status && { status }));
+                const updatedAgent = yield agentModel_1.default.findByIdAndUpdate(id, updateData, {
+                    new: true,
+                });
                 if (!updatedAgent) {
-                    return next((0, http_errors_1.default)(404, "Agent not found"));
+                    console.log("HERE");
+                    throw (0, http_errors_1.default)(404, "Agent not found");
                 }
-                res.status(200).json({ message: "Agent updated successfully", agent: updatedAgent });
+                res
+                    .status(200)
+                    .json({ message: "Agent updated successfully", agent: updatedAgent });
             }
-            catch (err) {
-                console.error(err);
-                next((0, http_errors_1.default)(500, "Internal Server Error"));
+            catch (error) {
+                next(error);
             }
         });
     }
@@ -108,21 +115,34 @@ class AgentController {
             try {
                 const deletedAgent = yield agentModel_1.default.findByIdAndDelete(id);
                 if (!deletedAgent) {
-                    return next((0, http_errors_1.default)(404, "Agent not found"));
+                    throw (0, http_errors_1.default)(404, "Agent not found");
                 }
                 const _req = req;
                 const userId = new mongoose_1.default.Types.ObjectId((_a = _req === null || _req === void 0 ? void 0 : _req.user) === null || _a === void 0 ? void 0 : _a.userId);
                 const admin = yield adminModel_1.default.findById(userId);
                 if (admin) {
-                    admin.agents = admin.agents.filter(agentId => agentId.toString() !== id);
+                    admin.agents = admin.agents.filter((agentId) => agentId.toString() !== id);
                     yield admin.save();
                 }
                 res.status(200).json({ message: "Agent deleted successfully" });
             }
-            catch (err) {
-                console.error(err);
-                next((0, http_errors_1.default)(500, "Internal Server Error"));
+            catch (error) {
+                next(error);
             }
+        });
+    }
+    getPlayersUnderAgent(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { agentId } = req.params;
+            if (!agentId)
+                throw (0, http_errors_1.default)(400, "Agent Id not Found");
+            const agent = yield agentModel_1.default.findById({ _id: agentId }).populate("players");
+            if (!agent)
+                throw (0, http_errors_1.default)(404, "Agent Not Found");
+            const playerUnderAgent = agent.players;
+            if (playerUnderAgent.length === 0)
+                res.status(200).json({ message: "No Players Under Agent" });
+            res.status(200).json({ message: "Success!", players: playerUnderAgent });
         });
     }
 }

@@ -49,7 +49,7 @@ const transactionSchema = new mongoose_1.Schema({
     },
     type: {
         type: String,
-        enum: ['recharge', 'redeem', 'bet'],
+        enum: ['recharge', 'redeem'],
         required: true,
     },
     amount: {
