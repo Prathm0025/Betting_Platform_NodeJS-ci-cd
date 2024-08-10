@@ -10,6 +10,7 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const http_errors_1 = __importDefault(require("http-errors"));
 const config_1 = require("../config/config");
+const API_KEY = config_1.config.adminApiKey;
 function checkUser(req, res, next) {
     var _a, _b;
     const cookie = (_b = (_a = req.headers.cookie) === null || _a === void 0 ? void 0 : _a.split("; ").find((row) => row.startsWith("userToken="))) === null || _b === void 0 ? void 0 : _b.split("=")[1];
@@ -20,7 +21,7 @@ function checkUser(req, res, next) {
             authHeaders.split(" ")[1]);
     //
     if (token) {
-        jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        jsonwebtoken_1.default.verify(token, config_1.config.jwtSecret, (err, decoded) => {
             if (err) {
                 if (err.name === "TokenExpiredError") {
                     console.error("Token expired:", err.message);
@@ -32,7 +33,6 @@ function checkUser(req, res, next) {
                 }
             }
             else {
-                console.log(decoded.userId, 's');
                 const _req = req;
                 _req.user = {
                     userId: decoded.userId,
@@ -47,9 +47,8 @@ function checkUser(req, res, next) {
         next((0, http_errors_1.default)(401, "Unauthorized: No role found in cookies"));
     }
 }
-const API_KEY = config_1.config.adminApiKey;
 const verifyApiKey = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = req.headers["x-api-key"];
     if (!apiKey) {
         return res.status(401).json({ message: "API key is missing" });
     }
@@ -62,14 +61,13 @@ exports.verifyApiKey = verifyApiKey;
 exports.loginRateLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
     max: 5,
-    message: "Too many login attempts, please try again later."
+    message: "Too many login attempts, please try again later.",
 });
 function verifyRole(requiredRoles) {
     return (req, res, next) => {
         var _a;
         const _req = req;
         const userRole = (_a = _req === null || _req === void 0 ? void 0 : _req.user) === null || _a === void 0 ? void 0 : _a.role;
-        console.log(userRole);
         if (!userRole || !requiredRoles.includes(userRole)) {
             return next((0, http_errors_1.default)(403, "Forbidden: Insufficient role"));
         }

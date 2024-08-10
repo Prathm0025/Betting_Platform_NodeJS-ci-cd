@@ -1,3 +1,85 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TransactionService = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
+const userModel_1 = __importDefault(require("../users/userModel"));
+const playerModel_1 = __importDefault(require("../players/playerModel"));
+const transactionModel_1 = __importDefault(require("./transactionModel"));
+const http_errors_1 = __importDefault(require("http-errors"));
+class TransactionService {
+    static performTransaction(senderId, receiverId, sender, receiver, senderModel, receiverModel, type, amount, role) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const session = yield mongoose_1.default.startSession();
+            session.startTransaction();
+            try {
+                if (amount <= 0) {
+                    throw (0, http_errors_1.default)(400, "Transaction amount must be greater than zero.");
+                }
+                const senderModelInstance = this.getModelInstance(senderModel);
+                const receiverModelInstance = this.getModelInstance(receiverModel);
+                this.validateCredits(type, sender, receiver, amount);
+                yield this.updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session);
+                yield transactionModel_1.default.create([{
+                        sender: senderId,
+                        receiver: receiverId,
+                        senderModel,
+                        receiverModel,
+                        type,
+                        amount,
+                    }], { session });
+                yield session.commitTransaction();
+                console.log("Transaction committed successfully");
+            }
+            catch (error) {
+                yield session.abortTransaction();
+                console.error("Transaction aborted due to error:", error.message);
+                throw error;
+            }
+            finally {
+                session.endSession();
+            }
+        });
+    }
+    static getModelInstance(modelName) {
+        switch (modelName) {
+            case "User":
+                return userModel_1.default;
+            case "Player":
+                return playerModel_1.default;
+            default:
+                throw (0, http_errors_1.default)(500, "Unknown model name");
+        }
+    }
+    static validateCredits(type, sender, receiver, amount) {
+        if (type === "recharge" && sender.credits < amount) {
+            throw (0, http_errors_1.default)(400, "Insufficient credits in sender's account for recharge.");
+        }
+        if (type === "redeem" && receiver.credits < amount) {
+            throw (0, http_errors_1.default)(400, "Insufficient credits in receiver's account for redemption.");
+        }
+    }
+    static updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const senderUpdate = type === "recharge" ? -amount : amount;
+            const receiverUpdate = type === "recharge" ? amount : -amount;
+            yield senderModelInstance.updateOne({ _id: senderId }, { $inc: { credits: senderUpdate } }, { session });
+            yield receiverModelInstance.updateOne({ _id: receiverId }, { $inc: { credits: receiverUpdate } }, { session });
+        });
+    }
+}
+exports.TransactionService = TransactionService;
 // import mongoose from "mongoose";
 // import { ITransaction } from "./transactionType";
 // import { rolesHierarchy } from "../utils/utils";
