@@ -77,6 +77,7 @@ export function verifyRole(requiredRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const _req = req as AuthRequest;
     const userRole = _req?.user?.role;
+    
 
     if (!userRole || !requiredRoles.includes(userRole)) {
       return next(createHttpError(403, "Forbidden: Insufficient role"));
