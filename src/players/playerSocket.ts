@@ -76,8 +76,12 @@ export default class Player {
 
                 switch (res.action) {
                     case "INIT":
-                        const initData = await StoreController.getAllSports();
-                        this.sendMessage(initData);
+                        const sports = await StoreController.getSportsByGroup();
+                        const categories = await StoreController.getAllCategories()
+                        this.sendMessage({
+                            categories: categories,
+                            sports: sports
+                        });
                         break;
 
                     case "EVENT":
@@ -92,7 +96,7 @@ export default class Player {
 
 
                     case "CATEGORY":
-                        
+
                 }
 
 
