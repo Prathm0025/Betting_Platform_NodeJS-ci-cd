@@ -1,3 +1,104 @@
+import mongoose, { ClientSession, Model } from "mongoose";
+import { IUser } from "../users/userType";
+import { IPlayer } from "../players/playerType";
+import User from "../users/userModel";
+import Player from "../players/playerModel";
+import Transaction from "./transactionModel";
+import createHttpError from "http-errors";
+
+export class TransactionService {
+  static async performTransaction(
+    senderId: mongoose.Types.ObjectId,
+    receiverId: mongoose.Types.ObjectId,
+    sender: IUser | IPlayer,
+    receiver: IUser | IPlayer,
+    senderModel: "User" | "Player",
+    receiverModel: "User" | "Player",
+    type: "recharge" | "redeem",
+    amount: number,
+    role: string
+  ): Promise<void> {
+    const session: ClientSession = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      if (amount <= 0) {
+        throw createHttpError(400, "Transaction amount must be greater than zero.");
+      }
+
+      const senderModelInstance = this.getModelInstance(senderModel);
+      const receiverModelInstance = this.getModelInstance(receiverModel);
+
+      this.validateCredits(type, sender, receiver, amount);
+
+      await this.updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session);
+
+      await Transaction.create([{
+        sender: senderId,
+        receiver: receiverId,
+        senderModel,
+        receiverModel,
+        type,
+        amount,
+      }], { session });
+
+      await session.commitTransaction();
+      console.log("Transaction committed successfully");
+
+    } catch (error) {
+      await session.abortTransaction();
+      console.error("Transaction aborted due to error:", error.message);
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  
+  private static getModelInstance(modelName: "User" | "Player"): Model<IUser | IPlayer> {
+    switch (modelName) {
+      case "User":
+        return User;
+      case "Player":
+        return Player;
+      default:
+        throw createHttpError(500, "Unknown model name");
+    }
+  }
+
+  
+  private static validateCredits(
+    type: "recharge" | "redeem",
+    sender: IUser | IPlayer,
+    receiver: IUser | IPlayer,
+    amount: number
+  ): void {
+    if (type === "recharge" && sender.credits < amount) {
+      throw createHttpError(400, "Insufficient credits in sender's account for recharge.");
+    }
+    if (type === "redeem" && receiver.credits < amount) {
+      throw createHttpError(400, "Insufficient credits in receiver's account for redemption.");
+    }
+  }
+
+
+  private static async updateCredits(
+    type: "recharge" | "redeem",
+    senderId: mongoose.Types.ObjectId,
+    receiverId: mongoose.Types.ObjectId,
+    senderModelInstance: Model<IUser | IPlayer>,
+    receiverModelInstance: Model<IUser | IPlayer>,
+    amount: number,
+    session: ClientSession
+  ): Promise<void> {
+    const senderUpdate = type === "recharge" ? -amount : amount;
+    const receiverUpdate = type === "recharge" ? amount : -amount;
+
+    await senderModelInstance.updateOne({ _id: senderId }, { $inc: { credits: senderUpdate } }, { session });
+    await receiverModelInstance.updateOne({ _id: receiverId }, { $inc: { credits: receiverUpdate } }, { session });
+  }
+}
+
 // import mongoose from "mongoose";
 // import { ITransaction } from "./transactionType";
 // import { rolesHierarchy } from "../utils/utils";

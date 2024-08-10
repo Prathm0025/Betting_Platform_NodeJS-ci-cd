@@ -1,11 +1,17 @@
 import express, { Router } from "express";
 import userController from "./userController";
-import { loginRateLimiter, verifyRole } from "../utils/middleware";
 
-const userRoutes = express.Router()
+import { checkUser, loginRateLimiter } from "../utils/middleware";
 
-userRoutes.get("/", userController.sayHello)
-userRoutes.post("/login", loginRateLimiter,  userController.login)
+const userRoutes = express.Router();
+
+userRoutes.get("/", checkUser, userController.getCurrentUser)
+userRoutes.get("/captcha", userController.getCaptcha);
+userRoutes.post("/login", loginRateLimiter, userController.login)
+
+
 
 
 export default userRoutes;
+
+
