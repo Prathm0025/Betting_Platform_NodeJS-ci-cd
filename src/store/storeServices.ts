@@ -49,6 +49,29 @@ class StoreService {
             throw createHttpError(500, `Error fetching events for sport ${sport}`);
         }
     }
+
+    public async fetchOddsData(sport: string, eventId: string, markets: string = 'h2h,spreads,totals'): Promise<any> {
+        try {
+            const response = await axios.get(`${this.apiUrl}/v4/sports/${sport}/events/${eventId}/odds`, {
+                params: {
+                    apiKey: this.apiKey,
+                    regions: 'us', // or other regions you are interested in
+                    markets: markets, // specify the markets you want
+                    dateFormat: 'iso', // use 'iso' or 'unix' based on your preference
+                    oddsFormat: 'american' // use 'american', 'decimal', or 'fractional'
+                }
+            });
+            this.incrementRequestCount();
+            return response.data;
+        } catch (error) {
+            if (error.response && error.response.status === 404) {
+                console.error(`Odds data not found for event ${eventId}:`, error.message);
+            } else {
+                console.error('Error fetching odds data:', error.message);
+            }
+            throw createHttpError(500, `Error fetching odds data for event ${eventId}`);
+        }
+    }
 }
 
 export default StoreService

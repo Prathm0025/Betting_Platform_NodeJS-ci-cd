@@ -5,6 +5,8 @@ import User from "../users/userModel";
 import Player from "../players/playerModel";
 import { TransactionService } from "./transactionService";
 import mongoose from "mongoose";
+import Transaction from "./transactionModel";
+import Agent from "../agents/agentModel";
 
 class TransactionController {
   async transaction(req: Request, res: Response, next: NextFunction) {
@@ -15,7 +17,7 @@ class TransactionController {
         throw createHttpError(400, "Reciever or Amount is missing");
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
-      if(receiverId==userId){
+      if (receiverId == userId) {
         throw createHttpError(500, "Can't Recharge or redeem Yourself");
       }
       const sender =
@@ -30,16 +32,16 @@ class TransactionController {
         sender instanceof User
           ? "User"
           : sender instanceof Player
-          ? "Player"
-          : (() => {
+            ? "Player"
+            : (() => {
               throw createHttpError(500, "Unknown sender model");
             })();
       const recieverModelName =
         reciever instanceof User
           ? "User"
           : reciever instanceof Player
-          ? "Player"
-          : (() => {
+            ? "Player"
+            : (() => {
               throw createHttpError(500, "Unknown reciever model");
             })();
 
@@ -64,6 +66,78 @@ class TransactionController {
       next(err);
     }
   }
+
+  async getAllTransactions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const allTransactions = await Transaction.find();
+      res.status(200).json({ message: "Success!", transactions: allTransactions })
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getSpecificAgentTransactions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { agentId } = req.params;
+      if (!agentId) throw createHttpError(400, "Agent Id not Found");
+      const transactionsOfAgent = await Transaction.find({
+        $or: [
+          { sender: agentId },
+          { receiver: agentId }
+        ]
+      });
+
+      if (transactionsOfAgent.length === 0)
+        res.status(404).json({ message: "No transactions found for this agent." });
+
+      res.status(200).json({ message: "Success!", transactions: transactionsOfAgent });
+
+    } catch (error) {
+      next(error);
+    }
+
+  }
+
+
+  async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { agentId } = req.params;
+      if (!agentId) throw createHttpError(400, "Agent Id not Found");
+      const playersUnderAgent = await Agent.findById(agentId);
+      if (!playersUnderAgent || playersUnderAgent?.players.length === 0)
+        res.status(404).json({ message: 'No players found for this agent.' });
+      const playerIds = playersUnderAgent.players.map(player => player);
+      const transactions = await Transaction.find({
+        $or: [
+          { sender: { $in: playerIds } },
+          { receiver: { $in: playerIds } }
+        ]
+      });
+      if (transactions.length === 0)
+        res.status(404).json({ message: 'No transactions found for players under this agent.' });
+
+      res.status(200).json({ message: "Success", transactions: transactions });
+    } catch (error) {
+      console.log(error);
+      next(error);
+
+    }
+  }
+
+  async getSpecificPlayerTransactions(req:Request, res:Response, next:NextFunction){
+    try {
+      const {playerId} = req.params;
+      if(!playerId) throw createHttpError(400, "Player Id not Found");
+      const playerTransaction = await Transaction.find({receiver:playerId});
+      if(playerTransaction.length === 0)
+        res.status(404).json({ message:"No Transaction Found"});
+      res.status(200).json({message:"Success!", transactions:playerTransaction});
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 export default new TransactionController();
