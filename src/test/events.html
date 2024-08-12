@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sports Events</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: "Roboto", sans-serif;
+        background-color: #f0f2f5;
+        margin: 0;
+        padding: 0;
+        color: #333;
+      }
+
+      h1 {
+        text-align: center;
+        color: #333;
+        margin-top: 20px;
+        font-size: 2.5em;
+        letter-spacing: -1px;
+      }
+
+      .options-container {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin: 20px 0;
+      }
+
+      .options-container select {
+        padding: 10px 15px;
+        font-size: 1em;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        background-color: #fff;
+        color: #333;
+        transition: all 0.3s ease;
+      }
+
+      .options-container select:hover {
+        border-color: #0066cc;
+      }
+
+      #events {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 20px;
+        padding: 20px;
+      }
+
+      .event-card {
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        width: 100%;
+        max-width: 300px;
+        text-align: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+      }
+
+      .event-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      .event-card h3 {
+        font-size: 1.5em;
+        color: #0066cc;
+        margin: 0 0 10px;
+      }
+
+      .event-card p {
+        font-size: 1em;
+        color: #555;
+        margin: 10px 0;
+      }
+
+      .no-events {
+        text-align: center;
+        color: #e63946;
+        font-weight: bold;
+        font-size: 1.5em;
+        margin-top: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="sport-title">Events</h1>
+
+    <div class="options-container">
+      <select id="market-type">
+        <option value="h2h">Head to Head / Moneyline</option>
+        <option value="spreads">Points Spread / Handicap</option>
+        <option value="totals">Total Points / Over/Under</option>
+        <option value="outrights">Outrights / Futures</option>
+        <option value="h2h_lay">Head to Head Lay</option>
+        <option value="outrights_lay">Outrights Lay</option>
+      </select>
+
+      <select id="regions">
+        <option value="us">United States</option>
+        <option value="us2">United States (Alternate)</option>
+        <option value="uk">United Kingdom</option>
+        <option value="au">Australia</option>
+        <option value="eu">Europe</option>
+      </select>
+    </div>
+
+    <div id="events"></div>
+
+    <script>
+      const socket = io("http://localhost:5000", {
+        auth: {
+          token:
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmI0NjY5ZGY1MGMwZGE1MDY3OWM4MjEiLCJ1c2VybmFtZSI6InBsYXllcjIiLCJyb2xlIjoicGxheWVyIiwiaWF0IjoxNzIzNDM1MTk0LCJleHAiOjE3MjM1MjE1OTR9.TNEWGkNvHDUBadFeeFhSkk1UKQq8E74-edp_Cq9UPlo", // Replace with your actual JWT token
+        },
+      });
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const sport = urlParams.get("sport");
+
+      document.getElementById(
+        "sport-title"
+      ).textContent = `Events for Sport: ${sport}`;
+
+      socket.on("connect", () => {
+        socket.emit("data", {
+          action: "EVENTS",
+          payload: { sport: sport },
+        });
+      });
+
+      socket.on("data", (res) => {
+        if (res.type === "EVENTS" && res.data && Array.isArray(res.data)) {
+          renderEvents(res.data);
+        } else {
+          renderNoEventsMessage();
+        }
+      });
+
+      socket.on("error", (err) => {
+        alert("An error occurred while communicating with the server.");
+      });
+
+      socket.on("disconnect", () => {
+        alert("Disconnected from the server. Please check your connection.");
+      });
+
+      function renderEvents(events) {
+        const eventsContainer = document.getElementById("events");
+        eventsContainer.innerHTML = "";
+
+        events.forEach((event) => {
+          const eventCard = document.createElement("div");
+          eventCard.className = "event-card";
+
+          const eventTitle = document.createElement("h3");
+          eventTitle.textContent = `${event.home_team} vs. ${event.away_team}`;
+          eventCard.appendChild(eventTitle);
+
+          const commenceTime = document.createElement("p");
+          commenceTime.textContent = `Commence Time: ${new Date(
+            event.commence_time
+          ).toLocaleString()}`;
+          eventCard.appendChild(commenceTime);
+
+          const sportTitle = document.createElement("p");
+          sportTitle.textContent = `Sport: ${event.sport_title}`;
+          eventCard.appendChild(sportTitle);
+
+          eventCard.addEventListener("click", () => {
+            const marketType = document.getElementById("market-type").value;
+            const regions = document.getElementById("regions").value;
+            const dateFormat = "iso";
+            const oddsFormat = "decimal";
+
+            window.location.href = `eventOdds.html?sport=${event.sport_key}&eventId=${event.id}&regions=${regions}&markets=${marketType}&dateFormat=${dateFormat}&oddsFormat=${oddsFormat}`;
+          });
+
+          eventsContainer.appendChild(eventCard);
+        });
+      }
+
+      function renderNoEventsMessage() {
+        const eventsContainer = document.getElementById("events");
+        eventsContainer.innerHTML = "";
+
+        const noEventsMessage = document.createElement("p");
+        noEventsMessage.className = "no-events";
+        noEventsMessage.textContent = "No events available for this sport.";
+        eventsContainer.appendChild(noEventsMessage);
+      }
+    </script>
+  </body>
+</html>

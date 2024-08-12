@@ -182,22 +182,63 @@ class Store {
         );
     }
 
-    public getOdds(
+    public async getOdds(
         sport: string,
         markets: string | undefined,
         regions: string | undefined
     ): Promise<any> {
         const cacheKey = `odds_${sport}_${markets}_${regions}`;
-        return this.fetchFromApi(
-            `${config.oddsApi.url}/sports/${sport}/odds`,
-            { markets, regions },
+
+        // Fetch data from the API
+        const response = await this.fetchFromApi(
+            `${config.oddsApi.url}/sports/${sport}/odds?markets=h2h,spreads,totals`,
+            { regions },
             this.oddsCache,
             cacheKey
         );
+
+        console.log(response);
+
+
+        // Get the current time for filtering live games
+        const now = new Date().toISOString();
+
+
+        // Process the data
+        const processedData = response.map((game: any) => {
+            // Select one bookmaker (e.g., the first one)
+            const bookmaker = game.bookmakers[0];
+
+            return {
+                id: game.id,
+                sport_key: game.sport_key,
+                sport_title: game.sport_title,
+                commence_time: game.commence_time,
+                home_team: game.home_team,
+                away_team: game.away_team,
+                markets: bookmaker.markets
+
+            };
+        });
+
+        // Separate live games and upcoming games
+        const liveGames = processedData.filter((game: any) => game.commence_time <= now);
+        const upcomingGames = processedData.filter((game: any) => game.commence_time > now);
+
+        // Return the formatted data
+        return {
+            type: "ODDS",
+            data: {
+                live_games: liveGames,
+                upcoming_games: upcomingGames
+            }
+        };
+
     }
 
     public getEvents(sport: string, dateFormat?: string): Promise<any> {
         const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
+
         return this.fetchFromApi(
             `${config.oddsApi.url}/sports/${sport}/events`,
             { dateFormat },
@@ -259,6 +300,12 @@ class Store {
                 "sportsList"
             );
 
+            if (category.toLowerCase() === "all") {
+                // If the category is "all", return all sports
+                return sportsData.filter((sport: any) => sport.active);
+            }
+
+            // Otherwise, filter by the specified category
             const categorySports = sportsData.filter(
                 (sport: any) => sport.group === category && sport.active
             );

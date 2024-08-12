@@ -24,6 +24,11 @@ export default class Player {
         this.initializeHandlers();
         this.betHandler();
     }
+    public updateSocket(socket: Socket) {
+        this.socket = socket;
+        this.initializeHandlers();
+        this.betHandler()
+    }
 
     public async updateBalance(
         type: "credit" | "debit",
@@ -97,7 +102,7 @@ export default class Player {
 
                     case "CATEGORIES":
                         const categoriesData = await Store.getCategories();
-                        this.sendData({ type: "CATEGORIES", data: categoriesData });
+                        this.sendData({ type: "CATEGORIES", data: ["All", ...categoriesData] });
                         break;
 
                     case "CATEGORY_SPORTS":
@@ -110,17 +115,13 @@ export default class Player {
                         });
                         break;
 
-                    case "SPORTS":
-                        const sportsData = await Store.getSports();
-                        this.sendData({ sports: sportsData });
-                        break;
 
                     case "EVENTS":
                         const eventsData = await Store.getEvents(
                             res.payload.sport,
                             res.payload.dateFormat
                         );
-                        this.sendData({ events: eventsData });
+                        this.sendData({ type: "EVENTS", data: eventsData });
                         break;
 
                     case "SCORES":
@@ -133,12 +134,14 @@ export default class Player {
                         break;
 
                     case "ODDS":
+                        console.log("ODDS : ", res);
+
                         const oddsData = await Store.getOdds(
                             res.payload.sport,
                             res.payload.markets,
                             res.payload.regions
                         );
-                        this.sendData({ odds: oddsData });
+                        this.sendData({ type: "ODDS", data: oddsData });
                         break;
 
                     case "EVENT_ODDS":
@@ -150,7 +153,12 @@ export default class Player {
                             res.payload.dateFormat,
                             res.payload.oddsFormat
                         );
-                        this.sendData({ eventOdds: eventOddsData });
+                        this.sendData({ type: "EVENT_ODDS", data: eventOddsData });
+                        break;
+
+                    case "SPORTS":
+                        const sportsData = await Store.getSports();
+                        this.sendData({ sports: sportsData });
                         break;
 
                     default:
@@ -165,25 +173,37 @@ export default class Player {
     }
 
     public betHandler() {
-        this.socket.on("bet", (message) => {
+        this.socket.on("bet", async (message: { action: string; payload: IBet }, callback: (response: { status: string; message: string }) => void) => {
             try {
-                const res = message;
+                const { action, payload } = message;
 
-                switch (res.action) {
-                    case "ADD":
-                        const payload = res.payload;
-                        BetController.addBet(payload);
-                        console.log("BET RECEIVED : ", res.payload);
+                switch (action) {
+                    case "PLACE":
+                        try {
+                            await BetController.placeBet(payload);
+                            console.log("BET RECEIVED AND PROCESSED: ", payload);
+                            // Send success acknowledgment to the client
+                            callback({ status: "success", message: "Bet placed successfully." });
+                        } catch (error) {
+                            console.error("Error adding bet: ", error);
+                            // Send failure acknowledgment to the client
+                            callback({ status: "error", message: "Failed to place bet." });
+                        }
                         break;
 
                     case "START":
+                        // Handle "START" action if needed
                         break;
 
                     default:
-                        console.log("UNKOWN ACTION : ", res.payload);
+                        console.log("UNKNOWN ACTION: ", payload);
+                        // Send error acknowledgment for unknown actions
+                        callback({ status: "error", message: "Unknown action." });
                 }
             } catch (error) {
                 console.error("Error processing bet event:", error);
+                // Send failure acknowledgment to the client if an exception occurs
+                callback({ status: "error", message: "Server error processing the bet." });
             }
         });
     }
