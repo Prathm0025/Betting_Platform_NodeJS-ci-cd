@@ -1,180 +1,272 @@
-import { Event, Sport } from "./types";
-import createHttpError from 'http-errors';
-import cron from 'node-cron';
-import { config } from '../config/config';
-import StoreService from './storeServices';
+import { config } from "../config/config";
+import { LRUCache } from "lru-cache";
+import axios from "axios";
 
 class Store {
-    private sportsByGroup: { [group: string]: Sport[] } = {};
-    private events: { [sport: string]: Event[] } = {};
-    private odds: { [eventId: string]: any } = {}; // Store odds data by event ID
-    private requestedEvents: Set<string> = new Set();
-    private dataService: StoreService;
+    private sportsCache: LRUCache<string, any>;
+    private scoresCache: LRUCache<string, any>;
+    private oddsCache: LRUCache<string, any>;
+    private eventsCache: LRUCache<string, any>;
+    private eventOddsCache: LRUCache<string, any>;
 
     constructor() {
-        this.dataService = new StoreService(config.oddsApi.url, config.oddsApi.key);
-        this.getSportsByGroup = this.getSportsByGroup.bind(this);
-        this.getAllSports = this.getAllSports.bind(this);
-        this.getAllCategories = this.getAllCategories.bind(this);
-        this.getSportEvents = this.getSportEvents.bind(this);
-        this.init();
+        this.sportsCache = new LRUCache<string, any>({
+            max: 100,
+            ttl: 12 * 60 * 60 * 1000,
+        }); // 12 hours
+        this.scoresCache = new LRUCache<string, any>({
+            max: 100,
+            ttl: 1 * 60 * 1000,
+        }); // 1 minute
+        this.oddsCache = new LRUCache<string, any>({
+            max: 100,
+            ttl: 5 * 60 * 1000,
+        }); // 5 minutes
+        this.eventsCache = new LRUCache<string, any>({
+            max: 100,
+            ttl: 10 * 60 * 1000,
+        }); // 10 minutes
+        this.eventOddsCache = new LRUCache<string, any>({
+            max: 100,
+            ttl: 5 * 60 * 1000,
+        }); // 5 minutes
     }
 
-    private async init() {
-        await this.updateSportsData();
-        this.scheduleSportsFetch();
-        this.scheduleEventsFetch();
-    }
+    private async fetchFromApi(
+        url: string,
+        params: any,
+        cache: LRUCache<string, any>,
+        cacheKey: string
+    ): Promise<any> {
+        const cachedData = cache.get(cacheKey);
+        if (cachedData) {
+            return cachedData;
+        }
 
-    private async updateSportsData(): Promise<void> {
         try {
-            const sports = await this.dataService.fetchSportsData();
-            this.categorizeSportsByGroup(sports);
-            console.log('Sports data updated:', this.sportsByGroup);
+            const response = await axios.get(url, {
+                params: { ...params, apiKey: config.oddsApi.key },
+            });
+            cache.set(cacheKey, response.data);
+            return response.data;
         } catch (error) {
-            console.error('Error updating sports data:', error);
-            throw createHttpError(500, 'Error updating sports data');
+            throw new Error("Error fetching data");
         }
     }
 
-    private categorizeSportsByGroup(sports: Sport[]): void {
-        this.sportsByGroup = sports.reduce((acc: { [group: string]: Sport[] }, sport: Sport) => {
-            const group = sport.group;
-            if (!acc[group]) {
-                acc[group] = [];
+    private getPollingInterval(
+        marketType: string,
+        eventStartTime: string
+    ): number {
+        const now = new Date();
+        const startTime = new Date(eventStartTime);
+        const timeUntilEvent = startTime.getTime() - now.getTime();
+
+        // Determine if the event is pre-match or in-play
+        const isInPlay = timeUntilEvent <= 0;
+        const minutesUntilEvent = timeUntilEvent / (60 * 1000);
+
+        if (isInPlay) {
+            // In-Play Update Intervals
+            switch (marketType) {
+                case "head_to_head":
+                case "moneyline":
+                case "1x2":
+                case "spreads":
+                case "handicaps":
+                case "totals":
+                case "over_under":
+                    return 40 * 1000; // 40 seconds
+                case "player_props":
+                case "alternates":
+                case "period_markets":
+                    return 60 * 1000; // 60 seconds
+                case "outrights":
+                case "futures":
+                    return 60 * 1000; // 60 seconds
+                default:
+                    return 60 * 1000; // Default to 60 seconds
             }
-            acc[group].push(sport);
-            return acc;
-        }, {});
-    }
-
-    private async updateSportEvents(): Promise<void> {
-        try {
-            for (const sport of this.requestedEvents) {
-                const events = await this.dataService.fetchSportEvents(sport);
-                this.events[sport] = events;
-                console.log(`Events for sport ${sport} updated:`, events);
-            }
-        } catch (error) {
-            console.error('Error updating sports events:', error);
-            throw createHttpError(500, 'Error updating sports events');
-        }
-    }
-
-    public async updateOddsData(sport: string): Promise<void> {
-        try {
-            if (!this.events[sport] || this.events[sport].length === 0) {
-                console.warn(`No events found for sport ${sport} to update odds.`);
-                return;
-            }
-            for (const event of this.events[sport]) {
-                await this.getSportEventOdds(sport, event.id);
-            }
-            console.log(`Odds data for sport ${sport} updated.`);
-        } catch (error) {
-            console.error(`Error updating odds data for sport ${sport}:`, error);
-        }
-    }
-
-    private scheduleSportsFetch() {
-        cron.schedule('0 */12 * * *', () => {
-            this.updateSportsData().catch((error) => console.error(error));
-        });
-        console.log('Scheduled sports data fetch every 12 hours');
-    }
-
-    private scheduleEventsFetch() {
-        cron.schedule('*/40 * * * * *', () => {
-            this.updateSportEvents().catch((error) => console.error(error));
-        });
-        console.log('Scheduled events data fetch every 40 seconds');
-    }
-
-    private scheduleOddsFetch(sport: string) {
-        cron.schedule('*/10 * * * *', () => { // Schedule odds fetching every 10 minutes
-            this.updateOddsData(sport).catch((error) => console.error(error));
-        });
-        console.log(`Scheduled odds data fetch for sport ${sport} every 10 minutes`);
-    }
-
-    // GET ALL SPORTS 
-    async getAllSports(): Promise<Sport[]> {
-        try {
-            if (Object.keys(this.sportsByGroup).length === 0) {
-                await this.updateSportsData();
-            }
-            // Flatten the sportsByGroup object into a single array
-            return Object.values(this.sportsByGroup).flat();
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
-    // GET ALL SPORTS BY GROUP
-    async getSportsByGroup(): Promise<{ [group: string]: Sport[] }> {
-        try {
-            if (Object.keys(this.sportsByGroup).length === 0) {
-                await this.updateSportsData();
-            }
-            return this.sportsByGroup;
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
-    // GET SPORTS BY CATEGORY NAME
-    async getSportsByCategoryName(category: string): Promise<Sport[]> {
-        try {
-            if (Object.keys(this.sportsByGroup).length === 0) {
-                await this.updateSportsData();
-            }
-            return this.sportsByGroup[category] || [];
-        } catch (error) {
-            console.error(`Error fetching sports by group name ${category}:`, error);
-        }
-    }
-
-    // GET ALL SPORTS CATEGORIES NAME
-    async getAllCategories(): Promise<string[]> {
-        try {
-            if (Object.keys(this.sportsByGroup).length === 0) {
-                await this.updateSportsData();
-            }
-            // Return all unique categories (groups)
-            return Object.keys(this.sportsByGroup);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
-    // GET ALL SPORTS EVENTS
-    public async getSportEvents(sport: string): Promise<Event[]> {
-        try {
-            if (this.events[sport] && this.events[sport].length > 0) {
-                return this.events[sport];
+        } else {
+            // Pre-Match Update Intervals
+            if (minutesUntilEvent > 360) {
+                // More than 6 hours before the event
+                switch (marketType) {
+                    case "head_to_head":
+                    case "moneyline":
+                    case "1x2":
+                    case "spreads":
+                    case "handicaps":
+                    case "totals":
+                    case "over_under":
+                    case "player_props":
+                    case "alternates":
+                    case "period_markets":
+                        return 60 * 1000; // 60 seconds
+                    case "outrights":
+                    case "futures":
+                        return 5 * 60 * 1000; // 5 minutes
+                    default:
+                        return 60 * 1000; // Default to 60 seconds
+                }
             } else {
-                this.requestedEvents.add(sport);
-                const events = await this.dataService.fetchSportEvents(sport);
-                this.events[sport] = events;
-                return events;
+                // Between 0 and 6 hours before the event
+                return Math.max(60 * 1000, (minutesUntilEvent / 360) * 60 * 1000); // Linearly interpolate between 60 seconds and 5 minutes
             }
-        } catch (error) {
-            console.log(error);
         }
     }
 
-    public async getSportEventOdds(sport: string, eventId: string): Promise<any> {
+    private async pollForUpdates(
+        marketType: string,
+        eventStartTime: string
+    ): Promise<void> {
+        const pollingInterval = this.getPollingInterval(marketType, eventStartTime);
+
         try {
-            if (this.odds[eventId]) {
-                return this.odds[eventId]; // Return cached odds if available
-            } else {
-                const oddsData = await this.dataService.fetchOddsData(sport, eventId);
-                this.odds[eventId] = oddsData; // Store the fetched odds
-                return oddsData;
-            }
+            // Refresh event odds data
+            await this.getEventOdds(
+                "example_sport",
+                "example_event_id",
+                "us",
+                "head_to_head",
+                "iso",
+                "decimal"
+            );
         } catch (error) {
-            console.error(`Error fetching odds for event ${eventId}:`, error);
-            throw createHttpError(500, `Error fetching odds for event ${eventId}`);
+            console.error("Error during polling:", error.message);
+        }
+        setTimeout(
+            () => this.pollForUpdates(marketType, eventStartTime),
+            pollingInterval
+        );
+    }
+
+    public startPollingForEvent(
+        sport: string,
+        eventId: string,
+        marketType: string
+    ): void {
+        // Example of how to start polling for a specific event
+        this.getEvents(sport)
+            .then((events) => {
+                const event = events.find((e) => e.id === eventId);
+                if (event) {
+                    this.pollForUpdates(marketType, event.commence_time);
+                }
+            })
+            .catch((error) => {
+                console.error("Error starting polling:", error.message);
+            });
+    }
+
+    public getSports(): Promise<any> {
+        return this.fetchFromApi(
+            `${config.oddsApi.url}/sports`,
+            {},
+            this.sportsCache,
+            "sportsList"
+        );
+    }
+
+    public getScores(
+        sport: string,
+        daysFrom: string | undefined,
+        dateFormat: string | undefined
+    ): Promise<any> {
+        const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
+        return this.fetchFromApi(
+            `${config.oddsApi.url}/sports/${sport}/scores`,
+            { daysFrom, dateFormat },
+            this.scoresCache,
+            cacheKey
+        );
+    }
+
+    public getOdds(
+        sport: string,
+        markets: string | undefined,
+        regions: string | undefined
+    ): Promise<any> {
+        const cacheKey = `odds_${sport}_${markets}_${regions}`;
+        return this.fetchFromApi(
+            `${config.oddsApi.url}/sports/${sport}/odds`,
+            { markets, regions },
+            this.oddsCache,
+            cacheKey
+        );
+    }
+
+    public getEvents(sport: string, dateFormat?: string): Promise<any> {
+        const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
+        return this.fetchFromApi(
+            `${config.oddsApi.url}/sports/${sport}/events`,
+            { dateFormat },
+            this.eventsCache,
+            cacheKey
+        );
+    }
+
+    public getEventOdds(
+        sport: string,
+        eventId: string,
+        regions: string | undefined,
+        markets: string | undefined,
+        dateFormat: string | undefined,
+        oddsFormat: string | undefined
+    ): Promise<any> {
+        const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
+            }_${oddsFormat || "decimal"}`;
+        return this.fetchFromApi(
+            `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
+            { regions, markets, dateFormat, oddsFormat },
+            this.eventOddsCache,
+            cacheKey
+        );
+    }
+
+    public async getCategories(): Promise<string[]> {
+        try {
+            const sportsData = await this.fetchFromApi(
+                `${config.oddsApi.url}/sports`,
+                {},
+                this.sportsCache,
+                "sportsList"
+            );
+
+            // Ensure sportsData is treated as an array of objects with known structure
+            const categories = (
+                sportsData as Array<{ group: string; active: boolean }>
+            ).reduce<string[]>((acc, sport) => {
+                if (sport.active && !acc.includes(sport.group)) {
+                    acc.push(sport.group);
+                }
+                return acc;
+            }, []);
+
+            return categories;
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+            throw new Error("Failed to fetch categories");
+        }
+    }
+
+    public async getCategorySports(category: string): Promise<any> {
+        try {
+            const sportsData = await this.fetchFromApi(
+                `${config.oddsApi.url}/sports`,
+                {},
+                this.sportsCache,
+                "sportsList"
+            );
+
+            const categorySports = sportsData.filter(
+                (sport: any) => sport.group === category && sport.active
+            );
+
+            return categorySports;
+        } catch (error) {
+            console.error("Error fetching category sports:", error);
+            throw new Error("Failed to fetch category sports");
         }
     }
 }

@@ -9,7 +9,7 @@ import { AuthRequest } from "../utils/utils";
 import svgCaptcha from "svg-captcha";
 import { v4 as uuidv4 } from 'uuid';
 
-const captchaStore: Record<string, string> = {}; 
+const captchaStore: Record<string, string> = {};
 
 class UserController {
   static saltRounds: Number = 10;
@@ -18,11 +18,11 @@ class UserController {
     try {
       const captcha = svgCaptcha.create();
       console.log(captcha.text);
-      const captchaId = uuidv4(); 
+      const captchaId = uuidv4();
       captchaStore[captchaId] = captcha.text;
 
       const captchaToken = jwt.sign({ captchaId }, config.jwtSecret, {
-        expiresIn: "5m", 
+        expiresIn: "5m",
       });
 
       res.status(200).json({ captcha: captcha.data, token: captchaToken });
@@ -34,20 +34,22 @@ class UserController {
   async login(req: Request, res: Response, next: NextFunction) {
     const { username, password, captchaToken, captcha } = req.body;
 
-    if (!username || !password || !captchaToken || !captcha) {
-      throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
-    }
 
     try {
-      const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
-      const expectedCaptcha = captchaStore[decoded.captchaId];
-
-      if (captcha !== expectedCaptcha) {
-        throw createHttpError(400, "Invalid CAPTCHA");
+      if (!username || !password) {
+        throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
       }
 
-      
-      delete captchaStore[decoded.captchaId];
+
+      // const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
+      // const expectedCaptcha = captchaStore[decoded.captchaId];
+
+      // if (captcha !== expectedCaptcha) {
+      //   throw createHttpError(400, "Invalid CAPTCHA");
+      // }
+
+
+      // delete captchaStore[decoded.captchaId];
 
       const user =
         (await User.findOne({ username })) ||

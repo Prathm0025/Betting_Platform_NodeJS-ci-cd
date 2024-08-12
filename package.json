@@ -29,6 +29,7 @@
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.18.0",
     "jsonwebtoken": "^9.0.2",
+    "lru-cache": "^11.0.0",
     "module": "^1.2.5",
     "mongoose": "^8.5.1",
     "node-cron": "^3.0.3",

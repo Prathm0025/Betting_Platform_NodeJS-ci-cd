@@ -3,12 +3,7 @@ import PlayerModel from "./playerModel";
 import { IBet } from "../bets/betsType";
 import mongoose from "mongoose";
 import BetController from "../bets/betController";
-import StoreController from "../store/storeController";
-
-interface IMessage {
-    action: string;
-    payload?: any;
-}
+import Store from "../store/storeController";
 
 export default class Player {
     private userId: mongoose.Types.ObjectId;
@@ -16,16 +11,24 @@ export default class Player {
     private credits: number;
     public socket: Socket;
 
-    constructor(socket: Socket, userId: mongoose.Types.ObjectId, username: string, credits: number) {
+    constructor(
+        socket: Socket,
+        userId: mongoose.Types.ObjectId,
+        username: string,
+        credits: number
+    ) {
         this.socket = socket;
         this.userId = userId;
         this.username = username;
         this.credits = credits;
-        this.messageHandler();
+        this.initializeHandlers();
         this.betHandler();
     }
 
-    public async updateBalance(type: "credit" | "debit", amount: number): Promise<void> {
+    public async updateBalance(
+        type: "credit" | "debit",
+        amount: number
+    ): Promise<void> {
         try {
             const player = await PlayerModel.findById(this.userId).exec();
             if (player) {
@@ -72,83 +75,112 @@ export default class Player {
         }
     }
 
-    public messageHandler() {
-        this.socket.on("data", async (message: IMessage) => {
+    public sendData(data: any): void {
+        try {
+            this.socket.emit("data", data);
+        } catch (error) {
+            console.error(`Error sending data for player ${this.userId}:`, error);
+        }
+    }
+
+    private initializeHandlers() {
+        this.socket.on("data", async (message) => {
             try {
-                switch (message.action) {
+                const res = message as { action: string; payload: any };
+
+                switch (res.action) {
                     case "INIT":
-                        await this.handleInit();
+                        // Fetch initial data from Store
+                        const sports = await Store.getCategories();
+                        this.sendData({ type: "CATEGORIES", data: sports });
                         break;
 
-                    case "GET_ALL_CATEGORIES":
-                        await this.handleGetAllCategories();
+                    case "CATEGORIES":
+                        const categoriesData = await Store.getCategories();
+                        this.sendData({ type: "CATEGORIES", data: categoriesData });
                         break;
 
-                    case "GET_SPORTS_BY_CATEGORY":
-                        await this.handleGetSportsByCategory(message.payload);
+                    case "CATEGORY_SPORTS":
+                        const categorySportsData = await Store.getCategorySports(
+                            res.payload
+                        );
+                        this.sendData({
+                            type: "CATEGORY_SPORTS",
+                            data: categorySportsData,
+                        });
                         break;
 
-                    case "GET_SPORT_EVENTS":
-                        await this.handleGetSportEvents(message.payload);
+                    case "SPORTS":
+                        const sportsData = await Store.getSports();
+                        this.sendData({ sports: sportsData });
                         break;
 
-                    case "GET_SPORT_EVENT_ODDS":
-                        await this.handleGetSportEventOdds(message.payload);
+                    case "EVENTS":
+                        const eventsData = await Store.getEvents(
+                            res.payload.sport,
+                            res.payload.dateFormat
+                        );
+                        this.sendData({ events: eventsData });
+                        break;
+
+                    case "SCORES":
+                        const scoresData = await Store.getScores(
+                            res.payload.sport,
+                            res.payload.daysFrom,
+                            res.payload.dateFormat
+                        );
+                        this.sendData({ scores: scoresData });
+                        break;
+
+                    case "ODDS":
+                        const oddsData = await Store.getOdds(
+                            res.payload.sport,
+                            res.payload.markets,
+                            res.payload.regions
+                        );
+                        this.sendData({ odds: oddsData });
+                        break;
+
+                    case "EVENT_ODDS":
+                        const eventOddsData = await Store.getEventOdds(
+                            res.payload.sport,
+                            res.payload.eventId,
+                            res.payload.regions,
+                            res.payload.markets,
+                            res.payload.dateFormat,
+                            res.payload.oddsFormat
+                        );
+                        this.sendData({ eventOdds: eventOddsData });
                         break;
 
                     default:
-                        console.warn("Unknown action received:", message.action);
+                        console.warn(`Unknown action: ${res.action}`);
+                        this.sendError(`Unknown action: ${res.action}`);
                 }
             } catch (error) {
-                console.error("Error handling message:", error);
+                console.log(error);
                 this.sendError("An error occurred while processing your request.");
             }
         });
     }
 
-    private async handleInit() {
-        const sports = await StoreController.getSportsByGroup();
-        const categories = await StoreController.getAllCategories();
-        this.sendMessage({ categories, sports });
-    }
-
-    private async handleGetAllCategories() {
-        const categories = await StoreController.getAllCategories();
-        this.sendMessage(categories);
-    }
-
-    private async handleGetSportsByCategory(category: string) {
-        const sports = await StoreController.getSportsByCategoryName(category);
-        this.sendMessage(sports);
-    }
-
-    private async handleGetSportEvents(sport: string) {
-        const events = await StoreController.getSportEvents(sport);
-        this.sendMessage(events);
-    }
-
-    private async handleGetSportEventOdds({ sport, eventId }: { sport: string; eventId: string }) {
-        console.log(sport, eventId);
-
-        const odds = await StoreController.getSportEventOdds(sport, eventId);
-        this.sendMessage(odds);
-    }
-
     public betHandler() {
-        this.socket.on("bet", (message: IMessage) => {
+        this.socket.on("bet", (message) => {
             try {
-                switch (message.action) {
+                const res = message;
+
+                switch (res.action) {
                     case "ADD":
-                        BetController.addBet(message.payload);
-                        console.log("BET RECEIVED:", message.payload);
+                        const payload = res.payload;
+                        BetController.addBet(payload);
+                        console.log("BET RECEIVED : ", res.payload);
                         break;
 
                     case "START":
-                        // Handle START action if needed
                         break;
 
                     default:
-                        console.warn("Unknown action received in bet handler:", message.action);
+                        console.log("UNKOWN ACTION : ", res.payload);
                 }
             } catch (error) {
                 console.error("Error processing bet event:", error);
