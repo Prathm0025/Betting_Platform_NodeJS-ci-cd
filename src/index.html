@@ -11,12 +11,7 @@
     <button id="disconnectBtn">Disconnect</button>
     <button id="sendBetBtn">Send Bet</button>
     <button id="sendBetStart">Start Process</button>
-
-    <h2>Sports</h2>
     <div id="sports"></div>
-
-    <h2>Events</h2>
-    <div id="events"></div>
 
     <script>
       const socket = io("http://localhost:5000", {
@@ -27,20 +22,77 @@
       });
 
       socket.on("connect", () => {
-        socket.emit("data", { action: "INIT" });
+        socket.emit("message", { action: "INIT" });
         console.log("Connected to server");
       });
 
       socket.on("message", (data) => {
-        if (Array.isArray(data)) {
-          if (data.length > 0 && data[0].sport_key) {
-            renderEvents(data); // Render event data
-          } else if (data.length > 0 && data[0].key) {
-            renderSports(data); // Render sports data
-          }
+        console.log("Data : ", data);
+
+        // Assuming data is an array of Sport objects
+        const sportsContainer = document.getElementById("sports");
+        sportsContainer.innerHTML = ""; // Clear the container before rendering
+
+        if (data.length > 0) {
+          // Create the table and header row
+          const table = document.createElement("table");
+          table.setAttribute("border", "1");
+          const headerRow = document.createElement("tr");
+
+          const headers = [
+            "Key",
+            "Active",
+            "Group",
+            "Description",
+            "Title",
+            "Has Outrights",
+          ];
+          headers.forEach((header) => {
+            const th = document.createElement("th");
+            th.textContent = header;
+            headerRow.appendChild(th);
+          });
+          table.appendChild(headerRow);
+
+          // Populate the table with sports data
+          data.forEach((sport) => {
+            const row = document.createElement("tr");
+
+            const keyCell = document.createElement("td");
+            keyCell.textContent = sport.key;
+            row.appendChild(keyCell);
+
+            const activeCell = document.createElement("td");
+            activeCell.textContent = sport.active ? "Yes" : "No";
+            row.appendChild(activeCell);
+
+            const groupCell = document.createElement("td");
+            groupCell.textContent = sport.group;
+            row.appendChild(groupCell);
+
+            const descriptionCell = document.createElement("td");
+            descriptionCell.textContent = sport.description;
+            row.appendChild(descriptionCell);
+
+            const titleCell = document.createElement("td");
+            titleCell.textContent = sport.title;
+            row.appendChild(titleCell);
+
+            const hasOutrightsCell = document.createElement("td");
+            hasOutrightsCell.textContent = sport.has_outrights ? "Yes" : "No";
+            row.appendChild(hasOutrightsCell);
+
+            table.appendChild(row);
+          });
+
+          sportsContainer.appendChild(table);
         } else {
-          console.log("Data received:", data);
+          sportsContainer.textContent = "No sports data available.";
         }
+      });
+
+      socket.on("AnotherDevice", (data) => {
+        console.log("Message from server:", data);
       });
 
       socket.on("error", (err) => {
@@ -51,129 +103,46 @@
         console.log("Disconnected from server");
       });
 
-      function renderSports(sports) {
-        const sportsContainer = document.getElementById("sports");
-        sportsContainer.innerHTML = ""; // Clear the container before rendering
+      document.getElementById("sendBetBtn").addEventListener("click", () => {
+        // Generate new bet data
+        const generateRandomOdds = () =>
+          (Math.random() * (2.5 - 1.5) + 1.5).toFixed(2);
+        const generateRandomAmount = () => Math.floor(Math.random() * 100) + 10;
 
-        const table = document.createElement("table");
-        table.setAttribute("border", "1");
+        const betPayload = {
+          action: "ADD",
+          payload: {
+            player: "64d7c2b8e3f6123456789abc",
+            sport_title: "Football",
+            commence_time: new Date(),
+            home_team: {
+              name:
+                "Team " +
+                String.fromCharCode(65 + Math.floor(Math.random() * 26)),
+              odds: generateRandomOdds(),
+            },
+            away_team: {
+              name:
+                "Team " +
+                String.fromCharCode(65 + Math.floor(Math.random() * 26)),
+              odds: generateRandomOdds(),
+            },
+            market: "Match Winner",
+            bet_on: Math.random() > 0.5 ? "home" : "away",
+            amount: generateRandomAmount(),
+            status: "pending",
+          },
+        };
 
-        // Create table header
-        const headerRow = document.createElement("tr");
-        const headers = [
-          "Key",
-          "Active",
-          "Group",
-          "Description",
-          "Title",
-          "Has Outrights",
-        ];
-        headers.forEach((header) => {
-          const th = document.createElement("th");
-          th.textContent = header;
-          headerRow.appendChild(th);
-        });
-        table.appendChild(headerRow);
+        // Send the generated bet data
+        socket.emit("bet", betPayload);
+        console.log("Bet event sent:", betPayload);
+      });
 
-        // Populate table with sports data
-        sports.forEach((sport) => {
-          const row = document.createElement("tr");
-
-          const keyCell = document.createElement("td");
-          keyCell.textContent = sport.key;
-          row.appendChild(keyCell);
-
-          const activeCell = document.createElement("td");
-          activeCell.textContent = sport.active ? "Yes" : "No";
-          row.appendChild(activeCell);
-
-          const groupCell = document.createElement("td");
-          groupCell.textContent = sport.group;
-          row.appendChild(groupCell);
-
-          const descriptionCell = document.createElement("td");
-          descriptionCell.textContent = sport.description;
-          row.appendChild(descriptionCell);
-
-          const titleCell = document.createElement("td");
-          titleCell.textContent = sport.title;
-          row.appendChild(titleCell);
-
-          const hasOutrightsCell = document.createElement("td");
-          hasOutrightsCell.textContent = sport.has_outrights ? "Yes" : "No";
-          row.appendChild(hasOutrightsCell);
-
-          // Add click event listener to the row to request events for this sport
-          row.addEventListener("click", () => {
-            socket.emit("data", { action: "EVENT", payload: sport.key });
-            console.log(`Requested events for sport key: ${sport.key}`);
-          });
-
-          table.appendChild(row);
-        });
-
-        sportsContainer.appendChild(table);
-      }
-
-      function renderEvents(events) {
-        const eventsContainer = document.getElementById("events");
-        eventsContainer.innerHTML = ""; // Clear the container before rendering
-
-        const table = document.createElement("table");
-        table.setAttribute("border", "1");
-
-        // Create table header
-        const headerRow = document.createElement("tr");
-        const headers = [
-          "ID",
-          "Sport Key",
-          "Sport Title",
-          "Commence Time",
-          "Home Team",
-          "Away Team",
-        ];
-        headers.forEach((header) => {
-          const th = document.createElement("th");
-          th.textContent = header;
-          headerRow.appendChild(th);
-        });
-        table.appendChild(headerRow);
-
-        // Populate table with event data
-        events.forEach((event) => {
-          const row = document.createElement("tr");
-
-          const idCell = document.createElement("td");
-          idCell.textContent = event.id;
-          row.appendChild(idCell);
-
-          const sportKeyCell = document.createElement("td");
-          sportKeyCell.textContent = event.sport_key;
-          row.appendChild(sportKeyCell);
-
-          const sportTitleCell = document.createElement("td");
-          sportTitleCell.textContent = event.sport_title;
-          row.appendChild(sportTitleCell);
-
-          const commenceTimeCell = document.createElement("td");
-          commenceTimeCell.textContent = new Date(
-            event.commence_time
-          ).toLocaleString();
-          row.appendChild(commenceTimeCell);
-
-          const homeTeamCell = document.createElement("td");
-          homeTeamCell.textContent = event.home_team;
-          row.appendChild(homeTeamCell);
-
-          const awayTeamCell = document.createElement("td");
-          awayTeamCell.textContent = event.away_team;
-          row.appendChild(awayTeamCell);
-
-          table.appendChild(row);
-        });
-
-        eventsContainer.appendChild(table);
-      }
+      document.getElementById("sendBetStart").addEventListener("click", () => {
+        // Send the generated bet data
+        socket.emit("bet", { action: "START" });
+      });
     </script>
   </body>
 </html>

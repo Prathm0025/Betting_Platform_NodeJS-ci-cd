@@ -4,7 +4,6 @@ import Player from "../players/playerSocket";
 
 export let users: Map<string, Player> = new Map();
 
-
 const socketController = (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
@@ -29,9 +28,7 @@ const socketController = (io: Server) => {
   });
 
   io.on("connection", async (socket) => {
-    console.log("users", users);
     const decoded = (socket as any).decoded;
-    console.log(decoded);
     if (!decoded || !decoded.username || !decoded.role || !decoded.userId) {
       console.error("Connection rejected: missing required fields in token");
       socket.disconnect(true);
@@ -40,7 +37,6 @@ const socketController = (io: Server) => {
 
     const username = decoded.username;
     const existingSocket = users.get(username);
-
     if (existingSocket) {
       if (existingSocket.socket.connected) {
         socket.emit(
@@ -49,13 +45,8 @@ const socketController = (io: Server) => {
         );
         socket.disconnect(true);
       } else {
-        const newUser = new Player(
-          socket,
-          decoded.userId,
-          username,
-          decoded.credits
-        );
-        users.set(username, newUser);
+        existingSocket.updateSocket(socket);
+        console.log(existingSocket);
       }
     } else {
       const newUser = new Player(
@@ -65,8 +56,8 @@ const socketController = (io: Server) => {
         decoded.credits
       );
       users.set(username, newUser);
+      console.log(`Player ${username} entered the platform.`);
     }
-    console.log(`Player ${username} entered the platform.`);
   });
 };
 

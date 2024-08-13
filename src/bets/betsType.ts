@@ -15,5 +15,6 @@ export interface IBet extends Document {
     market: string,
     bet_on: 'home' | 'away';
     amount: number;
-    status: 'success' | 'fail' | 'pending'
+    status: 'success' | 'fail' | 'pending' | 'locked' | 'retry',
+    retryCount: number
 }

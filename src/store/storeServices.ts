@@ -50,20 +50,26 @@ class StoreService {
         }
     }
 
-    public async fetchOddsData(eventId: string): Promise<any> {
+    public async fetchOddsData(sport: string, eventId: string, markets: string = 'h2h,spreads,totals'): Promise<any> {
         try {
-            const response = await axios.get(`${this.apiUrl}/v4/sports/${eventId}/odds`, {
+            const response = await axios.get(`${this.apiUrl}/v4/sports/${sport}/events/${eventId}/odds`, {
                 params: {
                     apiKey: this.apiKey,
                     regions: 'us', // or other regions you are interested in
-                    markets: 'h2h,spreads' // specify the markets you want
+                    markets: markets, // specify the markets you want
+                    dateFormat: 'iso', // use 'iso' or 'unix' based on your preference
+                    oddsFormat: 'american' // use 'american', 'decimal', or 'fractional'
                 }
             });
-            this.incrementRequestCount()
+            this.incrementRequestCount();
             return response.data;
         } catch (error) {
-            console.error('Error fetching odds data:', error);
-            throw createHttpError(500, 'Error fetching odds data');
+            if (error.response && error.response.status === 404) {
+                console.error(`Odds data not found for event ${eventId}:`, error.message);
+            } else {
+                console.error('Error fetching odds data:', error.message);
+            }
+            throw createHttpError(500, `Error fetching odds data for event ${eventId}`);
         }
     }
 }
