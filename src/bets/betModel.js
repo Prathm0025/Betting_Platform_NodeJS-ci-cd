@@ -34,6 +34,10 @@ const betSchema = new mongoose_1.Schema({
         type: String,
         required: true
     },
+    event_id: {
+        type: String,
+        required: true
+    },
     commence_time: {
         type: Date,
         required: true,
@@ -64,7 +68,7 @@ const betSchema = new mongoose_1.Schema({
     },
     bet_on: {
         type: String,
-        enum: ['home', 'away'],
+        enum: ['home_team', 'away_team'],
         required: true,
     },
     amount: {
@@ -74,6 +78,10 @@ const betSchema = new mongoose_1.Schema({
     status: {
         type: String,
         enum: ['success', 'fail', 'pending', 'retry', 'locked']
+    },
+    possibleWinningAmount: {
+        type: Number,
+        required: true,
     },
     retryCount: {
         type: Number,

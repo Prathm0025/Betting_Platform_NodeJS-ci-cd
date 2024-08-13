@@ -20,20 +20,19 @@ class BetController {
             console.error("Agenda is not initialized. Make sure the database is connected and agenda is initialized before using BetController.");
             return;
         }
-        this.agenda = db_1.agenda;
         this.initializeAgenda();
     }
     initializeAgenda() {
-        this.agenda.define('lock bet', (job) => __awaiter(this, void 0, void 0, function* () {
+        db_1.agenda.define('lock bet', (job) => __awaiter(this, void 0, void 0, function* () {
             yield this.lockBet(job.attrs.data.betId);
         }));
-        this.agenda.define('process outcome', (job) => __awaiter(this, void 0, void 0, function* () {
+        db_1.agenda.define('process outcome', (job) => __awaiter(this, void 0, void 0, function* () {
             yield this.processOutcomeQueue(job.attrs.data.betId, job.attrs.data.result);
         }));
-        this.agenda.define('retry bet', (job) => __awaiter(this, void 0, void 0, function* () {
+        db_1.agenda.define('retry bet', (job) => __awaiter(this, void 0, void 0, function* () {
             yield this.processRetryQueue(job.attrs.data.betId);
         }));
-        this.agenda.start();
+        db_1.agenda.start();
     }
     placeBet(betData) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -43,11 +42,39 @@ class BetController {
                 console.log('Cannot place a bet after the match has started');
                 return;
             }
-            const bet = new betModel_1.default(betData);
+            // Calculate the possible winning amount
+            const possibleWinningAmount = this.calculatePossibleWinning(betData);
+            console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
+            // Add the possibleWinningAmount to the betData
+            const betDataWithWinning = Object.assign(Object.assign({}, betData), { possibleWinningAmount: possibleWinningAmount });
+            // Now you can proceed with saving the bet and scheduling the job
+            const bet = new betModel_1.default(betDataWithWinning);
             yield bet.save();
             const delay = commenceTime.getTime() - now.getTime();
-            this.agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
+            db_1.agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
         });
+    }
+    calculatePossibleWinning(data) {
+        const selectedTeam = data.bet_on === 'home_team' ? data.home_team : data.away_team;
+        const oddsFormat = data.oddsFormat;
+        const betAmount = parseFloat(data.amount.toString());
+        let possibleWinningAmount = 0;
+        switch (oddsFormat) {
+            case "decimal":
+                possibleWinningAmount = selectedTeam.odds * betAmount;
+                break;
+            case "american":
+                if (selectedTeam.odds > 0) {
+                    possibleWinningAmount = (selectedTeam.odds / 100) * betAmount + betAmount;
+                }
+                else {
+                    possibleWinningAmount = (100 / Math.abs(selectedTeam.odds)) * betAmount + betAmount;
+                }
+                break;
+            default:
+                console.log("INVALID ODDS FORMAT");
+        }
+        return possibleWinningAmount;
     }
     lockBet(betId) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -63,7 +90,7 @@ class BetController {
             }
             catch (error) {
                 yield session.abortTransaction();
-                this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
+                db_1.agenda.schedule('in 5 minutes', 'retry bet', { betId });
             }
             finally {
                 session.endSession();
@@ -79,7 +106,7 @@ class BetController {
                     yield bet.save();
                 }
                 catch (error) {
-                    this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
+                    db_1.agenda.schedule('in 5 minutes', 'retry bet', { betId });
                 }
             }
         });
@@ -99,14 +126,14 @@ class BetController {
                     yield bet.save();
                 }
                 catch (error) {
-                    this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
+                    db_1.agenda.schedule('in 5 minutes', 'retry bet', { betId });
                 }
             }
         });
     }
     settleBet(betId, result) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.agenda.now('process outcome', { betId, result });
+            db_1.agenda.now('process outcome', { betId, result });
         });
     }
 }
