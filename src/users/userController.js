@@ -42,16 +42,16 @@ class UserController {
     login(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { username, password, captchaToken, captcha } = req.body;
-            if (!username || !password || !captchaToken || !captcha) {
-                throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
-            }
             try {
-                const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
-                const expectedCaptcha = captchaStore[decoded.captchaId];
-                if (captcha !== expectedCaptcha) {
-                    throw (0, http_errors_1.default)(400, "Invalid CAPTCHA");
+                if (!username || !password) {
+                    throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
                 }
-                delete captchaStore[decoded.captchaId];
+                // const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
+                // const expectedCaptcha = captchaStore[decoded.captchaId];
+                // if (captcha !== expectedCaptcha) {
+                //   throw createHttpError(400, "Invalid CAPTCHA");
+                // }
+                // delete captchaStore[decoded.captchaId];
                 const user = (yield userModel_1.default.findOne({ username })) ||
                     (yield playerModel_1.default.findOne({ username }));
                 if (!user) {

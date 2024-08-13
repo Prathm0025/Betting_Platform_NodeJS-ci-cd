@@ -39,9 +39,7 @@ const socketController = (io) => {
         next();
     });
     io.on("connection", (socket) => __awaiter(void 0, void 0, void 0, function* () {
-        console.log("users", exports.users);
         const decoded = socket.decoded;
-        console.log(decoded);
         if (!decoded || !decoded.username || !decoded.role || !decoded.userId) {
             console.error("Connection rejected: missing required fields in token");
             socket.disconnect(true);
@@ -55,15 +53,15 @@ const socketController = (io) => {
                 socket.disconnect(true);
             }
             else {
-                const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits);
-                exports.users.set(username, newUser);
+                existingSocket.updateSocket(socket);
+                console.log(existingSocket);
             }
         }
         else {
             const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits);
             exports.users.set(username, newUser);
+            console.log(`Player ${username} entered the platform.`);
         }
-        console.log(`Player ${username} entered the platform.`);
     }));
 };
 exports.default = socketController;
