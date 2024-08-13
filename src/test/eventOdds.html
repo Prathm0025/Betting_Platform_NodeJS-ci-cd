@@ -156,7 +156,7 @@
       const socket = io("http://localhost:5000", {
         auth: {
           token:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmIzNTczY2I4YTYyYmNmMzlhODdmNDYiLCJ1c2VybmFtZSI6InBsYXllciIsInJvbGUiOiJwbGF5ZXIiLCJpYXQiOjE3MjM0NjU5OTYsImV4cCI6MTcyMzU1MjM5Nn0.sYuBtJD4OkCjNTbCVgPtM71puSmnQz7d2Z8UT66CAoY", // Replace with your actual JWT token
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmI0NjNhYWJkN2IxZGU0YmQ0ZGI4ZGMiLCJ1c2VybmFtZSI6InBsYXllcjEiLCJyb2xlIjoicGxheWVyIiwiaWF0IjoxNzIzNTQ2NzAxLCJleHAiOjE3MjM2MzMxMDF9.7Ss8J8kFd87fOz54DEOxRBPLQl4Q05BmaGvyP7FPsbs", // Replace with your actual JWT token
         },
       });
 
@@ -244,8 +244,8 @@
         const betAmountInput = document.getElementById("bet-amount");
 
         teamSelection.innerHTML = `
-          <option value="home">${eventData.home_team} at ${homeTeamOdds.price}</option>
-          <option value="away">${eventData.away_team} at ${awayTeamOdds.price}</option>
+          <option value="home_team">${eventData.home_team} at ${homeTeamOdds.price}</option>
+          <option value="away_team">${eventData.away_team} at ${awayTeamOdds.price}</option>
         `;
 
         betDetails.textContent = `Bet on a team for the match between ${eventData.home_team} and ${eventData.away_team}.`;
@@ -267,15 +267,18 @@
 
           if (betAmount > 0) {
             const selectedOdds =
-              selectedTeam === "home" ? homeTeamOdds.price : awayTeamOdds.price;
+              selectedTeam === "home_team"
+                ? homeTeamOdds.price
+                : awayTeamOdds.price;
             const betOn =
-              selectedTeam === "home"
+              selectedTeam === "home_team"
                 ? eventData.home_team
                 : eventData.away_team;
 
             const betData = {
               player: "66b4669df50c0da50679c821", // Replace with actual player ID
               sport_title: eventData.sport_title,
+              event_id: eventId,
               commence_time: eventData.commence_time,
               home_team: {
                 name: eventData.home_team,
@@ -289,6 +292,9 @@
               bet_on: selectedTeam,
               amount: betAmount,
               status: "pending",
+
+              sport: sport, // Assuming sport_title corresponds to the sport
+              oddsFormat: oddsFormat,
             };
 
             console.log("BET : ", betData);
