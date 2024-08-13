@@ -12,17 +12,32 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.agenda = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const config_1 = require("./config");
+const agenda_1 = __importDefault(require("agenda"));
+let agenda;
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        mongoose_1.default.connection.on("connected", () => {
+        mongoose_1.default.connection.on("connected", () => __awaiter(void 0, void 0, void 0, function* () {
             console.log("Connected to database successfully");
-        });
+        }));
         mongoose_1.default.connection.on("error", (err) => {
             console.log("Error in connecting to database.", err);
         });
         yield mongoose_1.default.connect(config_1.config.databaseUrl);
+        // Initialize Agenda
+        exports.agenda = agenda = new agenda_1.default({
+            db: { address: config_1.config.databaseUrl, collection: "jobs" }
+        });
+        // Define a sample job
+        agenda.define('welcome', (job) => __awaiter(void 0, void 0, void 0, function* () {
+            console.log('Welcome to Betting Agenda', job.attrs);
+        }));
+        // // Start Agenda
+        yield agenda.start();
+        // await agenda.every('5 seconds', 'welcome')
+        console.log('Agenda started');
     }
     catch (err) {
         console.error("Failed to connect to database.", err);

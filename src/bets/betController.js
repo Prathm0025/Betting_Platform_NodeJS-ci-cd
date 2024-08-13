@@ -13,32 +13,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const betModel_1 = __importDefault(require("./betModel"));
+const db_1 = require("../config/db");
 class BetController {
-    // constructor() {
-    //     this.agenda = new Agenda({ db: { address: config.databaseUrl } });
-    // }
-    // Method to place a bet
-    placeBet(betData) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const now = new Date();
-            const commenceTime = new Date(betData.commence_time);
-            // Check if the event has already started
-            if (commenceTime <= now) {
-                console.log('Cannot place a bet after the match has started.');
-                return;
-            }
-            const bet = new betModel_1.default(betData);
-            yield bet.save();
-            const delay = commenceTime.getTime() - now.getTime();
-            if (delay > 0) {
-                // Schedule job to lock bet at commence time
-                this.agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
-            }
-            else {
-                // This case should not happen because of the above check, but added for safety
-                yield this.lockBetImmediately(bet._id.toString());
-            }
-        });
+    constructor() {
+        if (!db_1.agenda) {
+            console.error("Agenda is not initialized. Make sure the database is connected and agenda is initialized before using BetController.");
+            return;
+        }
+        this.agenda = db_1.agenda;
+        this.initializeAgenda();
     }
     initializeAgenda() {
         this.agenda.define('lock bet', (job) => __awaiter(this, void 0, void 0, function* () {
@@ -52,23 +35,38 @@ class BetController {
         }));
         this.agenda.start();
     }
-    lockBetImmediately(betId) {
+    placeBet(betData) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.lockBet(betId);
+            const now = new Date();
+            const commenceTime = new Date(betData.commence_time);
+            if (commenceTime <= now) {
+                console.log('Cannot place a bet after the match has started');
+                return;
+            }
+            const bet = new betModel_1.default(betData);
+            yield bet.save();
+            const delay = commenceTime.getTime() - now.getTime();
+            this.agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
         });
     }
     lockBet(betId) {
         return __awaiter(this, void 0, void 0, function* () {
-            const bet = yield betModel_1.default.findById(betId);
-            if (bet) {
-                try {
-                    // Lock the bet (e.g., prevent further modifications)
+            const session = yield betModel_1.default.startSession();
+            session.startTransaction();
+            try {
+                const bet = yield betModel_1.default.findById(betId).session(session);
+                if (bet && bet.status !== 'locked') {
                     bet.status = 'locked';
                     yield bet.save();
+                    yield session.commitTransaction();
                 }
-                catch (error) {
-                    this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
-                }
+            }
+            catch (error) {
+                yield session.abortTransaction();
+                this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
+            }
+            finally {
+                session.endSession();
             }
         });
     }
@@ -77,7 +75,6 @@ class BetController {
             const bet = yield betModel_1.default.findById(betId);
             if (bet) {
                 try {
-                    // Process bet outcome based on external result
                     bet.status = result;
                     yield bet.save();
                 }
@@ -92,20 +89,21 @@ class BetController {
             const bet = yield betModel_1.default.findById(betId);
             if (bet) {
                 try {
-                    bet.status = 'retry';
-                    yield bet.save();
-                }
-                catch (error) {
                     bet.retryCount += 1;
                     if (bet.retryCount > 1) {
                         bet.status = 'fail';
                     }
+                    else {
+                        bet.status = 'retry';
+                    }
                     yield bet.save();
+                }
+                catch (error) {
+                    this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
                 }
             }
         });
     }
-    // Method to trigger outcome processing (e.g., from an external event)
     settleBet(betId, result) {
         return __awaiter(this, void 0, void 0, function* () {
             this.agenda.now('process outcome', { betId, result });
