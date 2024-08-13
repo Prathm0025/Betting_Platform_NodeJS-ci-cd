@@ -11,6 +11,10 @@ const betSchema: Schema<IBet> = new Schema({
         type: String,
         required: true
     },
+    event_id: {
+        type: String,
+        required: true
+    },
     commence_time: {
         type: Date,
         required: true,
@@ -41,7 +45,7 @@ const betSchema: Schema<IBet> = new Schema({
     },
     bet_on: {
         type: String,
-        enum: ['home', 'away'],
+        enum: ['home_team', 'away_team'],
         required: true,
     },
     amount: {
@@ -51,6 +55,10 @@ const betSchema: Schema<IBet> = new Schema({
     status: {
         type: String,
         enum: ['success', 'fail', 'pending', 'retry', 'locked']
+    },
+    possibleWinningAmount: { // New field
+        type: Number,
+        required: true,
     },
     retryCount: {
         type: Number,

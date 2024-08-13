@@ -224,3 +224,20 @@ export default class Player {
     );
   }
 }
+
+
+// {
+//     player: '66b4669df50c0da50679c821',
+//     sport_title: 'CFL',
+//     commence_time: '2024-08-16T01:00:00Z',
+//     home_team: { name: 'Calgary Stampeders', odds: 1.66 },
+//     away_team: { name: 'Ottawa Redblacks', odds: 2.26 },
+//     market: 'h2h',
+//     bet_on: 'home_team',
+//     amount: '12',
+//     status: 'pending',
+//     sport: 'americanfootball_cfl',
+//     eventId: '1927cc7c6702c485102eb689b64d72ea',
+//     regions: 'us',
+//     oddsFormat: 'decimal'
+//   }

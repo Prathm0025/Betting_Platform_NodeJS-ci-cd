@@ -1,13 +1,10 @@
 import Agenda, { Job } from 'agenda';
-import { Db } from 'mongodb';
 import Bet from './betModel';
-import { config } from '../config/config';
 import { agenda } from '../config/db';
 import { IBet } from './betsType';
 
 
 class BetController {
-    private agenda: Agenda | undefined;
 
     constructor() {
         if (!agenda) {
@@ -15,26 +12,27 @@ class BetController {
             return;
         }
 
-        this.agenda = agenda;
         this.initializeAgenda();
     }
 
+
     private initializeAgenda() {
-        this.agenda.define('lock bet', async (job: Job) => {
+        agenda.define('lock bet', async (job: Job) => {
             await this.lockBet(job.attrs.data.betId);
         });
 
-        this.agenda.define('process outcome', async (job: Job) => {
+        agenda.define('process outcome', async (job: Job) => {
             await this.processOutcomeQueue(job.attrs.data.betId, job.attrs.data.result);
         });
 
-        this.agenda.define('retry bet', async (job: Job) => {
+        agenda.define('retry bet', async (job: Job) => {
             await this.processRetryQueue(job.attrs.data.betId);
         });
 
 
-        this.agenda.start()
+        agenda.start()
     }
+
 
     public async placeBet(betData: IBet) {
         const now = new Date();
@@ -45,11 +43,53 @@ class BetController {
             return;
         }
 
-        const bet = new Bet(betData);
+        // Calculate the possible winning amount
+        const possibleWinningAmount = this.calculatePossibleWinning(betData);
+        console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
+
+        // Add the possibleWinningAmount to the betData
+        const betDataWithWinning = {
+            ...betData,
+            possibleWinningAmount: possibleWinningAmount
+        };
+
+        // Now you can proceed with saving the bet and scheduling the job
+        const bet = new Bet(betDataWithWinning);
         await bet.save();
 
         const delay = commenceTime.getTime() - now.getTime();
-        this.agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() })
+        agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
+    }
+
+
+
+    private calculatePossibleWinning(data: any) {
+        const selectedTeam = data.bet_on === 'home_team' ? data.home_team : data.away_team;
+        const oddsFormat = data.oddsFormat;
+        const betAmount = parseFloat(data.amount.toString());
+
+
+        let possibleWinningAmount = 0;
+
+        switch (oddsFormat) {
+            case "decimal":
+                possibleWinningAmount = selectedTeam.odds * betAmount;
+                break;
+
+            case "american":
+                if (selectedTeam.odds > 0) {
+                    possibleWinningAmount = (selectedTeam.odds / 100) * betAmount + betAmount;
+                } else {
+                    possibleWinningAmount = (100 / Math.abs(selectedTeam.odds)) * betAmount + betAmount;
+                }
+                break;
+
+            default:
+                console.log("INVALID ODDS FORMAT")
+
+        }
+
+        return possibleWinningAmount
     }
 
     private async lockBet(betId: string) {
@@ -65,7 +105,7 @@ class BetController {
             }
         } catch (error) {
             await session.abortTransaction();
-            this.agenda.schedule('in 5 minutes', 'retry bet', { betId })
+            agenda.schedule('in 5 minutes', 'retry bet', { betId })
         } finally {
             session.endSession()
         }
@@ -79,7 +119,7 @@ class BetController {
                 bet.status = result;
                 await bet.save();
             } catch (error) {
-                this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
+                agenda.schedule('in 5 minutes', 'retry bet', { betId });
             }
         }
     }
@@ -97,13 +137,13 @@ class BetController {
                 }
                 await bet.save()
             } catch (error) {
-                this.agenda.schedule('in 5 minutes', 'retry bet', { betId });
+                agenda.schedule('in 5 minutes', 'retry bet', { betId });
             }
         }
     }
 
     public async settleBet(betId: string, result: 'success' | 'fail') {
-        this.agenda.now('process outcome', { betId, result });
+        agenda.now('process outcome', { betId, result });
     }
 }
 
