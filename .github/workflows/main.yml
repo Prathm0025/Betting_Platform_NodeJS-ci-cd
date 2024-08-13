@@ -34,9 +34,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: artifact
-          path: |
-            ./dist/**/*.js
-            ./package.json  # Include package.json from the root directory
+          path: ./dist/**/*.js
 
       - name: Commit and Push Build Artifacts
         env:
@@ -47,8 +45,8 @@ jobs:
           git config --global user.name "TrippyRahul"
           git config --global user.email "rahulrawat.trippybug@gmail.com"
           git checkout -b build-artifacts
-          git add -f ./dist ./package.json  # Add package.json from the root directory
-          git commit -m 'added: build artifacts and package.json'
+          git add -f ./dist
+          git commit -m 'added: build artifacts'
           git push --set-upstream origin build-artifacts
 
   create_pull_request:
@@ -73,11 +71,11 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.G_TOKEN }}
-          commit-message: "added: build artifacts and package.json"
+          commit-message: "added: build artifacts"
           branch: build-artifacts
           base: main
-          title: "Add build artifacts and package.json"
-          body: "This pull request contains the build artifacts and updated package.json."
+          title: "Add build artifacts"
+          body: "This pull request contains the build artifacts."
           labels: "auto-approve"
 
   merge_pull_request:
@@ -91,7 +89,6 @@ jobs:
             -H "Authorization: token ${{ secrets.G_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/merge
-
   cleanup:
     if: ${{ always() }}
     needs: [merge_pull_request, build]
