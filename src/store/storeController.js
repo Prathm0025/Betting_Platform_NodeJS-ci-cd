@@ -12,136 +12,221 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const http_errors_1 = __importDefault(require("http-errors"));
-const node_cron_1 = __importDefault(require("node-cron"));
 const config_1 = require("../config/config");
-const storeServices_1 = __importDefault(require("./storeServices"));
+const lru_cache_1 = require("lru-cache");
+const axios_1 = __importDefault(require("axios"));
 class Store {
     constructor() {
-        this.sports = [];
-        this.events = {};
-        this.odds = {}; // Store odds data by event ID
-        this.requestedEvents = new Set();
-        this.dataService = new storeServices_1.default(config_1.config.oddsApi.url, config_1.config.oddsApi.key);
-        this.getSports = this.getSports.bind(this);
-        this.getSportEvents = this.getSportEvents.bind(this);
-        this.init();
+        this.sportsCache = new lru_cache_1.LRUCache({
+            max: 100,
+            ttl: 12 * 60 * 60 * 1000,
+        }); // 12 hours
+        this.scoresCache = new lru_cache_1.LRUCache({
+            max: 100,
+            ttl: 1 * 60 * 1000,
+        }); // 1 minute
+        this.oddsCache = new lru_cache_1.LRUCache({
+            max: 100,
+            ttl: 5 * 60 * 1000,
+        }); // 5 minutes
+        this.eventsCache = new lru_cache_1.LRUCache({
+            max: 100,
+            ttl: 10 * 60 * 1000,
+        }); // 10 minutes
+        this.eventOddsCache = new lru_cache_1.LRUCache({
+            max: 100,
+            ttl: 5 * 60 * 1000,
+        }); // 5 minutes
     }
-    init() {
+    fetchFromApi(url, params, cache, cacheKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.updateSportsData();
-            this.scheduleSportsFetch();
-            this.scheduleEventsFetch();
-        });
-    }
-    updateSportsData() {
-        return __awaiter(this, void 0, void 0, function* () {
+            const cachedData = cache.get(cacheKey);
+            if (cachedData) {
+                return cachedData;
+            }
             try {
-                this.sports = yield this.dataService.fetchSportsData();
-                console.log('Sports data updated:', this.sports);
+                const response = yield axios_1.default.get(url, {
+                    params: Object.assign(Object.assign({}, params), { apiKey: config_1.config.oddsApi.key }),
+                });
+                cache.set(cacheKey, response.data);
+                return response.data;
             }
             catch (error) {
-                console.error('Error updating sports data:', error);
-                throw (0, http_errors_1.default)(500, 'Error updating sports data');
+                throw new Error(error.message || "Error Fetching Data");
             }
         });
     }
-    updateSportEvents() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                for (const sport of this.requestedEvents) {
-                    const events = yield this.dataService.fetchSportEvents(sport);
-                    this.events[sport] = events;
-                    console.log(`Events for sport ${sport} updated:`, events);
+    getPollingInterval(marketType, eventStartTime) {
+        const now = new Date();
+        const startTime = new Date(eventStartTime);
+        const timeUntilEvent = startTime.getTime() - now.getTime();
+        // Determine if the event is pre-match or in-play
+        const isInPlay = timeUntilEvent <= 0;
+        const minutesUntilEvent = timeUntilEvent / (60 * 1000);
+        if (isInPlay) {
+            // In-Play Update Intervals
+            switch (marketType) {
+                case "head_to_head":
+                case "moneyline":
+                case "1x2":
+                case "spreads":
+                case "handicaps":
+                case "totals":
+                case "over_under":
+                    return 40 * 1000; // 40 seconds
+                case "player_props":
+                case "alternates":
+                case "period_markets":
+                    return 60 * 1000; // 60 seconds
+                case "outrights":
+                case "futures":
+                    return 60 * 1000; // 60 seconds
+                default:
+                    return 60 * 1000; // Default to 60 seconds
+            }
+        }
+        else {
+            // Pre-Match Update Intervals
+            if (minutesUntilEvent > 360) {
+                // More than 6 hours before the event
+                switch (marketType) {
+                    case "head_to_head":
+                    case "moneyline":
+                    case "1x2":
+                    case "spreads":
+                    case "handicaps":
+                    case "totals":
+                    case "over_under":
+                    case "player_props":
+                    case "alternates":
+                    case "period_markets":
+                        return 60 * 1000; // 60 seconds
+                    case "outrights":
+                    case "futures":
+                        return 5 * 60 * 1000; // 5 minutes
+                    default:
+                        return 60 * 1000; // Default to 60 seconds
                 }
+            }
+            else {
+                // Between 0 and 6 hours before the event
+                return Math.max(60 * 1000, (minutesUntilEvent / 360) * 60 * 1000); // Linearly interpolate between 60 seconds and 5 minutes
+            }
+        }
+    }
+    pollForUpdates(marketType, eventStartTime) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const pollingInterval = this.getPollingInterval(marketType, eventStartTime);
+            try {
+                // Refresh event odds data
+                yield this.getEventOdds("example_sport", "example_event_id", "us", "head_to_head", "iso", "decimal");
             }
             catch (error) {
-                console.error('Error updating sports events:', error);
-                throw (0, http_errors_1.default)(500, 'Error updating sports events');
+                console.error("Error during polling:", error.message);
             }
+            setTimeout(() => this.pollForUpdates(marketType, eventStartTime), pollingInterval);
         });
     }
-    updateOddsData(sport) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                if (!this.events[sport] || this.events[sport].length === 0) {
-                    console.warn(`No events found for sport ${sport} to update odds.`);
-                    return;
-                }
-                for (const event of this.events[sport]) {
-                    yield this.getOddsForEvent(event.id);
-                }
-                console.log(`Odds data for sport ${sport} updated.`);
+    startPollingForEvent(sport, eventId, marketType) {
+        // Example of how to start polling for a specific event
+        this.getEvents(sport)
+            .then((events) => {
+            const event = events.find((e) => e.id === eventId);
+            if (event) {
+                this.pollForUpdates(marketType, event.commence_time);
             }
-            catch (error) {
-                console.error(`Error updating odds data for sport ${sport}:`, error);
-            }
+        })
+            .catch((error) => {
+            console.error("Error starting polling:", error.message);
         });
-    }
-    scheduleSportsFetch() {
-        node_cron_1.default.schedule('0 */12 * * *', () => {
-            this.updateSportsData().catch((error) => console.error(error));
-        });
-        console.log('Scheduled sports data fetch every 12 hours');
-    }
-    scheduleEventsFetch() {
-        node_cron_1.default.schedule('*/40 * * * * *', () => {
-            this.updateSportEvents().catch((error) => console.error(error));
-        });
-        console.log('Scheduled events data fetch every 40 seconds');
-    }
-    scheduleOddsFetch(sport) {
-        node_cron_1.default.schedule('*/10 * * * *', () => {
-            this.updateOddsData(sport).catch((error) => console.error(error));
-        });
-        console.log(`Scheduled odds data fetch for sport ${sport} every 10 minutes`);
     }
     getSports() {
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, this.sportsCache, "sportsList");
+    }
+    getScores(sport, daysFrom, dateFormat) {
+        const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/scores`, { daysFrom, dateFormat }, this.scoresCache, cacheKey);
+    }
+    getOdds(sport, markets, regions, player) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                if (this.sports.length === 0) {
-                    yield this.updateSportsData();
-                }
-                return this.sports;
+                const cacheKey = `odds_${sport}_${markets}_${regions}`;
+                // Fetch data from the API
+                const response = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds?markets=h2h,spreads,totals`, { regions }, this.oddsCache, cacheKey);
+                console.log(response);
+                // Get the current time for filtering live games
+                const now = new Date().toISOString();
+                // Process the data
+                const processedData = response.map((game) => {
+                    // Select one bookmaker (e.g., the first one)
+                    const bookmaker = game.bookmakers[0];
+                    return {
+                        id: game.id,
+                        sport_key: game.sport_key,
+                        sport_title: game.sport_title,
+                        commence_time: game.commence_time,
+                        home_team: game.home_team,
+                        away_team: game.away_team,
+                        markets: bookmaker.markets,
+                    };
+                });
+                // Separate live games and upcoming games
+                const liveGames = processedData.filter((game) => game.commence_time <= now);
+                const upcomingGames = processedData.filter((game) => game.commence_time > now);
+                // Return the formatted data
+                return {
+                    live_games: liveGames,
+                    upcoming_games: upcomingGames,
+                };
             }
             catch (error) {
-                console.log(error);
+                console.log(error.message);
+                player.sendError(error.message);
             }
         });
     }
-    getSportEvents(sport) {
+    getEvents(sport, dateFormat) {
+        const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events`, { dateFormat }, this.eventsCache, cacheKey);
+    }
+    getEventOdds(sport, eventId, regions, markets, dateFormat, oddsFormat) {
+        const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"}_${oddsFormat || "decimal"}`;
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`, { regions, markets, dateFormat, oddsFormat }, this.eventOddsCache, cacheKey);
+    }
+    getCategories() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                if (this.events[sport] && this.events[sport].length > 0) {
-                    return this.events[sport];
-                }
-                else {
-                    this.requestedEvents.add(sport);
-                    const events = yield this.dataService.fetchSportEvents(sport);
-                    this.events[sport] = events;
-                    return events;
-                }
+                const sportsData = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, this.sportsCache, "sportsList");
+                // Ensure sportsData is treated as an array of objects with known structure
+                const categories = sportsData.reduce((acc, sport) => {
+                    if (sport.active && !acc.includes(sport.group)) {
+                        acc.push(sport.group);
+                    }
+                    return acc;
+                }, []);
+                return categories;
             }
             catch (error) {
-                console.log(error);
+                console.error("Error fetching categories:", error);
+                throw new Error("Failed to fetch categories");
             }
         });
     }
-    getOddsForEvent(eventId) {
+    getCategorySports(category) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                if (this.odds[eventId]) {
-                    return this.odds[eventId]; // Return cached odds if available
+                const sportsData = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, this.sportsCache, "sportsList");
+                if (category.toLowerCase() === "all") {
+                    // If the category is "all", return all sports
+                    return sportsData.filter((sport) => sport.active);
                 }
-                else {
-                    const oddsData = yield this.dataService.fetchOddsData(eventId);
-                    this.odds[eventId] = oddsData; // Store the fetched odds
-                    return oddsData;
-                }
+                // Otherwise, filter by the specified category
+                const categorySports = sportsData.filter((sport) => sport.group === category && sport.active);
+                return categorySports;
             }
             catch (error) {
-                console.error(`Error fetching odds for event ${eventId}:`, error);
-                throw (0, http_errors_1.default)(500, `Error fetching odds for event ${eventId}`);
+                console.error("Error fetching category sports:", error);
+                throw new Error("Failed to fetch category sports");
             }
         });
     }

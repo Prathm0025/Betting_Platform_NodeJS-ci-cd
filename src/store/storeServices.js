@@ -56,22 +56,29 @@ class StoreService {
             }
         });
     }
-    fetchOddsData(eventId) {
-        return __awaiter(this, void 0, void 0, function* () {
+    fetchOddsData(sport_1, eventId_1) {
+        return __awaiter(this, arguments, void 0, function* (sport, eventId, markets = 'h2h,spreads,totals') {
             try {
-                const response = yield axios_1.default.get(`${this.apiUrl}/v4/sports/${eventId}/odds`, {
+                const response = yield axios_1.default.get(`${this.apiUrl}/v4/sports/${sport}/events/${eventId}/odds`, {
                     params: {
                         apiKey: this.apiKey,
                         regions: 'us', // or other regions you are interested in
-                        markets: 'h2h,spreads' // specify the markets you want
+                        markets: markets, // specify the markets you want
+                        dateFormat: 'iso', // use 'iso' or 'unix' based on your preference
+                        oddsFormat: 'american' // use 'american', 'decimal', or 'fractional'
                     }
                 });
                 this.incrementRequestCount();
                 return response.data;
             }
             catch (error) {
-                console.error('Error fetching odds data:', error);
-                throw (0, http_errors_1.default)(500, 'Error fetching odds data');
+                if (error.response && error.response.status === 404) {
+                    console.error(`Odds data not found for event ${eventId}:`, error.message);
+                }
+                else {
+                    console.error('Error fetching odds data:', error.message);
+                }
+                throw (0, http_errors_1.default)(500, `Error fetching odds data for event ${eventId}`);
             }
         });
     }

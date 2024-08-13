@@ -73,7 +73,12 @@ const betSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ['success', 'fail', 'pending']
-    }
+        enum: ['success', 'fail', 'pending', 'retry', 'locked']
+    },
+    retryCount: {
+        type: Number,
+        default: 0,
+    },
 });
 const Bet = mongoose_1.default.model('Bet', betSchema);
+exports.default = Bet;

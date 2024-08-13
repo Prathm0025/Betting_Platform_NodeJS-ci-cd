@@ -21,7 +21,12 @@ class Player {
         this.userId = userId;
         this.username = username;
         this.credits = credits;
-        this.messageHandler();
+        this.initializeHandlers();
+        this.betHandler();
+    }
+    updateSocket(socket) {
+        this.socket = socket;
+        this.initializeHandlers();
         this.betHandler();
     }
     updateBalance(type, amount) {
@@ -75,49 +80,110 @@ class Player {
             console.error(`Error sending alert for player ${this.userId}:`, error);
         }
     }
-    messageHandler() {
+    sendData(data) {
+        try {
+            this.socket.emit("data", data);
+        }
+        catch (error) {
+            console.error(`Error sending data for player ${this.userId}:`, error);
+        }
+    }
+    initializeHandlers() {
         this.socket.on("data", (message) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const res = message;
                 switch (res.action) {
                     case "INIT":
-                        const initData = yield storeController_1.default.getSports();
-                        this.sendMessage(initData);
+                        // Fetch initial data from Store
+                        const sports = yield storeController_1.default.getCategories();
+                        this.sendData({ type: "CATEGORIES", data: sports });
                         break;
-                    case "EVENT":
-                        const event = res.payload;
-                        console.log("Event : ", event);
-                        const eventData = yield storeController_1.default.getSportEvents(event);
-                        console.log("Event Data : ", eventData);
-                        this.sendMessage(eventData);
+                    case "CATEGORIES":
+                        const categoriesData = yield storeController_1.default.getCategories();
+                        this.sendData({
+                            type: "CATEGORIES",
+                            data: ["All", ...categoriesData],
+                        });
                         break;
+                    case "CATEGORY_SPORTS":
+                        const categorySportsData = yield storeController_1.default.getCategorySports(res.payload);
+                        this.sendData({
+                            type: "CATEGORY_SPORTS",
+                            data: categorySportsData,
+                        });
+                        break;
+                    case "EVENTS":
+                        const eventsData = yield storeController_1.default.getEvents(res.payload.sport, res.payload.dateFormat);
+                        this.sendData({ type: "EVENTS", data: eventsData });
+                        break;
+                    case "SCORES":
+                        const scoresData = yield storeController_1.default.getScores(res.payload.sport, res.payload.daysFrom, res.payload.dateFormat);
+                        this.sendData({ scores: scoresData });
+                        break;
+                    case "ODDS":
+                        console.log("ODDS : ", res);
+                        const oddsData = yield storeController_1.default.getOdds(res.payload.sport, res.payload.markets, res.payload.regions, this);
+                        this.sendData({ type: "ODDS", data: oddsData });
+                        console.log("HERE");
+                        break;
+                    case "EVENT_ODDS":
+                        const eventOddsData = yield storeController_1.default.getEventOdds(res.payload.sport, res.payload.eventId, res.payload.regions, res.payload.markets, res.payload.dateFormat, res.payload.oddsFormat);
+                        this.sendData({ type: "EVENT_ODDS", data: eventOddsData });
+                        break;
+                    case "SPORTS":
+                        const sportsData = yield storeController_1.default.getSports();
+                        this.sendData({ sports: sportsData });
+                        break;
+                    default:
+                        console.warn(`Unknown action: ${res.action}`);
+                        this.sendError(`Unknown action: ${res.action}`);
                 }
             }
             catch (error) {
                 console.log(error);
+                this.sendError("An error occurred while processing your request.");
             }
         }));
     }
     betHandler() {
-        this.socket.on("bet", (message) => {
+        this.socket.on("bet", (message, callback) => __awaiter(this, void 0, void 0, function* () {
             try {
-                const res = message;
-                switch (res.action) {
-                    case "ADD":
-                        const payload = res.payload;
-                        betController_1.default.addBet(payload);
-                        console.log("BET RECEIVED : ", res.payload);
+                const { action, payload } = message;
+                switch (action) {
+                    case "PLACE":
+                        try {
+                            yield betController_1.default.placeBet(payload);
+                            console.log("BET RECEIVED AND PROCESSED: ", payload);
+                            // Send success acknowledgment to the client
+                            callback({
+                                status: "success",
+                                message: "Bet placed successfully.",
+                            });
+                        }
+                        catch (error) {
+                            console.error("Error adding bet: ", error);
+                            // Send failure acknowledgment to the client
+                            callback({ status: "error", message: "Failed to place bet." });
+                        }
                         break;
                     case "START":
+                        // Handle "START" action if needed
                         break;
                     default:
-                        console.log("UNKOWN ACTION : ", res.payload);
+                        console.log("UNKNOWN ACTION: ", payload);
+                        // Send error acknowledgment for unknown actions
+                        callback({ status: "error", message: "Unknown action." });
                 }
             }
             catch (error) {
                 console.error("Error processing bet event:", error);
+                // Send failure acknowledgment to the client if an exception occurs
+                callback({
+                    status: "error",
+                    message: "Server error processing the bet.",
+                });
             }
-        });
+        }));
     }
 }
 exports.default = Player;
