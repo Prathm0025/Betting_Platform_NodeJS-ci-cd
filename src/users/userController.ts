@@ -94,10 +94,10 @@ class UserController {
   //CURRENT LOGGED IN USER
 
   async getCurrentUser(req: Request, res: Response, next: NextFunction) {
-    const _req = req as AuthRequest;
-    const { userId } = _req.user;
-    if (!userId) throw createHttpError(400, "Invalid Request, Missing User");
     try {
+      const _req = req as AuthRequest;
+      const { userId } = _req.user;
+      if (!userId) throw createHttpError(400, "Invalid Request, Missing User");
       const user =
         (await User.findById({ _id: userId })) ||
         (await Player.findById({ _id: userId }));

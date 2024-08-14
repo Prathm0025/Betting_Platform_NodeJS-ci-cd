@@ -14,11 +14,12 @@ class PlayerController {
 //CREATE A PLAYER
 
   async createPlayer(req: Request, res: Response, next: NextFunction) {
-    const { username, password } = req.body;
-    if (!username || !password) {
-      throw createHttpError(400, "Username, password are required");
-    }
+   
     try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        throw createHttpError(400, "Username, password are required");
+      }
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
       const creatorId = new mongoose.Types.ObjectId(userId);
@@ -64,8 +65,8 @@ class PlayerController {
 //GET SPECIFIC PLAYER
 
   async getPlayer(req: Request, res: Response, next: NextFunction) {
-    const { id } = req.params;
     try {
+      const { id } = req.params;
       const player = await Player.findById(id);
       if (!player) {
         throw createHttpError(404, "Player not found");
