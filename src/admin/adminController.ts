@@ -6,6 +6,8 @@ import Agent from "../agents/agentModel";
 class AdminController {
   static saltRounds: Number = 10;
 
+  //CREATE AN ADMIN
+
   async createAdmin(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
 
@@ -32,6 +34,9 @@ class AdminController {
       next(error);
     }
   }
+
+  //GET AGENT UNDER ADMIN AND PLAYERS UNDER THOSE AGENTS
+  
   async getAdminAgentsandAgentPlayers(req:Request, res:Response, next:NextFunction){
     try {
       const {adminId} = req.params;
