@@ -22,6 +22,7 @@ const svg_captcha_1 = __importDefault(require("svg-captcha"));
 const uuid_1 = require("uuid");
 const captchaStore = {};
 class UserController {
+    //TO GET CAPTCHA
     getCaptcha(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -39,19 +40,21 @@ class UserController {
             }
         });
     }
+    //LOGIN
     login(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { username, password, captchaToken, captcha } = req.body;
             try {
-                if (!username || !password) {
+                const { username, password, captchaToken, captcha } = req.body;
+                console.log(req.body);
+                if (!username || !password || !captchaToken || !captcha) {
                     throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
                 }
-                // const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
-                // const expectedCaptcha = captchaStore[decoded.captchaId];
-                // if (captcha !== expectedCaptcha) {
-                //   throw createHttpError(400, "Invalid CAPTCHA");
-                // }
-                // delete captchaStore[decoded.captchaId];
+                const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
+                const expectedCaptcha = captchaStore[decoded.captchaId];
+                if (captcha !== expectedCaptcha) {
+                    throw (0, http_errors_1.default)(400, "Invalid CAPTCHA");
+                }
+                delete captchaStore[decoded.captchaId];
                 const user = (yield userModel_1.default.findOne({ username })) ||
                     (yield playerModel_1.default.findOne({ username }));
                 if (!user) {
@@ -59,11 +62,11 @@ class UserController {
                 }
                 const isPasswordValid = yield bcrypt_1.default.compare(password, user.password);
                 if (!isPasswordValid) {
-                    throw (0, http_errors_1.default)(401, "Invalid password");
+                    throw (0, http_errors_1.default)(401, "Incoreect password");
                 }
                 user.lastLogin = new Date();
                 yield user.save();
-                const token = jsonwebtoken_1.default.sign({ userId: user._id, username: user.username, role: user.role }, config_1.config.jwtSecret, { expiresIn: "24h" });
+                const token = jsonwebtoken_1.default.sign({ userId: user._id, username: user.username, role: user.role, credits: user.credits }, config_1.config.jwtSecret, { expiresIn: "24h" });
                 res.cookie("userToken", token, {
                     maxAge: 1000 * 60 * 60 * 24 * 7,
                     httpOnly: true,
@@ -81,6 +84,7 @@ class UserController {
             }
         });
     }
+    //CURRENT LOGGED IN USER
     getCurrentUser(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const _req = req;

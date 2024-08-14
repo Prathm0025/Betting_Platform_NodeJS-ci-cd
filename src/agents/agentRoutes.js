@@ -11,6 +11,6 @@ agentRoutes.post("/", (0, middleware_1.verifyRole)(["admin"]), agentController_1
 agentRoutes.get("/all", (0, middleware_1.verifyRole)(["admin"]), agentController_1.default.getAllAgents);
 agentRoutes.get("/:id", (0, middleware_1.verifyRole)(["admin"]), agentController_1.default.getAgent);
 agentRoutes.get("/players/:agentId", (0, middleware_1.verifyRole)(["admin", "agent"]), agentController_1.default.getPlayersUnderAgent);
-agentRoutes.put("/:id", (0, middleware_1.verifyRole)(["admin"]), agentController_1.default.updateAgent);
+agentRoutes.put("/", (0, middleware_1.verifyRole)(["admin"]), agentController_1.default.updateAgent);
 agentRoutes.delete("/:id", (0, middleware_1.verifyRole)(["admin"]), agentController_1.default.deleteAgent);
 exports.default = agentRoutes;

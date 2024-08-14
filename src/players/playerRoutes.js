@@ -10,6 +10,6 @@ const playerRoutes = express_1.default.Router();
 playerRoutes.post("/", (0, middleware_1.verifyRole)(['agent', 'admin']), playerController_1.default.createPlayer);
 playerRoutes.get("/all", (0, middleware_1.verifyRole)(['agent', 'admin']), playerController_1.default.getAllPlayers);
 playerRoutes.get("/:id", (0, middleware_1.verifyRole)(['agent', 'admin']), playerController_1.default.getPlayer);
-playerRoutes.put("/:id", (0, middleware_1.verifyRole)(['agent', 'admin']), playerController_1.default.updatePlayer);
+playerRoutes.put("/", (0, middleware_1.verifyRole)(['agent', 'admin']), playerController_1.default.updatePlayer);
 playerRoutes.delete("/:id", (0, middleware_1.verifyRole)(['agent', 'admin']), playerController_1.default.deletePlayer);
 exports.default = playerRoutes;
