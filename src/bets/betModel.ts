@@ -55,3 +55,4 @@ const betSchema: Schema<IBet> = new Schema({
 })
 
 const Bet: Model<IBet> = mongoose.model<IBet>('Bet', betSchema);
+export default Bet;
