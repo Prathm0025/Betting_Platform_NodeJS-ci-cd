@@ -2,6 +2,7 @@ import { config } from "../config/config";
 import { LRUCache } from "lru-cache";
 import axios from "axios";
 import { Socket } from "socket.io";
+import StoreService from "./storeServices";
 
 class Store {
   private sportsCache: LRUCache<string, any>;
@@ -9,6 +10,9 @@ class Store {
   private oddsCache: LRUCache<string, any>;
   private eventsCache: LRUCache<string, any>;
   private eventOddsCache: LRUCache<string, any>;
+  private storeService: StoreService;
+
+
 
   constructor() {
     this.sportsCache = new LRUCache<string, any>({
@@ -31,6 +35,7 @@ class Store {
       max: 100,
       ttl: 5 * 60 * 1000,
     }); // 5 minutes
+    this.storeService = new StoreService()
   }
 
   private async fetchFromApi(
@@ -183,6 +188,7 @@ class Store {
     );
   }
 
+  // HANDLE 
   public async getOdds(
     sport: string,
     markets: string | undefined,
@@ -209,6 +215,7 @@ class Store {
       const processedData = response.map((game: any) => {
         // Select one bookmaker (e.g., the first one)
         const bookmaker = game.bookmakers[0];
+        // this.storeService.selectBookmaker(game.bookmakers)
 
         return {
           id: game.id,
@@ -259,9 +266,8 @@ class Store {
     dateFormat: string | undefined,
     oddsFormat: string | undefined
   ): Promise<any> {
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
-      dateFormat || "iso"
-    }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
+      }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },

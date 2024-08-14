@@ -56,7 +56,7 @@
       const socket = io("http://localhost:5000", {
         auth: {
           token:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmI0NjNhYWJkN2IxZGU0YmQ0ZGI4ZGMiLCJ1c2VybmFtZSI6InBsYXllcjEiLCJyb2xlIjoicGxheWVyIiwiaWF0IjoxNzIzNTQ2NzAxLCJleHAiOjE3MjM2MzMxMDF9.7Ss8J8kFd87fOz54DEOxRBPLQl4Q05BmaGvyP7FPsbs", // Replace with your actual JWT token
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmJjNGI1YjhmOGE2OGI0MjE0ZjhmYzMiLCJ1c2VybmFtZSI6InBsYXllciIsInJvbGUiOiJwbGF5ZXIiLCJjcmVkaXRzIjowLCJpYXQiOjE3MjM2MjQ3NDksImV4cCI6MTcyMzcxMTE0OX0.WorbbK1FzrR9bYJYJQ3wz56CdwPJ2DI3B6H7tZm47s8", // Replace with your actual JWT token
         },
       });
 
@@ -79,7 +79,7 @@
       socket.on("data", (res) => {
         console.log("ODDS received:", res);
         if (res.type === "ODDS") {
-          renderOdds(res.data.data);
+          renderOdds(res.data);
         } else {
           console.log("Unknown type received:", res.type);
         }
@@ -96,15 +96,16 @@
       });
 
       function renderOdds(oddsData) {
+        console.log(oddsData);
         const container = document.getElementById("odds-container");
         container.innerHTML = ""; // Clear the container before rendering
 
         // Ensure that liveGames and upcomingGames are defined and are arrays
         const liveGames = Array.isArray(oddsData.live_games)
-          ? oddsData.live_games
+          ? oddsData?.live_games
           : [];
         const upcomingGames = Array.isArray(oddsData.upcoming_games)
-          ? oddsData.upcoming_games
+          ? oddsData?.upcoming_games
           : [];
 
         console.log(liveGames);
