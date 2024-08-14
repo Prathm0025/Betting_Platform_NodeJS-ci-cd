@@ -19,6 +19,7 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const agentModel_1 = __importDefault(require("../agents/agentModel"));
 const adminModel_1 = __importDefault(require("../admin/adminModel"));
 class PlayerController {
+    //CREATE A PLAYER
     createPlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { username, password } = req.body;
@@ -57,6 +58,7 @@ class PlayerController {
             }
         });
     }
+    //GET SPECIFIC PLAYER
     getPlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { id } = req.params;
@@ -72,6 +74,7 @@ class PlayerController {
             }
         });
     }
+    //GET ALL PLAYERS 
     getAllPlayers(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -83,10 +86,10 @@ class PlayerController {
             }
         });
     }
+    //UPDATE PLAYER
     updatePlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { id } = req.params;
-            const { username, password, status } = req.body;
+            const { id, username, password, status } = req.body;
             try {
                 const updateData = Object.assign(Object.assign(Object.assign({}, (username && { username })), (password && {
                     password: yield bcrypt_1.default.hash(password, PlayerController.saltRounds),
@@ -107,6 +110,7 @@ class PlayerController {
             }
         });
     }
+    //DELETE A PLAYER
     deletePlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;

@@ -17,6 +17,7 @@ const http_errors_1 = __importDefault(require("http-errors"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const agentModel_1 = __importDefault(require("../agents/agentModel"));
 class AdminController {
+    //CREATE AN ADMIN
     createAdmin(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { username, password } = req.body;
@@ -42,6 +43,7 @@ class AdminController {
             }
         });
     }
+    //GET AGENT UNDER ADMIN AND PLAYERS UNDER THOSE AGENTS
     getAdminAgentsandAgentPlayers(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
