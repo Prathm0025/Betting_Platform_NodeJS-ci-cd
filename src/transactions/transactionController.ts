@@ -17,6 +17,13 @@ class TransactionController {
         throw createHttpError(400, "Reciever or Amount is missing");
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
+      const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
+        userId
+      );
+      const agentId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.ObjectId(
+        userId
+      );
+      
       if (receiverId == userId) {
         throw createHttpError(500, "Can't Recharge or redeem Yourself");
       }
@@ -28,6 +35,10 @@ class TransactionController {
         (await User.findById({ _id: receiverId })) ||
         (await Player.findById({ _id: receiverId }));
       if (!reciever) throw createHttpError(404, "Reciever does not exist");
+      if(role==="agent"){
+       if(reciever?.createdBy!== agentId)
+        throw createHttpError(404, "You Are Not Authorised")
+      }
       const senderModelName =
         sender instanceof User
           ? "User"
@@ -45,9 +56,7 @@ class TransactionController {
               throw createHttpError(500, "Unknown reciever model");
             })();
 
-      const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
-        userId
-      );
+      
       await TransactionService.performTransaction(
         newObjectId,
         receiverId,
