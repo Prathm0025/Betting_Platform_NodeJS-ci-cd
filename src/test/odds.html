@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Odds Page</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+
+      h1 {
+        color: #333;
+      }
+
+      .odds-card {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+
+      .odds-card h3 {
+        margin: 0;
+        color: #0066cc;
+      }
+
+      .odds-card p {
+        margin: 5px 0;
+      }
+
+      .bookmaker {
+        margin-top: 10px;
+        padding: 5px;
+        border-top: 1px solid #ddd;
+      }
+
+      .market {
+        margin-top: 5px;
+        padding: 5px;
+        border-top: 1px solid #eee;
+      }
+
+      .outcome {
+        margin-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Odds Data</h1>
+    <div id="odds-container"></div>
+
+    <script>
+      const socket = io("http://localhost:5000", {
+        auth: {
+          token:
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmI0NjNhYWJkN2IxZGU0YmQ0ZGI4ZGMiLCJ1c2VybmFtZSI6InBsYXllcjEiLCJyb2xlIjoicGxheWVyIiwiaWF0IjoxNzIzNTQ2NzAxLCJleHAiOjE3MjM2MzMxMDF9.7Ss8J8kFd87fOz54DEOxRBPLQl4Q05BmaGvyP7FPsbs", // Replace with your actual JWT token
+        },
+      });
+
+      // Extract sport, markets, and regions from the URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const sport = urlParams.get("sport");
+      const markets = urlParams.get("markets");
+      const regions = urlParams.get("regions");
+
+      socket.on("connect", () => {
+        socket.emit("data", {
+          action: "ODDS",
+          payload: { sport, markets, regions },
+        });
+        console.log(
+          `Requested odds for sport: ${sport}, markets: ${markets}, regions: ${regions}`
+        );
+      });
+
+      socket.on("data", (res) => {
+        console.log("ODDS received:", res);
+        if (res.type === "ODDS") {
+          renderOdds(res.data.data);
+        } else {
+          console.log("Unknown type received:", res.type);
+        }
+      });
+
+      socket.on("error", (err) => {
+        console.error("Socket Error:", err);
+        alert("An error occurred while communicating with the server.");
+      });
+
+      socket.on("disconnect", () => {
+        console.log("Disconnected from server");
+        alert("Disconnected from the server. Please check your connection.");
+      });
+
+      function renderOdds(oddsData) {
+        const container = document.getElementById("odds-container");
+        container.innerHTML = ""; // Clear the container before rendering
+
+        // Ensure that liveGames and upcomingGames are defined and are arrays
+        const liveGames = Array.isArray(oddsData.live_games)
+          ? oddsData.live_games
+          : [];
+        const upcomingGames = Array.isArray(oddsData.upcoming_games)
+          ? oddsData.upcoming_games
+          : [];
+
+        console.log(liveGames);
+        console.log(upcomingGames);
+
+        if (liveGames.length > 0) {
+          const liveGamesHeader = document.createElement("h2");
+          liveGamesHeader.textContent = "Live Games";
+          container.appendChild(liveGamesHeader);
+
+          liveGames.forEach((game) => {
+            const gameCard = createGameCard(game);
+            container.appendChild(gameCard);
+          });
+        }
+
+        if (upcomingGames.length > 0) {
+          const upcomingGamesHeader = document.createElement("h2");
+          upcomingGamesHeader.textContent = "Upcoming Games";
+          container.appendChild(upcomingGamesHeader);
+
+          upcomingGames.forEach((game) => {
+            const gameCard = createGameCard(game);
+            container.appendChild(gameCard);
+          });
+        }
+      }
+
+      function createGameCard(game) {
+        const gameCard = document.createElement("div");
+        gameCard.className = "odds-card";
+
+        const eventTitle = document.createElement("h3");
+        eventTitle.textContent = `${game.home_team} vs ${game.away_team}`;
+        gameCard.appendChild(eventTitle);
+
+        const eventTime = document.createElement("p");
+        eventTime.textContent = `Commence Time: ${new Date(
+          game.commence_time
+        ).toLocaleString()}`;
+        gameCard.appendChild(eventTime);
+
+        const markets = game.markets || [];
+
+        markets.forEach((market) => {
+          const marketDiv = document.createElement("div");
+          marketDiv.className = "market";
+
+          const marketTitle = document.createElement("p");
+          marketTitle.textContent = `Market: ${market.key}`;
+          marketDiv.appendChild(marketTitle);
+
+          market.outcomes.forEach((outcome) => {
+            const outcomeDiv = document.createElement("div");
+            outcomeDiv.className = "outcome";
+            outcomeDiv.textContent = `${outcome.name}: ${outcome.price} ${
+              outcome.point !== undefined ? `(Point: ${outcome.point})` : ""
+            }`;
+            marketDiv.appendChild(outcomeDiv);
+          });
+
+          gameCard.appendChild(marketDiv);
+        });
+
+        return gameCard;
+      }
+    </script>
+  </body>
+</html>

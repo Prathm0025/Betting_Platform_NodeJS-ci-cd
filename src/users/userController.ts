@@ -14,6 +14,8 @@ const captchaStore: Record<string, string> = {};
 class UserController {
   static saltRounds: Number = 10;
 
+  //TO GET CAPTCHA
+
   async getCaptcha(req: Request, res: Response, next: NextFunction) {
     try {
       const captcha = svgCaptcha.create();
@@ -31,14 +33,16 @@ class UserController {
     }
   }
 
+  //LOGIN
+
   async login(req: Request, res: Response, next: NextFunction) {
-    const { username, password, captchaToken, captcha } = req.body;
-
-    if (!username || !password || !captchaToken || !captcha) {
-      throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
-    }
-
     try {
+      const { username, password, captchaToken, captcha } = req.body;
+      console.log(req.body);
+      
+      if (!username || !password || !captchaToken || !captcha) {
+        throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
+      }
       const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
       const expectedCaptcha = captchaStore[decoded.captchaId];
 
@@ -59,14 +63,14 @@ class UserController {
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        throw createHttpError(401, "Invalid password");
+        throw createHttpError(401, "Incoreect password");
       }
 
       user.lastLogin = new Date();
       await user.save();
 
       const token = jwt.sign(
-        { userId: user._id, username: user.username, role: user.role },
+        { userId: user._id, username: user.username, role: user.role, credits:user.credits },
         config.jwtSecret,
         { expiresIn: "24h" }
       );
@@ -86,6 +90,8 @@ class UserController {
       next(err);
     }
   }
+
+  //CURRENT LOGGED IN USER
 
   async getCurrentUser(req: Request, res: Response, next: NextFunction) {
     const _req = req as AuthRequest;
