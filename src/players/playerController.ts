@@ -11,6 +11,8 @@ import Admin from "../admin/adminModel";
 class PlayerController {
   static saltRounds: Number = 10;
 
+//CREATE A PLAYER
+
   async createPlayer(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -59,6 +61,8 @@ class PlayerController {
     }
   }
 
+//GET SPECIFIC PLAYER
+
   async getPlayer(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params;
     try {
@@ -71,6 +75,7 @@ class PlayerController {
       next(error);
     }
   }
+//GET ALL PLAYERS 
 
   async getAllPlayers(req: Request, res: Response, next: NextFunction) {
     try {
@@ -81,9 +86,10 @@ class PlayerController {
     }
   }
 
+  //UPDATE PLAYER
+
   async updatePlayer(req: Request, res: Response, next: NextFunction) {
-    const { id } = req.params;
-    const { username, password, status } = req.body;
+    const {id,  username, password, status } = req.body;
     try {
       const updateData: Partial<IPlayer> = {
         ...(username && { username }),
@@ -108,6 +114,8 @@ class PlayerController {
       next(error);
     }
   }
+
+//DELETE A PLAYER
 
   async deletePlayer(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params;

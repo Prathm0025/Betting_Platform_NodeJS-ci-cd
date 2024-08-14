@@ -9,6 +9,8 @@ import { IAgent } from "./agentType";
 
 class AgentController {
   static saltRounds: Number = 10;
+  
+  //CREATE AN AGENT
 
   async createAgent(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
@@ -50,7 +52,9 @@ class AgentController {
       next(error);
     }
   }
-
+  
+  //GET SPECIFC AGENT
+  
   async getAgent(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params;
     try {
@@ -64,6 +68,9 @@ class AgentController {
     }
   }
 
+
+  //GET ALL AGENTS
+
   async getAllAgents(req: Request, res: Response, next: NextFunction) {
     try {
       console.log("HERE");
@@ -74,9 +81,12 @@ class AgentController {
     }
   }
 
+//UPDATE AN AGENT
+
   async updateAgent(req: Request, res: Response, next: NextFunction) {
-    const { id } = req.params;
-    const { username, password, status } = req.body;
+    const {id, username, password, status} = req.body;
+    console.log(req.body);
+    
     try {
       const updateData: Partial<Record<keyof IAgent, any>> = {
         ...(username && { username }),
@@ -102,6 +112,8 @@ class AgentController {
     }
   }
 
+  //DELETE AN AGENT
+
   async deleteAgent(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params;
     try {
@@ -125,6 +137,9 @@ class AgentController {
       next(error);
     }
   }
+
+ //GET PLAYERS UNDER AN AGENT 
+   
    async getPlayersUnderAgent(req:Request, res:Response, next:NextFunction){
     const {agentId} = req.params;
     if(!agentId) throw createHttpError(400, "Agent Id not Found");
