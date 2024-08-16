@@ -20,9 +20,7 @@ class TransactionController {
       const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
         userId
       );
-      const agentId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.ObjectId(
-        userId
-      );
+      
       
       if (receiverId == userId) {
         throw createHttpError(500, "Can't Recharge or redeem Yourself");
@@ -36,7 +34,7 @@ class TransactionController {
         (await Player.findById({ _id: receiverId }));
       if (!reciever) throw createHttpError(404, "Reciever does not exist");
       if(role==="agent"){
-       if(reciever?.createdBy!== agentId)
+       if(reciever?.createdBy.toString() !== userId)
         throw createHttpError(404, "You Are Not Authorised")
       }
       const senderModelName =
@@ -127,7 +125,6 @@ class TransactionController {
   async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
     try {
       const { agentId } = req.params;
-      console.log("hi");
       
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
       const playersUnderAgent = await Agent.findById(agentId);

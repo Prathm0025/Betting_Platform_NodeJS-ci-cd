@@ -7,7 +7,7 @@ const userRoutes = express.Router();
 
 userRoutes.get("/", checkUser, userController.getCurrentUser)
 userRoutes.get("/captcha", userController.getCaptcha);
-userRoutes.post("/login", loginRateLimiter, userController.login)
+userRoutes.post("/login",  userController.login)
 
 
 
