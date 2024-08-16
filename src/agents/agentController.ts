@@ -13,11 +13,12 @@ class AgentController {
   //CREATE AN AGENT
 
   async createAgent(req: Request, res: Response, next: NextFunction) {
-    const { username, password } = req.body;
+    
+    try {
+      const { username, password } = req.body;
     if (!username || !password) {
       throw createHttpError(400, "Username, password are required");
     }
-    try {
       const _req = req as AuthRequest;
       const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
       const existingAgent = await Agent.findOne({ username: username });
@@ -141,6 +142,7 @@ class AgentController {
  //GET PLAYERS UNDER AN AGENT 
    
    async getPlayersUnderAgent(req:Request, res:Response, next:NextFunction){
+    try{
     const {agentId} = req.params;
     if(!agentId) throw createHttpError(400, "Agent Id not Found");
     const agent = await Agent.findById({_id:agentId}).populate("players");
@@ -150,6 +152,10 @@ class AgentController {
       res.status(200).json({message:"No Players Under Agent"});
    
       res.status(200).json({message:"Success!", players:playerUnderAgent})
+
+}catch(error){
+  next(error);
+}  
 }
 }
 

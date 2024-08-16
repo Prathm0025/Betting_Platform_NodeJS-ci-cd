@@ -3,11 +3,11 @@ import transactionController from "./transactionController";
 import { checkUser, verifyRole } from "../utils/middleware";
 const transactionRoutes = express.Router();
 
-transactionRoutes.post("/",  transactionController.transaction );
+transactionRoutes.post("/", verifyRole(["admin", "agent"]),  transactionController.transaction );
 transactionRoutes.get("/all", verifyRole(["admin"]), transactionController.getAllTransactions);
 transactionRoutes.get("/:agentId", verifyRole(["admin"]), transactionController.getSpecificAgentTransactions);
-transactionRoutes.get("/players/:agentId", verifyRole(["admin", "agent"]), transactionController.getAgentPlayerTransaction);
-transactionRoutes.get("/player/:playerId", checkUser, transactionController.getSpecificPlayerTransactions);
+transactionRoutes.get("/all/:agentId", verifyRole([ "agent"]), transactionController.getAgentPlayerTransaction);
+transactionRoutes.get("/player/:playerId", checkUser, verifyRole(["admin", "agent"]), transactionController.getSpecificPlayerTransactions);
 export default transactionRoutes;
 
 

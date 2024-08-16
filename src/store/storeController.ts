@@ -2,6 +2,7 @@ import { config } from "../config/config";
 import { LRUCache } from "lru-cache";
 import axios from "axios";
 import { Socket } from "socket.io";
+import StoreService from "./storeServices";
 
 class Store {
   private sportsCache: LRUCache<string, any>;
@@ -9,28 +10,37 @@ class Store {
   private oddsCache: LRUCache<string, any>;
   private eventsCache: LRUCache<string, any>;
   private eventOddsCache: LRUCache<string, any>;
+  private storeService: StoreService;
+
+
 
   constructor() {
     this.sportsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 12 * 60 * 60 * 1000,
-    }); // 12 hours
+      ttl: 12 * 60 * 60 * 1000, // 12 hours
+    });
+
     this.scoresCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 1 * 60 * 1000,
-    }); // 1 minute
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.oddsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 5 * 60 * 1000,
-    }); // 5 minutes
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.eventsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 10 * 60 * 1000,
-    }); // 10 minutes
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.eventOddsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 5 * 60 * 1000,
-    }); // 5 minutes
+      ttl: 30 * 1000, // 30 seconds
+    });
+
+    this.storeService = new StoreService()
   }
 
   private async fetchFromApi(
@@ -48,6 +58,7 @@ class Store {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
       });
+
       cache.set(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -183,6 +194,7 @@ class Store {
     );
   }
 
+  // HANDLE 
   public async getOdds(
     sport: string,
     markets: string | undefined,
@@ -193,22 +205,30 @@ class Store {
       const cacheKey = `odds_${sport}_${markets}_${regions}`;
 
       // Fetch data from the API
-      const response = await this.fetchFromApi(
-        `${config.oddsApi.url}/sports/${sport}/odds?markets=h2h,spreads,totals`,
-        { regions },
+      const oddsResponse = await this.fetchFromApi(
+        `${config.oddsApi.url}/sports/${sport}/odds?markets=h2h&oddsFormat=decimal`,
+        { regions, },
         this.oddsCache,
         cacheKey
       );
 
-      console.log(response);
+      const scoresResponse = await this.getScores(sport, '1', 'iso');
 
       // Get the current time for filtering live games
       const now = new Date().toISOString();
 
+
+
       // Process the data
-      const processedData = response.map((game: any) => {
+      const processedData = oddsResponse.map((game: any) => {
         // Select one bookmaker (e.g., the first one)
-        const bookmaker = game.bookmakers[0];
+
+        const bookmaker = this.storeService.selectBookmaker(game.bookmakers)
+        const matchedScore = scoresResponse.find((score: any) => score.id === game.id);
+
+        console.log("GAME ID : ", game.id);
+        console.log("matchedScore: ", matchedScore);
+
 
         return {
           id: game.id,
@@ -217,7 +237,8 @@ class Store {
           commence_time: game.commence_time,
           home_team: game.home_team,
           away_team: game.away_team,
-          markets: bookmaker.markets,
+          markets: bookmaker?.markets || [],
+          scores: matchedScore?.scores || []
         };
       });
 
@@ -259,9 +280,8 @@ class Store {
     dateFormat: string | undefined,
     oddsFormat: string | undefined
   ): Promise<any> {
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
-      dateFormat || "iso"
-    }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
+      }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },

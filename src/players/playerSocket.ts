@@ -6,7 +6,7 @@ import BetController from "../bets/betController";
 import Store from "../store/storeController";
 
 export default class Player {
-  private userId: mongoose.Types.ObjectId;
+  public userId: mongoose.Types.ObjectId;
   private username: string;
   private credits: number;
   public socket: Socket;
@@ -142,7 +142,7 @@ export default class Player {
               res.payload.sport,
               res.payload.markets,
               res.payload.regions,
-              this, 
+              this,
             );
             this.sendData({ type: "ODDS", data: oddsData });
             console.log("HERE");
@@ -188,16 +188,48 @@ export default class Player {
 
           switch (action) {
             case "PLACE":
+            case "PLACE":
               try {
-                await BetController.placeBet(payload);
-                console.log("BET RECEIVED AND PROCESSED: ", payload);
-                // Send success acknowledgment to the client
-                callback({
-                  status: "success",
-                  message: "Bet placed successfully.",
-                });
+                // Check if the payload is an array of bets
+                if (Array.isArray(payload)) {
+                  for (const bet of payload) {
+                    try {
+                      const betRes = await BetController.placeBet(this, bet);
+                      console.log("BET RECEIVED AND PROCESSED: ", bet);
+
+                      if (betRes) {
+                        // Send success acknowledgment to the client after all bets are processed
+                        callback({
+                          status: "success",
+                          message: "Bet placed successfully.",
+                        });
+
+                      }
+                    } catch (error) {
+                      console.error("Error adding bet: ", error);
+                      // Send failure acknowledgment to the client for this particular bet
+                      callback({
+                        status: "error",
+                        message: `Failed to place bet: ${bet}.`,
+                      });
+                      return; // Optionally, stop processing further bets on error
+                    }
+                  }
+
+                } else {
+                  // Handle single bet case (fallback if payload is not an array)
+                  const betRes = await BetController.placeBet(this, payload);
+                  console.log("BET RECEIVED AND PROCESSED: ", payload);
+                  if (betRes) {
+                    callback({
+                      status: "success",
+                      message: "Bet placed successfully.",
+                    });
+
+                  }
+                }
               } catch (error) {
-                console.error("Error adding bet: ", error);
+                console.error("Error processing bet array: ", error);
                 // Send failure acknowledgment to the client
                 callback({ status: "error", message: "Failed to place bet." });
               }
