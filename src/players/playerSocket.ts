@@ -194,8 +194,17 @@ export default class Player {
                 if (Array.isArray(payload)) {
                   for (const bet of payload) {
                     try {
-                      await BetController.placeBet(this, bet);
+                      const betRes = await BetController.placeBet(this, bet);
                       console.log("BET RECEIVED AND PROCESSED: ", bet);
+
+                      if (betRes) {
+                        // Send success acknowledgment to the client after all bets are processed
+                        callback({
+                          status: "success",
+                          message: "Bet placed successfully.",
+                        });
+
+                      }
                     } catch (error) {
                       console.error("Error adding bet: ", error);
                       // Send failure acknowledgment to the client for this particular bet
@@ -206,19 +215,18 @@ export default class Player {
                       return; // Optionally, stop processing further bets on error
                     }
                   }
-                  // Send success acknowledgment to the client after all bets are processed
-                  callback({
-                    status: "success",
-                    message: "All bets placed successfully.",
-                  });
+
                 } else {
                   // Handle single bet case (fallback if payload is not an array)
-                  await BetController.placeBet(this, payload);
+                  const betRes = await BetController.placeBet(this, payload);
                   console.log("BET RECEIVED AND PROCESSED: ", payload);
-                  callback({
-                    status: "success",
-                    message: "Bet placed successfully.",
-                  });
+                  if (betRes) {
+                    callback({
+                      status: "success",
+                      message: "Bet placed successfully.",
+                    });
+
+                  }
                 }
               } catch (error) {
                 console.error("Error processing bet array: ", error);
