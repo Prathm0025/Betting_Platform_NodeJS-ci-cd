@@ -16,6 +16,7 @@ const socket_1 = __importDefault(require("./socket/socket"));
 const playerRoutes_1 = __importDefault(require("./players/playerRoutes"));
 const transactionRoutes_1 = __importDefault(require("./transactions/transactionRoutes"));
 const storeRoutes_1 = __importDefault(require("./store/storeRoutes"));
+const betRoutes_1 = __importDefault(require("./bets/betRoutes"));
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
     origin: "*",
@@ -30,6 +31,7 @@ app.use("/api/admin", middleware_1.verifyApiKey, adminRoutes_1.default);
 app.use("/api/agent", middleware_1.checkUser, agentRoutes_1.default);
 app.use("/api/store", middleware_1.checkUser, storeRoutes_1.default);
 app.use("/api/transaction", middleware_1.checkUser, transactionRoutes_1.default);
+app.use("/api/bets", middleware_1.checkUser, betRoutes_1.default);
 app.get("/", (req, res, next) => {
     const health = {
         uptime: process.uptime(),

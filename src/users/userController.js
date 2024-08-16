@@ -60,6 +60,10 @@ class UserController {
                 if (!user) {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
+                const userStatus = user.status === "inactive";
+                if (userStatus) {
+                    throw (0, http_errors_1.default)(403, "You are Blocked!");
+                }
                 const isPasswordValid = yield bcrypt_1.default.compare(password, user.password);
                 if (!isPasswordValid) {
                     throw (0, http_errors_1.default)(401, "Incoreect password");
@@ -87,11 +91,11 @@ class UserController {
     //CURRENT LOGGED IN USER
     getCurrentUser(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const _req = req;
-            const { userId } = _req.user;
-            if (!userId)
-                throw (0, http_errors_1.default)(400, "Invalid Request, Missing User");
             try {
+                const _req = req;
+                const { userId } = _req.user;
+                if (!userId)
+                    throw (0, http_errors_1.default)(400, "Invalid Request, Missing User");
                 const user = (yield userModel_1.default.findById({ _id: userId })) ||
                     (yield playerModel_1.default.findById({ _id: userId }));
                 if (!user)

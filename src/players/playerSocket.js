@@ -151,17 +151,47 @@ class Player {
                 const { action, payload } = message;
                 switch (action) {
                     case "PLACE":
+                    case "PLACE":
                         try {
-                            yield betController_1.default.placeBet(payload);
-                            console.log("BET RECEIVED AND PROCESSED: ", payload);
-                            // Send success acknowledgment to the client
-                            callback({
-                                status: "success",
-                                message: "Bet placed successfully.",
-                            });
+                            // Check if the payload is an array of bets
+                            if (Array.isArray(payload)) {
+                                for (const bet of payload) {
+                                    try {
+                                        const betRes = yield betController_1.default.placeBet(this, bet);
+                                        console.log("BET RECEIVED AND PROCESSED: ", bet);
+                                        if (betRes) {
+                                            // Send success acknowledgment to the client after all bets are processed
+                                            callback({
+                                                status: "success",
+                                                message: "Bet placed successfully.",
+                                            });
+                                        }
+                                    }
+                                    catch (error) {
+                                        console.error("Error adding bet: ", error);
+                                        // Send failure acknowledgment to the client for this particular bet
+                                        callback({
+                                            status: "error",
+                                            message: `Failed to place bet: ${bet}.`,
+                                        });
+                                        return; // Optionally, stop processing further bets on error
+                                    }
+                                }
+                            }
+                            else {
+                                // Handle single bet case (fallback if payload is not an array)
+                                const betRes = yield betController_1.default.placeBet(this, payload);
+                                console.log("BET RECEIVED AND PROCESSED: ", payload);
+                                if (betRes) {
+                                    callback({
+                                        status: "success",
+                                        message: "Bet placed successfully.",
+                                    });
+                                }
+                            }
                         }
                         catch (error) {
-                            console.error("Error adding bet: ", error);
+                            console.error("Error processing bet array: ", error);
                             // Send failure acknowledgment to the client
                             callback({ status: "error", message: "Failed to place bet." });
                         }
