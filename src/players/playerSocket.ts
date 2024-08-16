@@ -142,7 +142,7 @@ export default class Player {
               res.payload.sport,
               res.payload.markets,
               res.payload.regions,
-              this, 
+              this,
             );
             this.sendData({ type: "ODDS", data: oddsData });
             console.log("HERE");

@@ -53,6 +53,7 @@ class Store {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
       });
+
       cache.set(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -199,23 +200,30 @@ class Store {
       const cacheKey = `odds_${sport}_${markets}_${regions}`;
 
       // Fetch data from the API
-      const response = await this.fetchFromApi(
-        `${config.oddsApi.url}/sports/${sport}/odds?markets=h2h,spreads,totals`,
-        { regions },
+      const oddsResponse = await this.fetchFromApi(
+        `${config.oddsApi.url}/sports/${sport}/odds?markets=h2h&oddsFormat=decimal`,
+        { regions, },
         this.oddsCache,
         cacheKey
       );
 
-      console.log(response);
+      const scoresResponse = await this.getScores(sport, '1', 'iso');
 
       // Get the current time for filtering live games
       const now = new Date().toISOString();
 
+
+
       // Process the data
-      const processedData = response.map((game: any) => {
+      const processedData = oddsResponse.map((game: any) => {
         // Select one bookmaker (e.g., the first one)
-        const bookmaker = game.bookmakers[0];
-        // this.storeService.selectBookmaker(game.bookmakers)
+
+        const bookmaker = this.storeService.selectBookmaker(game.bookmakers)
+        const matchedScore = scoresResponse.find((score: any) => score.id === game.id);
+
+        console.log("GAME ID : ", game.id);
+        console.log("matchedScore: ", matchedScore);
+
 
         return {
           id: game.id,
@@ -224,7 +232,8 @@ class Store {
           commence_time: game.commence_time,
           home_team: game.home_team,
           away_team: game.away_team,
-          markets: bookmaker.markets,
+          markets: bookmaker?.markets || [],
+          scores: matchedScore?.scores || []
         };
       });
 
