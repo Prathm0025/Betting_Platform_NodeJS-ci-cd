@@ -61,6 +61,11 @@ class UserController {
         throw createHttpError(401, "User not found");
       }
 
+      const userStatus = user.status==="inactive"
+      if(userStatus){
+        throw createHttpError(403, "You are Blocked!")
+      }
+
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
         throw createHttpError(401, "Incoreect password");
