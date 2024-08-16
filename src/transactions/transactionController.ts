@@ -17,6 +17,13 @@ class TransactionController {
         throw createHttpError(400, "Reciever or Amount is missing");
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
+      const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
+        userId
+      );
+      const agentId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.ObjectId(
+        userId
+      );
+      
       if (receiverId == userId) {
         throw createHttpError(500, "Can't Recharge or redeem Yourself");
       }
@@ -28,6 +35,10 @@ class TransactionController {
         (await User.findById({ _id: receiverId })) ||
         (await Player.findById({ _id: receiverId }));
       if (!reciever) throw createHttpError(404, "Reciever does not exist");
+      if(role==="agent"){
+       if(reciever?.createdBy!== agentId)
+        throw createHttpError(404, "You Are Not Authorised")
+      }
       const senderModelName =
         sender instanceof User
           ? "User"
@@ -45,9 +56,7 @@ class TransactionController {
               throw createHttpError(500, "Unknown reciever model");
             })();
 
-      const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
-        userId
-      );
+      
       await TransactionService.performTransaction(
         newObjectId,
         receiverId,
@@ -69,7 +78,15 @@ class TransactionController {
 
   async getAllTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const allTransactions = await Transaction.find();
+      const allTransactions = await Transaction.find().select('+senderModel +receiverModel') 
+      .populate({
+        path: 'sender',
+        select: '-password', 
+      })
+      .populate({
+        path: 'receiver',
+        select: '-password',
+      });
       res.status(200).json({ message: "Success!", transactions: allTransactions })
     } catch (error) {
       console.log(error);
@@ -86,8 +103,15 @@ class TransactionController {
           { sender: agentId },
           { receiver: agentId }
         ]
+      }).select('+senderModel +receiverModel') 
+      .populate({
+        path: 'sender',
+        select: '-password', 
+      })
+      .populate({
+        path: 'receiver',
+        select: '-password',
       });
-
       if (transactionsOfAgent.length === 0)
         res.status(404).json({ message: "No transactions found for this agent." });
 
@@ -103,6 +127,8 @@ class TransactionController {
   async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
     try {
       const { agentId } = req.params;
+      console.log("hi");
+      
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
       const playersUnderAgent = await Agent.findById(agentId);
       if (!playersUnderAgent || playersUnderAgent?.players.length === 0)
@@ -113,11 +139,35 @@ class TransactionController {
           { sender: { $in: playerIds } },
           { receiver: { $in: playerIds } }
         ]
+      }).select('+senderModel +receiverModel') 
+      .populate({
+        path: 'sender',
+        select: '-password', 
+      })
+      .populate({
+        path: 'receiver',
+        select: '-password',
       });
-      if (transactions.length === 0)
-        res.status(404).json({ message: 'No transactions found for players under this agent.' });
+  
+      const agentTransactions = await Transaction.find({
+        $or: [
+          { sender: agentId },
+          { receiver: agentId }
+        ]
+      }).select('+senderModel +receiverModel')
+        .populate({
+          path: 'sender',
+          select: '-password',
+        })
+        .populate({
+          path: 'receiver',
+          select: '-password',
+        });
+        const combinedTransactions = [...transactions, ...agentTransactions];
+        if (combinedTransactions.length === 0)
+          res.status(404).json({ message: 'No transactions for agent.' });
 
-      res.status(200).json({ message: "Success", transactions: transactions });
+      res.status(200).json({ message: "Success", transactions: combinedTransactions });
     } catch (error) {
       console.log(error);
       next(error);
@@ -129,7 +179,15 @@ class TransactionController {
     try {
       const {playerId} = req.params;
       if(!playerId) throw createHttpError(400, "Player Id not Found");
-      const playerTransaction = await Transaction.find({receiver:playerId});
+      const playerTransaction = await Transaction.find({receiver:playerId}).select('+senderModel +receiverModel') 
+      .populate({
+        path: 'sender',
+        select: '-password', 
+      })
+      .populate({
+        path: 'receiver',
+        select: '-password',
+      });
       if(playerTransaction.length === 0)
         res.status(404).json({ message:"No Transaction Found"});
       res.status(200).json({message:"Success!", transactions:playerTransaction});

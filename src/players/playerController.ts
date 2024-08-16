@@ -14,11 +14,12 @@ class PlayerController {
 //CREATE A PLAYER
 
   async createPlayer(req: Request, res: Response, next: NextFunction) {
-    const { username, password } = req.body;
-    if (!username || !password) {
-      throw createHttpError(400, "Username, password are required");
-    }
+   
     try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        throw createHttpError(400, "Username, password are required");
+      }
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
       const creatorId = new mongoose.Types.ObjectId(userId);
@@ -64,8 +65,8 @@ class PlayerController {
 //GET SPECIFIC PLAYER
 
   async getPlayer(req: Request, res: Response, next: NextFunction) {
-    const { id } = req.params;
     try {
+      const { id } = req.params;
       const player = await Player.findById(id);
       if (!player) {
         throw createHttpError(404, "Player not found");
@@ -91,6 +92,9 @@ class PlayerController {
   async updatePlayer(req: Request, res: Response, next: NextFunction) {
     const {id,  username, password, status } = req.body;
     try {
+      const _req = req as AuthRequest;
+      const { userId, role } = _req.user;
+
       const updateData: Partial<IPlayer> = {
         ...(username && { username }),
         ...(password && {
@@ -98,7 +102,15 @@ class PlayerController {
         }),
         ...(status && { status }),
       };
-
+     if(role==="agent"){
+      const player = await Player.findById(id);
+      const objectUserId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.Types.ObjectId(
+        userId
+      );
+     if(player.createdBy !== objectUserId){
+        throw createHttpError(401, "You Are Not Authorised!")
+      }   
+     }  
       const updatedPlayer = await Player.findByIdAndUpdate(id, updateData, {
         new: true,
       });
@@ -120,14 +132,27 @@ class PlayerController {
   async deletePlayer(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params;
     try {
+      const _req = req as AuthRequest;
+      const {userId:idUser,role} = _req.user;
+      const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
+      const agent = await Agent.findById(userId);
+       
+      if(role==="agent"){
+        const player = await Player.findById(id);
+      const objectUserId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.Types.ObjectId(
+        idUser
+      );
+     if(player.createdBy !== objectUserId){
+        throw createHttpError(401, "You Are Not Authorised!")
+      }   
+      }
+
       const deletedPlayer = await Player.findByIdAndDelete(id);
       if (!deletedPlayer) {
         throw createHttpError(404, "Player not found");
       }
 
-      const _req = req as AuthRequest;
-      const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
-      const agent = await Agent.findById(userId);
+    
       if (agent) {
         agent.players = agent.players.filter(
           (playerId) => playerId.toString() !== id
