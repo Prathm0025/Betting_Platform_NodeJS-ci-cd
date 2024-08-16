@@ -7,6 +7,9 @@ import { NextFunction, Request, Response } from "express";
 import Agent from '../agents/agentModel';
 import Admin from '../admin/adminModel';
 import { AuthRequest } from '../utils/utils';
+import mongoose from 'mongoose';
+import PlayerModel from '../players/playerModel';
+import Player from '../players/playerSocket';
 
 
 class BetController {
@@ -38,31 +41,69 @@ class BetController {
         agenda.start()
     }
 
-    public async placeBet(betData: IBet) {
-        const now = new Date();
-        const commenceTime = new Date(betData.commence_time);
+    public async placeBet(playerRef: Player, betData: IBet) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        if (commenceTime <= now) {
-            console.log('Cannot place a bet after the match has started');
-            return;
+
+        try {
+            const now = new Date();
+            const commenceTime = new Date(betData.commence_time);
+
+            if (commenceTime <= now) {
+                console.log('Cannot place a bet after the match has started');
+                throw new Error('Cannot place a bet after the match has started')
+            }
+
+            // Get the Player
+            const player = await PlayerModel.findById(playerRef.userId);
+            if (!player) {
+                console.log("Player not found");
+                throw new Error('Player not found');
+            }
+
+            // check if the player has enought credits
+            const betAmount = parseFloat(betData.amount.toString());
+
+            if (player.credits < betAmount) {
+                throw new Error('Insufficient credits');
+            }
+
+            // Deduct the bet amount from player's credits
+            player.credits -= betAmount;
+            await player.save({ session });
+
+            // Calculate the possible winning amount
+            const possibleWinningAmount = this.calculatePossibleWinning(betData);
+            console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
+
+            // Add the possibleWinningAmount to the betData
+            const betDataWithWinning = {
+                ...betData,
+                possibleWinningAmount: possibleWinningAmount
+            };
+
+            // Save the bet with the session
+            const bet = new Bet(betDataWithWinning);
+
+            await bet.save({ session });
+
+            const delay = commenceTime.getTime() - now.getTime();
+            agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
+
+            // Commit the transaction
+            await session.commitTransaction();
+            session.endSession();
+
+            console.log('Bet placed successfully');
+            return bet;
+        } catch (error) {
+            // Rollback the transaction in case of error
+            await session.abortTransaction();
+            session.endSession();
+            console.error('Error placing bet:', error.message);
+            playerRef.sendError(error.message)
         }
-
-        // Calculate the possible winning amount
-        const possibleWinningAmount = this.calculatePossibleWinning(betData);
-        console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
-
-        // Add the possibleWinningAmount to the betData
-        const betDataWithWinning = {
-            ...betData,
-            possibleWinningAmount: possibleWinningAmount
-        };
-
-        // Now you can proceed with saving the bet and scheduling the job
-        const bet = new Bet(betDataWithWinning);
-        await bet.save();
-
-        const delay = commenceTime.getTime() - now.getTime();
-        agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
     }
 
     private calculatePossibleWinning(data: any) {
