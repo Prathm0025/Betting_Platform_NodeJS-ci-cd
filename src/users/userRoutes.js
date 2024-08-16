@@ -9,5 +9,5 @@ const middleware_1 = require("../utils/middleware");
 const userRoutes = express_1.default.Router();
 userRoutes.get("/", middleware_1.checkUser, userController_1.default.getCurrentUser);
 userRoutes.get("/captcha", userController_1.default.getCaptcha);
-userRoutes.post("/login", middleware_1.loginRateLimiter, userController_1.default.login);
+userRoutes.post("/login", userController_1.default.login);
 exports.default = userRoutes;

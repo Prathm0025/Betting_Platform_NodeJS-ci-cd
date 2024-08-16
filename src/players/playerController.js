@@ -22,11 +22,11 @@ class PlayerController {
     //CREATE A PLAYER
     createPlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { username, password } = req.body;
-            if (!username || !password) {
-                throw (0, http_errors_1.default)(400, "Username, password are required");
-            }
             try {
+                const { username, password } = req.body;
+                if (!username || !password) {
+                    throw (0, http_errors_1.default)(400, "Username, password are required");
+                }
                 const _req = req;
                 const { userId, role } = _req.user;
                 const creatorId = new mongoose_1.default.Types.ObjectId(userId);
@@ -61,8 +61,8 @@ class PlayerController {
     //GET SPECIFIC PLAYER
     getPlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { id } = req.params;
             try {
+                const { id } = req.params;
                 const player = yield playerModel_1.default.findById(id);
                 if (!player) {
                     throw (0, http_errors_1.default)(404, "Player not found");
@@ -91,9 +91,18 @@ class PlayerController {
         return __awaiter(this, void 0, void 0, function* () {
             const { id, username, password, status } = req.body;
             try {
+                const _req = req;
+                const { userId, role } = _req.user;
                 const updateData = Object.assign(Object.assign(Object.assign({}, (username && { username })), (password && {
                     password: yield bcrypt_1.default.hash(password, PlayerController.saltRounds),
                 })), (status && { status }));
+                if (role === "agent") {
+                    const player = yield playerModel_1.default.findById(id);
+                    const objectUserId = new mongoose_1.default.Schema.Types.ObjectId(userId);
+                    if (player.createdBy !== objectUserId) {
+                        throw (0, http_errors_1.default)(401, "You Are Not Authorised!");
+                    }
+                }
                 const updatedPlayer = yield playerModel_1.default.findByIdAndUpdate(id, updateData, {
                     new: true,
                 });
@@ -116,13 +125,21 @@ class PlayerController {
             var _a;
             const { id } = req.params;
             try {
+                const _req = req;
+                const { userId: idUser, role } = _req.user;
+                const userId = new mongoose_1.default.Types.ObjectId((_a = _req === null || _req === void 0 ? void 0 : _req.user) === null || _a === void 0 ? void 0 : _a.userId);
+                const agent = yield agentModel_1.default.findById(userId);
+                if (role === "agent") {
+                    const player = yield playerModel_1.default.findById(id);
+                    const objectUserId = new mongoose_1.default.Schema.Types.ObjectId(idUser);
+                    if (player.createdBy !== objectUserId) {
+                        throw (0, http_errors_1.default)(401, "You Are Not Authorised!");
+                    }
+                }
                 const deletedPlayer = yield playerModel_1.default.findByIdAndDelete(id);
                 if (!deletedPlayer) {
                     throw (0, http_errors_1.default)(404, "Player not found");
                 }
-                const _req = req;
-                const userId = new mongoose_1.default.Types.ObjectId((_a = _req === null || _req === void 0 ? void 0 : _req.user) === null || _a === void 0 ? void 0 : _a.userId);
-                const agent = yield agentModel_1.default.findById(userId);
                 if (agent) {
                     agent.players = agent.players.filter((playerId) => playerId.toString() !== id);
                     yield agent.save();

@@ -22,11 +22,11 @@ class AgentController {
     createAgent(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            const { username, password } = req.body;
-            if (!username || !password) {
-                throw (0, http_errors_1.default)(400, "Username, password are required");
-            }
             try {
+                const { username, password } = req.body;
+                if (!username || !password) {
+                    throw (0, http_errors_1.default)(400, "Username, password are required");
+                }
                 const _req = req;
                 const userId = new mongoose_1.default.Types.ObjectId((_a = _req === null || _req === void 0 ? void 0 : _req.user) === null || _a === void 0 ? void 0 : _a.userId);
                 const existingAgent = yield agentModel_1.default.findOne({ username: username });
@@ -139,16 +139,21 @@ class AgentController {
     //GET PLAYERS UNDER AN AGENT 
     getPlayersUnderAgent(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { agentId } = req.params;
-            if (!agentId)
-                throw (0, http_errors_1.default)(400, "Agent Id not Found");
-            const agent = yield agentModel_1.default.findById({ _id: agentId }).populate("players");
-            if (!agent)
-                throw (0, http_errors_1.default)(404, "Agent Not Found");
-            const playerUnderAgent = agent.players;
-            if (playerUnderAgent.length === 0)
-                res.status(200).json({ message: "No Players Under Agent" });
-            res.status(200).json({ message: "Success!", players: playerUnderAgent });
+            try {
+                const { agentId } = req.params;
+                if (!agentId)
+                    throw (0, http_errors_1.default)(400, "Agent Id not Found");
+                const agent = yield agentModel_1.default.findById({ _id: agentId }).populate("players");
+                if (!agent)
+                    throw (0, http_errors_1.default)(404, "Agent Not Found");
+                const playerUnderAgent = agent.players;
+                if (playerUnderAgent.length === 0)
+                    res.status(200).json({ message: "No Players Under Agent" });
+                res.status(200).json({ message: "Success!", players: playerUnderAgent });
+            }
+            catch (error) {
+                next(error);
+            }
         });
     }
 }

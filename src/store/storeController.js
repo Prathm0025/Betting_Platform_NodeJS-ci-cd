@@ -15,28 +15,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("../config/config");
 const lru_cache_1 = require("lru-cache");
 const axios_1 = __importDefault(require("axios"));
+const storeServices_1 = __importDefault(require("./storeServices"));
 class Store {
     constructor() {
         this.sportsCache = new lru_cache_1.LRUCache({
             max: 100,
-            ttl: 12 * 60 * 60 * 1000,
-        }); // 12 hours
+            ttl: 12 * 60 * 60 * 1000, // 12 hours
+        });
         this.scoresCache = new lru_cache_1.LRUCache({
             max: 100,
-            ttl: 1 * 60 * 1000,
-        }); // 1 minute
+            ttl: 30 * 1000, // 30 seconds
+        });
         this.oddsCache = new lru_cache_1.LRUCache({
             max: 100,
-            ttl: 5 * 60 * 1000,
-        }); // 5 minutes
+            ttl: 30 * 1000, // 30 seconds
+        });
         this.eventsCache = new lru_cache_1.LRUCache({
             max: 100,
-            ttl: 10 * 60 * 1000,
-        }); // 10 minutes
+            ttl: 30 * 1000, // 30 seconds
+        });
         this.eventOddsCache = new lru_cache_1.LRUCache({
             max: 100,
-            ttl: 5 * 60 * 1000,
-        }); // 5 minutes
+            ttl: 30 * 1000, // 30 seconds
+        });
+        this.storeService = new storeServices_1.default();
     }
     fetchFromApi(url, params, cache, cacheKey) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -147,19 +149,23 @@ class Store {
         const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
         return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/scores`, { daysFrom, dateFormat }, this.scoresCache, cacheKey);
     }
+    // HANDLE 
     getOdds(sport, markets, regions, player) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const cacheKey = `odds_${sport}_${markets}_${regions}`;
                 // Fetch data from the API
-                const response = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds?markets=h2h,spreads,totals`, { regions }, this.oddsCache, cacheKey);
-                console.log(response);
+                const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds?markets=h2h&oddsFormat=decimal`, { regions, }, this.oddsCache, cacheKey);
+                const scoresResponse = yield this.getScores(sport, '1', 'iso');
                 // Get the current time for filtering live games
                 const now = new Date().toISOString();
                 // Process the data
-                const processedData = response.map((game) => {
+                const processedData = oddsResponse.map((game) => {
                     // Select one bookmaker (e.g., the first one)
-                    const bookmaker = game.bookmakers[0];
+                    const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
+                    const matchedScore = scoresResponse.find((score) => score.id === game.id);
+                    console.log("GAME ID : ", game.id);
+                    console.log("matchedScore: ", matchedScore);
                     return {
                         id: game.id,
                         sport_key: game.sport_key,
@@ -167,7 +173,8 @@ class Store {
                         commence_time: game.commence_time,
                         home_team: game.home_team,
                         away_team: game.away_team,
-                        markets: bookmaker.markets,
+                        markets: (bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.markets) || [],
+                        scores: (matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.scores) || []
                     };
                 });
                 // Separate live games and upcoming games
