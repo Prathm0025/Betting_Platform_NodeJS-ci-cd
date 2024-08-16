@@ -15,3 +15,21 @@ export interface Event {
     home_team: string;
     away_team: string;
 }
+
+export interface Outcomes {
+    name: string,
+    price: number
+}
+
+export interface Markets {
+    key: string,
+    last_update: Date,
+    outcomes: Outcomes[]
+}
+
+export interface Bookmaker {
+    key: string,
+    title: string,
+    last_update: Date,
+    markets: Markets[]
+}
