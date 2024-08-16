@@ -17,24 +17,29 @@ class Store {
   constructor() {
     this.sportsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 12 * 60 * 60 * 1000,
-    }); // 12 hours
+      ttl: 12 * 60 * 60 * 1000, // 12 hours
+    });
+
     this.scoresCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 1 * 60 * 1000,
-    }); // 1 minute
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.oddsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 5 * 60 * 1000,
-    }); // 5 minutes
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.eventsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 10 * 60 * 1000,
-    }); // 10 minutes
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.eventOddsCache = new LRUCache<string, any>({
       max: 100,
-      ttl: 5 * 60 * 1000,
-    }); // 5 minutes
+      ttl: 30 * 1000, // 30 seconds
+    });
+
     this.storeService = new StoreService()
   }
 
