@@ -56,7 +56,7 @@ class BetController {
             }
 
             // Get the Player
-            const player = await PlayerModel.findById(playerRef.userId);
+            const player = await PlayerModel.findById(playerRef.userId).session(session);
             if (!player) {
                 console.log("Player not found");
                 throw new Error('Player not found');
@@ -89,7 +89,7 @@ class BetController {
             await bet.save({ session });
 
             const delay = commenceTime.getTime() - now.getTime();
-            agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
+            agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() })
 
             // Commit the transaction
             await session.commitTransaction();

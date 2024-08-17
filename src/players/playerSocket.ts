@@ -188,7 +188,6 @@ export default class Player {
 
           switch (action) {
             case "PLACE":
-            case "PLACE":
               try {
                 // Check if the payload is an array of bets
                 if (Array.isArray(payload)) {
