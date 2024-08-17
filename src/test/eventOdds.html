@@ -186,6 +186,10 @@
         });
       });
 
+      socket.on("error", (message) => {
+        console.error(message);
+      });
+
       socket.on("data", (res) => {
         if (res.type === "EVENT_ODDS" && res.data) {
           console.log(res);
@@ -278,7 +282,7 @@
                 : eventData.away_team;
 
             const betData = {
-              player: "66b4669df50c0da50679c821", // Replace with actual player ID
+              player: "66bc7e42e3b496ae341607cc", // Replace with actual player ID
               sport_title: eventData.sport_title,
               event_id: eventId,
               commence_time: eventData.commence_time,
