@@ -11,7 +11,7 @@ export interface IBet extends Document {
     },
     away_team: {
         name: string,
-        odd: number
+        odds: number
     },
     market: string,
     bet_on: 'home_team' | 'away_team';
