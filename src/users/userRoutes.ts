@@ -8,6 +8,7 @@ const userRoutes = express.Router();
 userRoutes.get("/", checkUser, userController.getCurrentUser)
 userRoutes.get("/captcha", userController.getCaptcha);
 userRoutes.post("/login",  userController.login)
+userRoutes.get("/summary", userController.getSummary)
 
 
 
