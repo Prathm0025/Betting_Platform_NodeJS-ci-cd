@@ -38,7 +38,7 @@ class BetController {
         agenda.start()
     }
 
-    async getAgentBets(req:Request, res:Response, next:NextFunction){
+       async getAgentBets(req:Request, res:Response, next:NextFunction){
         try {
         
           const {agentId} = req.params;
@@ -63,7 +63,7 @@ class BetController {
         }
       }
   
-      async getAdminBets(req:Request, res:Response, next:NextFunction){
+     async getAdminBets(req:Request, res:Response, next:NextFunction){
           try {  
             const bets = await Bet.find().populate('player', 'username _id');
             console.log(bets, "bets");   
@@ -110,6 +110,9 @@ class BetController {
     //       next(error);
     //       }
     //   }
+    }
+
+
     public async placeBet(betData: IBet) {
         const now = new Date();
         const commenceTime = new Date(betData.commence_time);
@@ -222,9 +225,9 @@ class BetController {
         agenda.now('process outcome', { betId, result });
     }
 
-    
-    
-    
+
+
+
 }
 
 export default new BetController();
