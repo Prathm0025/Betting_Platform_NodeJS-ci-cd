@@ -123,33 +123,48 @@ class TransactionController {
 
 
   async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
+    
     try {
-      const { agentId } = req.params;
+      const { agentId, username } = req.params;
+      console.log(username);
       
-      if (!agentId) throw createHttpError(400, "Agent Id not Found");
-      const playersUnderAgent = await Agent.findById(agentId);
-      if (!playersUnderAgent || playersUnderAgent?.players.length === 0)
-        res.status(404).json({ message: 'No players found for this agent.' });
-      const playerIds = playersUnderAgent.players.map(player => player);
+  
+      let agent:any;
+      
+      if (agentId) {
+        agent = await Agent.findById(agentId);
+        if (!agent) throw createHttpError(404, "Agent Not Found");
+      } else if (username) {
+        agent = await Agent.findOne({ username:username });
+        if (!agent) throw createHttpError(404, "Agent Not Found with the provided username");
+      } else {
+        throw createHttpError(400, "Agent Id or Username not provided");
+      }
+  
+      if (!agent.players || agent.players.length === 0) {
+        return res.status(404).json({ message: 'No players found for this agent.' });
+      }
+  
+      const playerIds = agent.players.map(player => player._id); 
       const transactions = await Transaction.find({
         $or: [
           { sender: { $in: playerIds } },
           { receiver: { $in: playerIds } }
         ]
-      }).select('+senderModel +receiverModel') 
-      .populate({
-        path: 'sender',
-        select: '-password', 
-      })
-      .populate({
-        path: 'receiver',
-        select: '-password',
-      });
+      }).select('+senderModel +receiverModel')
+        .populate({
+          path: 'sender',
+          select: 'username',
+        })
+        .populate({
+          path: 'receiver',
+          select: 'username',
+        });
   
       const agentTransactions = await Transaction.find({
         $or: [
-          { sender: agentId },
-          { receiver: agentId }
+          { sender: agent._id },
+          { receiver: agent._id }
         ]
       }).select('+senderModel +receiverModel')
         .populate({
@@ -160,39 +175,60 @@ class TransactionController {
           path: 'receiver',
           select: '-password',
         });
-        const combinedTransactions = [...transactions, ...agentTransactions];
-        if (combinedTransactions.length === 0)
-          res.status(404).json({ message: 'No transactions for agent.' });
-
+  
+      const combinedTransactions = [...transactions, ...agentTransactions];
+  
+      if (combinedTransactions.length === 0) {
+        return res.status(404).json({ message: 'No transactions for agent.' });
+      }
+  
       res.status(200).json({ message: "Success", transactions: combinedTransactions });
+  
     } catch (error) {
       console.log(error);
       next(error);
-
     }
   }
-
-  async getSpecificPlayerTransactions(req:Request, res:Response, next:NextFunction){
+  
+  async getSpecificPlayerTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const {playerId} = req.params;
-      if(!playerId) throw createHttpError(400, "Player Id not Found");
-      const playerTransaction = await Transaction.find({receiver:playerId}).select('+senderModel +receiverModel') 
-      .populate({
-        path: 'sender',
-        select: '-password', 
-      })
-      .populate({
-        path: 'receiver',
-        select: '-password',
-      });
-      if(playerTransaction.length === 0)
-        res.status(404).json({ message:"No Transaction Found"});
-      res.status(200).json({message:"Success!", transactions:playerTransaction});
+      const { playerId, username } = req.params;
+  
+      let player;
+  
+      if (playerId) {
+        player = await Player.findById(playerId);
+        if (!player) throw createHttpError(404, "Player Not Found");
+      } else if (username) {
+        player = await Player.findOne({ username });
+        if (!player) throw createHttpError(404, "Player Not Found with the provided username");
+      } else {
+        throw createHttpError(400, "Player Id or Username not provided");
+      }
+  
+      const playerTransactions = await Transaction.find({ receiver: player._id })
+        .select('+senderModel +receiverModel')
+        .populate({
+          path: 'sender',
+          select: '-password',
+        })
+        .populate({
+          path: 'receiver',
+          select: '-password',
+        });
+  
+      if (playerTransactions.length === 0) {
+        return res.status(404).json({ message: "No Transactions Found" });
+      }
+  
+      res.status(200).json({ message: "Success!", transactions: playerTransactions });
+  
     } catch (error) {
+      console.log(error);
       next(error);
     }
   }
-
+  
 }
 
 export default new TransactionController();

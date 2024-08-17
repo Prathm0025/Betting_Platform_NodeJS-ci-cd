@@ -245,22 +245,36 @@ class BetController {
 
     async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
         try {
-            const { userId } = req.params;
-            const playerBets = await Bet.find({ player: userId }).populate('player', 'username _id');
-            if (playerBets.length === 0)
-                return res.status(200).json({ "message": "No bets found" });
-            res.status(200).json({ "message": "Success!", Bets: playerBets });
+          const { userId, username } = req.params;
+        
+          let player:any;
+      
+          if (userId) {
+            player = await PlayerModel.findById(userId);
+            if (!player) throw createHttpError(404, "Player Not Found");
+          } else if (username) {
+            player = await PlayerModel.findOne({  username:username });
+            if (!player) throw createHttpError(404, "Player Not Found with the provided username");
+          } else {
+            throw createHttpError(400, "User Id or Username not provided");
+          }
+      
+          const playerBets = await Bet.find({ player: player._id }).populate('player', 'username _id');
+      
+          if (playerBets.length === 0) {
+            return res.status(200).json({ message: "No bets found" });
+          }
+      
+          res.status(200).json({ message: "Success!", bets: playerBets });
+      
         } catch (error) {
-            next(error);
+          console.log(error);
+          next(error);
         }
-    }
+      }
+      
 
 }
-
-
-
-
-
 
 export default new BetController();
 
