@@ -58,7 +58,7 @@ const betSchema: Schema<IBet> = new Schema({
     },
     status: {
         type: String,
-        enum: ['success', 'fail', 'pending', 'retry', 'locked']
+        enum: ['won', 'lost', 'pending', 'locked', 'retry']
     },
     possibleWinningAmount: { // New field
         type: Number,
