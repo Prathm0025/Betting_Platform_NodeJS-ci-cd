@@ -62,8 +62,17 @@ class PlayerController {
     getPlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { id } = req.params;
-                const player = yield playerModel_1.default.findById(id);
+                const { id, username } = req.params;
+                let player;
+                if (id) {
+                    player = yield playerModel_1.default.findById(id).select('-password');
+                }
+                else if (username) {
+                    player = yield playerModel_1.default.findOne({ username }).select('-password');
+                }
+                else {
+                    throw (0, http_errors_1.default)(400, "Player id or username not provided");
+                }
                 if (!player) {
                     throw (0, http_errors_1.default)(404, "Player not found");
                 }

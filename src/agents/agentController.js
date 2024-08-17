@@ -140,16 +140,34 @@ class AgentController {
     getPlayersUnderAgent(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { agentId } = req.params;
-                if (!agentId)
-                    throw (0, http_errors_1.default)(400, "Agent Id not Found");
-                const agent = yield agentModel_1.default.findById({ _id: agentId }).populate("players");
-                if (!agent)
-                    throw (0, http_errors_1.default)(404, "Agent Not Found");
-                const playerUnderAgent = agent.players;
-                if (playerUnderAgent.length === 0)
-                    res.status(200).json({ message: "No Players Under Agent" });
-                res.status(200).json({ message: "Success!", players: playerUnderAgent });
+                const { agentId, username } = req.params;
+                let agent;
+                if (agentId) {
+                    agent = yield agentModel_1.default.findById(agentId).populate({
+                        path: 'players',
+                        select: '-password'
+                    });
+                    ;
+                    if (!agent)
+                        throw (0, http_errors_1.default)(404, "Agent Not Found");
+                }
+                else if (username) {
+                    agent = yield agentModel_1.default.findOne({ username }).populate({
+                        path: 'players',
+                        select: '-password'
+                    });
+                    ;
+                    if (!agent)
+                        throw (0, http_errors_1.default)(404, "Agent Not Found with the provided username");
+                }
+                else {
+                    throw (0, http_errors_1.default)(400, "Agent Id or Username not provided");
+                }
+                const playersUnderAgent = agent.players;
+                if (playersUnderAgent.length === 0) {
+                    return res.status(200).json({ message: "No Players Under Agent" });
+                }
+                return res.status(200).json({ message: "Success!", players: playersUnderAgent });
             }
             catch (error) {
                 next(error);
