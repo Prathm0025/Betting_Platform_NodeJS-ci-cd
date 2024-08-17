@@ -1,3 +1,4 @@
+import Store from "../store/storeController";
 import { PriorityQueue } from "../utils/PriorityQueue"
 import Bet from "./betModel";
 import { IBet } from "./betsType"
@@ -35,23 +36,100 @@ class BetServices {
             }
 
             const priority = this.calculatePriority(bet);
-            this.addBetToQueue(bet, priority)
+            this.addBetToQueue(bet, priority);
+            console.log("Bet added to processing queue : ", bet);
+
         } catch (error) {
             console.error('Error adding bet to queue:', error.message);
         }
     }
 
-    // Method to calculate the priority of a bet based on commence time
+    // calculate the priority of a bet
     private calculatePriority(bet: IBet): number {
-        const now = new Date();
-        const timeUntilCommence = bet.commence_time.getTime() - now.getTime();
+        const timeUntilCommence = new Date(bet.commence_time).getTime() - new Date().getTime();
+        return timeUntilCommence;
+    }
 
-        // Higher priority for bets that commence sooner (lower timeUntilCommence)
-        const priority = Math.max(1, Math.floor(timeUntilCommence / 1000)); // Convert to seconds
-        return priority;
+    // fetch odds for all bets in the queue 
+    public async fetchOddsForQueueBets() {
+        if (this.priorityQueue.isEmpty()) {
+            console.log('No bets in the priority queue.');
+            return;
+        }
+
+        const sports = new Set<string>();
+        const queueSize = this.priorityQueue.size();
+        const itemsToReenqueue: { item: IBet; priority: number }[] = [];
+
+
+        // collect all the sports from bets in the Queue;
+        for (let i = 0; i < queueSize; i++) {
+            const bet = this.priorityQueue.dequeue();
+            if (bet) {
+                sports.add(bet.sport_key);
+                itemsToReenqueue.push({ item: bet, priority: this.calculatePriority(bet) });
+            }
+        }
+
+        // Re-enqueue all the bets
+        for (const { item, priority } of itemsToReenqueue) {
+            this.priorityQueue.enqueue(item, priority);
+        }
+
+
+        // Fetch odds for each sport
+        for (const sport of sports) {
+            const oddsData = await Store.getOdds(sport);
+            
+
+
+            // check bets in queue
+            for (let i = 0; i < this.priorityQueue.size(); i++) {
+                const bet = this.priorityQueue.dequeue();
+
+                if (bet) {
+                    const matchingEvent = oddsData.upcoming_games.find((game: any) => game.id === bet.event_id) ||
+                        oddsData.live_games.find((game: any) => game.id === bet.event_id);
+
+                    if (matchingEvent) {
+                        console.log(`Bet with ID ${bet} matches event ID ${matchingEvent.id}`);
+
+                    }
+
+                    // Re-enqueue the bet
+                    this.priorityQueue.enqueue(bet, this.calculatePriority(bet));
+                }
+            }
+        }
     }
 
 
 }
+
+// {
+//     "id": "0af01ddcf423c17cfb2d18496a3ed644",
+//     "sport_key": "americanfootball_cfl",
+//     "sport_title": "CFL",
+//     "commence_time": "2024-08-17T23:00:00Z",
+//     "home_team": "Hamilton Tiger-Cats",
+//     "away_team": "Edmonton Elks",
+//     "markets": [
+//       {
+//         "key": "h2h",
+//         "last_update": "2024-08-17T10:28:26Z",
+//         "outcomes": [
+//           {
+//             "name": "Edmonton Elks",
+//             "price": 1.83
+//           },
+//           {
+//             "name": "Hamilton Tiger-Cats",
+//             "price": 1.99
+//           }
+//         ]
+//       }
+//     ],
+//     "scores": []
+//   }
 
 export default new BetServices()

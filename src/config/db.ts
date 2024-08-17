@@ -30,11 +30,17 @@ const connectDB = async () => {
 
     })
 
+    agenda.define('fetch odds for queue bets', async () => {
+      await betServices.fetchOddsForQueueBets();
+    })
+
     // // Start Agenda
     await agenda.start();
-    // await agenda.every('5 seconds', 'welcome')
-    console.log('Agenda started');
 
+    // Schedule the recurring job
+    await agenda.every('30 seconds', 'fetch odds for queue bets');
+
+    console.log('Agenda started');
 
   } catch (err) {
     console.error("Failed to connect to database.", err);

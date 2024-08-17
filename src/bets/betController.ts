@@ -89,7 +89,14 @@ class BetController {
             await bet.save({ session });
 
             const delay = commenceTime.getTime() - now.getTime();
-            agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() })
+            const job = agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() });
+
+            if (job) {
+                console.log(`Bet ${bet._id.toString()} scheduled successfully with a delay of ${delay}ms`);
+            } else {
+                console.error(`Failed to schedule bet ${bet._id.toString()}`);
+                throw new Error('Failed to schedule bet');
+            }
 
             // Commit the transaction
             await session.commitTransaction();
