@@ -7,9 +7,6 @@ import { NextFunction, Request, Response } from "express";
 import Agent from '../agents/agentModel';
 import Admin from '../admin/adminModel';
 import { AuthRequest } from '../utils/utils';
-import mongoose from 'mongoose';
-import PlayerModel from '../players/playerModel';
-import Player from '../players/playerSocket';
 
 
 class BetController {
@@ -41,70 +38,37 @@ class BetController {
         agenda.start()
     }
 
-    public async placeBet(playerRef: Player, betData: IBet) {
-        const session = await mongoose.startSession();
-        session.startTransaction();
+   
+       
+  
+    public async placeBet(betData: IBet) {
+        const now = new Date();
+        const commenceTime = new Date(betData.commence_time);
 
-
-        try {
-            const now = new Date();
-            const commenceTime = new Date(betData.commence_time);
-
-            if (commenceTime <= now) {
-                console.log('Cannot place a bet after the match has started');
-                throw new Error('Cannot place a bet after the match has started')
-            }
-
-            // Get the Player
-            const player = await PlayerModel.findById(playerRef.userId);
-            if (!player) {
-                console.log("Player not found");
-                throw new Error('Player not found');
-            }
-
-            // check if the player has enought credits
-            const betAmount = parseFloat(betData.amount.toString());
-
-            if (player.credits < betAmount) {
-                throw new Error('Insufficient credits');
-            }
-
-            // Deduct the bet amount from player's credits
-            player.credits -= betAmount;
-            await player.save({ session });
-
-            // Calculate the possible winning amount
-            const possibleWinningAmount = this.calculatePossibleWinning(betData);
-            console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
-
-            // Add the possibleWinningAmount to the betData
-            const betDataWithWinning = {
-                ...betData,
-                possibleWinningAmount: possibleWinningAmount
-            };
-
-            // Save the bet with the session
-            const bet = new Bet(betDataWithWinning);
-
-            await bet.save({ session });
-
-            const delay = commenceTime.getTime() - now.getTime();
-            agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
-
-            // Commit the transaction
-            await session.commitTransaction();
-            session.endSession();
-
-            console.log('Bet placed successfully');
-            return bet;
-        } catch (error) {
-            // Rollback the transaction in case of error
-            await session.abortTransaction();
-            session.endSession();
-            console.error('Error placing bet:', error.message);
-            playerRef.sendError(error.message)
+        if (commenceTime <= now) {
+            console.log('Cannot place a bet after the match has started');
+            return;
         }
+
+        // Calculate the possible winning amount
+        const possibleWinningAmount = this.calculatePossibleWinning(betData);
+        console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
+
+        // Add the possibleWinningAmount to the betData
+        const betDataWithWinning = {
+            ...betData,
+            possibleWinningAmount: possibleWinningAmount
+        };
+
+        // Now you can proceed with saving the bet and scheduling the job
+        const bet = new Bet(betDataWithWinning);
+        await bet.save();
+
+        const delay = commenceTime.getTime() - now.getTime();
+        agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
     }
+
+
 
     private calculatePossibleWinning(data: any) {
         const selectedTeam = data.bet_on === 'home_team' ? data.home_team : data.away_team;
@@ -154,7 +118,6 @@ class BetController {
         }
     }
 
-
     private async processOutcomeQueue(betId: string, result: 'success' | 'fail') {
         const bet = await Bet.findById(betId);
 
@@ -189,62 +152,81 @@ class BetController {
     public async settleBet(betId: string, result: 'success' | 'fail') {
         agenda.now('process outcome', { betId, result });
     }
-
-
-
-    async getAgentBets(req: Request, res: Response, next: NextFunction) {
+    
+    async getAgentBets(req:Request, res:Response, next:NextFunction){
         try {
-            const { agentId } = req.params;
-            if (!agentId) throw createHttpError(400, "Agent Id not Found");
-            const agent = await Agent.findById(agentId);
-            if (!agent) throw createHttpError(404, "Agent Not Found");
-            const playerUnderAgent = agent.players;
-            if (playerUnderAgent.length === 0)
-                res.status(200).json({ message: "No Players Under Agent" });
-            const bets = await Bet.find({
-                player: { $in: playerUnderAgent }
-            }).populate('player')
-            console.log(bets, "bets");
-            if (bets.length === 0)
-                res.status(200).json({ message: "No Bets Found" });
-            res.status(200).json({ message: "Success!", Bets: bets })
+        
+          const {agentId} = req.params;
+          if(!agentId) throw createHttpError(400, "Agent Id not Found");
+          const agent = await Agent.findById(agentId);
+          console.log(agent);
+          
+          if(!agent) throw createHttpError(404, "Agent Not Found");
+          const playerUnderAgent =agent.players;
+          if(playerUnderAgent.length===0) 
+          res.status(200).json({message:"No Players Under Agent"});
+          const bets = await Bet.find({
+              player:{$in:playerUnderAgent}
+          }).populate('player', 'username _id');
+          console.log(bets, "bets");
+          if(bets.length===0)
+         return  res.status(200).json({message:"No Bets Found"});
+          res.status(200).json({message:"Success!", Bets:bets})
+          
+        } catch (error) {
+          next(error);
+        }
+      }
+  
+      async getAdminBets(req:Request, res:Response, next:NextFunction){
+          try {  
+            const bets = await Bet.find().populate('player', 'username _id');
+            console.log(bets, "bets");   
+             if(bets.length===0) 
+             res.status(200).json({message:"No Bets"});
+             res.status(200).json({message:"Success!", Bets:bets})
+          } catch (error) {
+              console.log(error);
+              next(error)
+          }
+      }
 
+      async getBetForPlayer(req:Request, res:Response, next:NextFunction){
+        try {
+            const {userId} = req.params;
+            const playerBets = await Bet.find({player:userId}).populate('player', 'username _id');
+            if(playerBets.length ===0)
+             return res.status(200).json({"message":"No bets found"});
+            res.status(200).json({"message":"Success!", Bets:playerBets});
         } catch (error) {
             next(error);
         }
-    }
-
-    async getAdminBets(req: Request, res: Response, next: NextFunction) {
-        try {
-            const bets = await Bet.find().populate('player');
-            console.log(bets, "bets");
-            if (bets.length === 0)
-                res.status(200).json({ message: "No Bets" });
-            res.status(200).json({ message: "Success!", Bets: bets })
-        } catch (error) {
-            console.log(error);
-            next(error)
-        }
-    }
-
-    async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
-        try {
-            const { userId } = req.params;
-            const playerBets = await Bet.find({ player: userId }).populate('player')
-            if (playerBets.length === 0)
-                return res.status(200).json({ "message": "No bets found" });
-            res.status(200).json({ "message": "Success!", Bets: playerBets });
-        } catch (error) {
-            next(error);
-        }
-    }
-
+      }
+    
+    
+      //   async getAdminAgentBets(req:Request, res:Response, next:NextFunction){
+    //       try {
+    //       const { adminId } = req.params;
+    //       const admin = await Admin.findById(adminId);
+    //       if (!admin) 
+    //       throw createHttpError(404, "Admin not found");  
+    //       const agents = await Agent.find({ createdBy: adminId });
+    //       if (agents.length === 0) {
+    //       return res.status(200).json({ message: "No agents found under this admin" });
+    //       }
+    //       const playerIds = agents.flatMap(agent => agent.players);
+    //       console.log(playerIds, "playerIds");
+    //       if (playerIds.length === 0) 
+    //       return res.status(200).json({ message: "No players found under agents" });
+    //       const bets = await Bet.find({ player: { $in: playerIds } });
+    //       if (bets.length === 0) 
+    //       return res.status(200).json({ message: "No bets found for players under agents" });
+    //       res.status(200).json({ message: "Success!", Bets:bets });  
+    //       } catch (error) {
+    //       next(error);
+    //       }
+    //   }
 }
-
-
-
-
-
 
 export default new BetController();
 
