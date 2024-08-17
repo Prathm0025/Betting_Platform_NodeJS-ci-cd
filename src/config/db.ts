@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import Agenda from "agenda";
+import Agenda, { Job } from "agenda";
+import betServices from "../bets/betServices";
 
 let agenda: Agenda;
 
@@ -22,9 +23,12 @@ const connectDB = async () => {
     })
 
     // Define a sample job
-    agenda.define('welcome', async (job) => {
-      console.log('Welcome to Betting Agenda', job.attrs);
-    });
+    agenda.define('add bet to queue', async (job: Job) => {
+      const { betId } = job.attrs.data;
+      await betServices.addBetToQueueAtCommenceTime(betId);
+      console.log(`Bet ${betId} is added to processing queue`);
+
+    })
 
     // // Start Agenda
     await agenda.start();
