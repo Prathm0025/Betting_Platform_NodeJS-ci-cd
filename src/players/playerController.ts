@@ -64,18 +64,28 @@ class PlayerController {
 
 //GET SPECIFIC PLAYER
 
-  async getPlayer(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      const player = await Player.findById(id);
-      if (!player) {
-        throw createHttpError(404, "Player not found");
-      }
-      res.status(200).json({ player });
-    } catch (error) {
-      next(error);
+async getPlayer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id, username } = req.params;
+
+    let player;
+
+    if (id) {
+      player = await Player.findById(id).select('-password');
+    } else if (username) {
+      player = await Player.findOne({ username }).select('-password');
+    } else {
+      throw createHttpError(400, "Player id or username not provided");
     }
+    if (!player) {
+      throw createHttpError(404, "Player not found");
+    }
+    res.status(200).json({ player });
+  } catch (error) {
+    next(error);
   }
+}
+
 //GET ALL PLAYERS 
 
   async getAllPlayers(req: Request, res: Response, next: NextFunction) {

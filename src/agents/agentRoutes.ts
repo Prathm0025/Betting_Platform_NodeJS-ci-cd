@@ -6,7 +6,8 @@ const agentRoutes = express.Router();
 agentRoutes.post("/", verifyRole(["admin"]), agentController.createAgent);
 agentRoutes.get("/all", verifyRole(["admin"]), agentController.getAllAgents);
 agentRoutes.get("/:id", verifyRole(["admin"]), agentController.getAgent);
-agentRoutes.get("/players/:agentId", verifyRole(["admin", "agent"]), agentController.getPlayersUnderAgent);
+agentRoutes.get("/players/:agentId?", verifyRole(["admin", "agent"]), agentController.getPlayersUnderAgent);
+agentRoutes.get("/players/by-username/:username",verifyRole(["admin", "agent"]), agentController.getPlayersUnderAgent);
 agentRoutes.put("/", verifyRole(["admin"]), agentController.updateAgent);
 agentRoutes.delete("/:id", verifyRole(["admin"]), agentController.deleteAgent);
 

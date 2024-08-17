@@ -40,19 +40,22 @@ class BetController {
 
     async getAgentBets(req:Request, res:Response, next:NextFunction){
         try {
+        
           const {agentId} = req.params;
           if(!agentId) throw createHttpError(400, "Agent Id not Found");
           const agent = await Agent.findById(agentId);
+          console.log(agent);
+          
           if(!agent) throw createHttpError(404, "Agent Not Found");
           const playerUnderAgent =agent.players;
           if(playerUnderAgent.length===0) 
           res.status(200).json({message:"No Players Under Agent"});
           const bets = await Bet.find({
               player:{$in:playerUnderAgent}
-          }).populate('player')
+          }).populate('player', 'username _id');
           console.log(bets, "bets");
           if(bets.length===0)
-          res.status(200).json({message:"No Bets Found"});
+         return  res.status(200).json({message:"No Bets Found"});
           res.status(200).json({message:"Success!", Bets:bets})
           
         } catch (error) {
@@ -62,7 +65,7 @@ class BetController {
   
       async getAdminBets(req:Request, res:Response, next:NextFunction){
           try {  
-            const bets = await Bet.find().populate('player');
+            const bets = await Bet.find().populate('player', 'username _id');
             console.log(bets, "bets");   
              if(bets.length===0) 
              res.status(200).json({message:"No Bets"});
@@ -76,7 +79,7 @@ class BetController {
       async getBetForPlayer(req:Request, res:Response, next:NextFunction){
         try {
             const {userId} = req.params;
-            const playerBets = await Bet.find({player:userId}).populate('player')
+            const playerBets = await Bet.find({player:userId}).populate('player', 'username _id');
             if(playerBets.length ===0)
              return res.status(200).json({"message":"No bets found"});
             res.status(200).json({"message":"Success!", Bets:playerBets});
