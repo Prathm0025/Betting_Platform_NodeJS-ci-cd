@@ -110,9 +110,6 @@ class BetController {
     //       next(error);
     //       }
     //   }
-    }
-
-
     public async placeBet(betData: IBet) {
         const now = new Date();
         const commenceTime = new Date(betData.commence_time);
