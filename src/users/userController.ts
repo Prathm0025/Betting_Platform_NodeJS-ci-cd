@@ -145,7 +145,7 @@ class UserController {
         this.getPlayerCounts(startOfDay, lastPeriodDate),
       ]);
 
-      const response = {
+      const summary = {
         lastBets,
         lastTransactions,
         betTotals: betTotals[0],
@@ -154,7 +154,7 @@ class UserController {
         playerCounts: playerCounts[0],
       };
 
-      res.json(response);
+      res.status(200).json({message:"Success!", summary});
     } catch (err) {
       console.error(err);
       res.status(500).send('Server error');
@@ -162,7 +162,7 @@ class UserController {
   }
 
   private async getLastBets(limit: number) {
-    return Bet.find().sort({ date: -1 }).limit(limit).exec();
+    return Bet.find().sort({ date: -1 }).limit(limit).populate('player', 'username _id').exec();
   }
 
   private async getLastTransactions(limit: number) {
@@ -187,6 +187,8 @@ class UserController {
           _id: null,
           totalToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, '$amount', 0] } },
           totalLastPeriod: { $sum: '$amount' },
+          countToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
+          countLastPeriod: { $sum: { $cond: [{ $gte: ['$createdAt', lastPeriodDate] }, 1, 0] } },
         },
       },
     ]).exec();
@@ -202,6 +204,8 @@ class UserController {
           _id: null,
           totalToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, '$amount', 0] } },
           totalLastPeriod: { $sum: '$amount' },
+          countToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, 1, 0] } },
+        countLastPeriod: { $sum: { $cond: [{ $gte: ['$date', lastPeriodDate] }, 1, 0] } },
         },
       },
     ]).exec();
