@@ -16,6 +16,7 @@ exports.agenda = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const config_1 = require("./config");
 const agenda_1 = __importDefault(require("agenda"));
+const betServices_1 = __importDefault(require("../bets/betServices"));
 let agenda;
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -31,8 +32,10 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
             db: { address: config_1.config.databaseUrl, collection: "jobs" }
         });
         // Define a sample job
-        agenda.define('welcome', (job) => __awaiter(void 0, void 0, void 0, function* () {
-            console.log('Welcome to Betting Agenda', job.attrs);
+        agenda.define('add bet to queue', (job) => __awaiter(void 0, void 0, void 0, function* () {
+            const { betId } = job.attrs.data;
+            yield betServices_1.default.addBetToQueueAtCommenceTime(betId);
+            console.log(`Bet ${betId} is added to processing queue`);
         }));
         // // Start Agenda
         yield agenda.start();

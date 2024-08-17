@@ -107,6 +107,14 @@ class UserController {
             }
         });
     }
+    getSummary(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+            }
+            catch (error) {
+            }
+        });
+    }
 }
 UserController.saltRounds = 10;
 exports.default = new UserController();

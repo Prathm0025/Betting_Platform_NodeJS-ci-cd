@@ -50,7 +50,7 @@ class BetController {
                     throw new Error('Cannot place a bet after the match has started');
                 }
                 // Get the Player
-                const player = yield playerModel_1.default.findById(playerRef.userId);
+                const player = yield playerModel_1.default.findById(playerRef.userId).session(session);
                 if (!player) {
                     console.log("Player not found");
                     throw new Error('Player not found');
@@ -72,7 +72,7 @@ class BetController {
                 const bet = new betModel_1.default(betDataWithWinning);
                 yield bet.save({ session });
                 const delay = commenceTime.getTime() - now.getTime();
-                db_1.agenda.schedule(new Date(Date.now() + delay), 'lock bet', { betId: bet._id.toString() });
+                db_1.agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() });
                 // Commit the transaction
                 yield session.commitTransaction();
                 session.endSession();
@@ -177,6 +177,7 @@ class BetController {
                 if (!agentId)
                     throw (0, http_errors_1.default)(400, "Agent Id not Found");
                 const agent = yield agentModel_1.default.findById(agentId);
+                console.log(agent);
                 if (!agent)
                     throw (0, http_errors_1.default)(404, "Agent Not Found");
                 const playerUnderAgent = agent.players;
@@ -184,10 +185,10 @@ class BetController {
                     res.status(200).json({ message: "No Players Under Agent" });
                 const bets = yield betModel_1.default.find({
                     player: { $in: playerUnderAgent }
-                }).populate('player');
+                }).populate('player', 'username _id');
                 console.log(bets, "bets");
                 if (bets.length === 0)
-                    res.status(200).json({ message: "No Bets Found" });
+                    return res.status(200).json({ message: "No Bets Found" });
                 res.status(200).json({ message: "Success!", Bets: bets });
             }
             catch (error) {
@@ -198,7 +199,7 @@ class BetController {
     getAdminBets(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const bets = yield betModel_1.default.find().populate('player');
+                const bets = yield betModel_1.default.find().populate('player', 'username _id');
                 console.log(bets, "bets");
                 if (bets.length === 0)
                     res.status(200).json({ message: "No Bets" });
@@ -214,7 +215,7 @@ class BetController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { userId } = req.params;
-                const playerBets = yield betModel_1.default.find({ player: userId }).populate('player');
+                const playerBets = yield betModel_1.default.find({ player: userId }).populate('player', 'username _id');
                 if (playerBets.length === 0)
                     return res.status(200).json({ "message": "No bets found" });
                 res.status(200).json({ "message": "Success!", Bets: playerBets });
