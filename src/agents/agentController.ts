@@ -141,22 +141,41 @@ class AgentController {
 
  //GET PLAYERS UNDER AN AGENT 
    
-   async getPlayersUnderAgent(req:Request, res:Response, next:NextFunction){
-    try{
-    const {agentId} = req.params;
-    if(!agentId) throw createHttpError(400, "Agent Id not Found");
-    const agent = await Agent.findById({_id:agentId}).populate("players");
-    if(!agent) throw createHttpError(404, "Agent Not Found");
-    const playerUnderAgent =agent.players;
-    if(playerUnderAgent.length===0) 
-      res.status(200).json({message:"No Players Under Agent"});
-   
-      res.status(200).json({message:"Success!", players:playerUnderAgent})
+ async getPlayersUnderAgent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { agentId, username } = req.params;
 
-}catch(error){
-  next(error);
-}  
+    let agent:any;
+
+    if (agentId) {
+      agent = await Agent.findById(agentId).populate({
+        path: 'players',
+        select: '-password'
+      });;
+      if (!agent) throw createHttpError(404, "Agent Not Found");
+    } else if (username) {
+      agent = await Agent.findOne({ username }) .populate({
+        path: 'players',
+        select: '-password' 
+      });;
+      if (!agent) throw createHttpError(404, "Agent Not Found with the provided username");
+    } else {
+      throw createHttpError(400, "Agent Id or Username not provided");
+    }
+
+    const playersUnderAgent = agent.players;
+
+    if (playersUnderAgent.length === 0) {
+      return res.status(200).json({ message: "No Players Under Agent" });
+    }
+
+    return res.status(200).json({ message: "Success!", players: playersUnderAgent });
+
+  } catch (error) {
+    next(error);
+  }
 }
+
 }
 
 export default new AgentController();

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 export interface IBet extends Document {
     player: mongoose.Schema.Types.ObjectId;
     sport_title: string,
+    sport_key: string,
     event_id: string,
     commence_time: Date,
     home_team: {

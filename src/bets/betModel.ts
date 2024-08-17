@@ -11,6 +11,10 @@ const betSchema: Schema<IBet> = new Schema({
         type: String,
         required: true
     },
+    sport_key: {
+        type: String,
+        required: true
+    },
     event_id: {
         type: String,
         required: true
@@ -64,7 +68,7 @@ const betSchema: Schema<IBet> = new Schema({
         type: Number,
         default: 0,
     },
-})
+}, { timestamps: true })
 
 const Bet: Model<IBet> = mongoose.model<IBet>('Bet', betSchema);
 export default Bet;
