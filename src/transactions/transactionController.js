@@ -119,13 +119,26 @@ class TransactionController {
     getAgentPlayerTransaction(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { agentId } = req.params;
-                if (!agentId)
-                    throw (0, http_errors_1.default)(400, "Agent Id not Found");
-                const playersUnderAgent = yield agentModel_1.default.findById(agentId);
-                if (!playersUnderAgent || (playersUnderAgent === null || playersUnderAgent === void 0 ? void 0 : playersUnderAgent.players.length) === 0)
-                    res.status(404).json({ message: 'No players found for this agent.' });
-                const playerIds = playersUnderAgent.players.map(player => player);
+                const { agentId, username } = req.params;
+                console.log(username);
+                let agent;
+                if (agentId) {
+                    agent = yield agentModel_1.default.findById(agentId);
+                    if (!agent)
+                        throw (0, http_errors_1.default)(404, "Agent Not Found");
+                }
+                else if (username) {
+                    agent = yield agentModel_1.default.findOne({ username: username });
+                    if (!agent)
+                        throw (0, http_errors_1.default)(404, "Agent Not Found with the provided username");
+                }
+                else {
+                    throw (0, http_errors_1.default)(400, "Agent Id or Username not provided");
+                }
+                if (!agent.players || agent.players.length === 0) {
+                    return res.status(404).json({ message: 'No players found for this agent.' });
+                }
+                const playerIds = agent.players.map(player => player._id);
                 const transactions = yield transactionModel_1.default.find({
                     $or: [
                         { sender: { $in: playerIds } },
@@ -134,16 +147,16 @@ class TransactionController {
                 }).select('+senderModel +receiverModel')
                     .populate({
                     path: 'sender',
-                    select: '-password',
+                    select: 'username',
                 })
                     .populate({
                     path: 'receiver',
-                    select: '-password',
+                    select: 'username',
                 });
                 const agentTransactions = yield transactionModel_1.default.find({
                     $or: [
-                        { sender: agentId },
-                        { receiver: agentId }
+                        { sender: agent._id },
+                        { receiver: agent._id }
                     ]
                 }).select('+senderModel +receiverModel')
                     .populate({
@@ -155,8 +168,9 @@ class TransactionController {
                     select: '-password',
                 });
                 const combinedTransactions = [...transactions, ...agentTransactions];
-                if (combinedTransactions.length === 0)
-                    res.status(404).json({ message: 'No transactions for agent.' });
+                if (combinedTransactions.length === 0) {
+                    return res.status(404).json({ message: 'No transactions for agent.' });
+                }
                 res.status(200).json({ message: "Success", transactions: combinedTransactions });
             }
             catch (error) {
@@ -168,10 +182,23 @@ class TransactionController {
     getSpecificPlayerTransactions(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { playerId } = req.params;
-                if (!playerId)
-                    throw (0, http_errors_1.default)(400, "Player Id not Found");
-                const playerTransaction = yield transactionModel_1.default.find({ receiver: playerId }).select('+senderModel +receiverModel')
+                const { playerId, username } = req.params;
+                let player;
+                if (playerId) {
+                    player = yield playerModel_1.default.findById(playerId);
+                    if (!player)
+                        throw (0, http_errors_1.default)(404, "Player Not Found");
+                }
+                else if (username) {
+                    player = yield playerModel_1.default.findOne({ username });
+                    if (!player)
+                        throw (0, http_errors_1.default)(404, "Player Not Found with the provided username");
+                }
+                else {
+                    throw (0, http_errors_1.default)(400, "Player Id or Username not provided");
+                }
+                const playerTransactions = yield transactionModel_1.default.find({ receiver: player._id })
+                    .select('+senderModel +receiverModel')
                     .populate({
                     path: 'sender',
                     select: '-password',
@@ -180,11 +207,13 @@ class TransactionController {
                     path: 'receiver',
                     select: '-password',
                 });
-                if (playerTransaction.length === 0)
-                    res.status(404).json({ message: "No Transaction Found" });
-                res.status(200).json({ message: "Success!", transactions: playerTransaction });
+                if (playerTransactions.length === 0) {
+                    return res.status(404).json({ message: "No Transactions Found" });
+                }
+                res.status(200).json({ message: "Success!", transactions: playerTransactions });
             }
             catch (error) {
+                console.log(error);
                 next(error);
             }
         });

@@ -37,9 +37,13 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
             yield betServices_1.default.addBetToQueueAtCommenceTime(betId);
             console.log(`Bet ${betId} is added to processing queue`);
         }));
+        agenda.define('fetch odds for queue bets', () => __awaiter(void 0, void 0, void 0, function* () {
+            yield betServices_1.default.fetchOddsForQueueBets();
+        }));
         // // Start Agenda
         yield agenda.start();
-        // await agenda.every('5 seconds', 'welcome')
+        // Schedule the recurring job
+        yield agenda.every('30 seconds', 'fetch odds for queue bets');
         console.log('Agenda started');
     }
     catch (err) {

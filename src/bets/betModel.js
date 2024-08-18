@@ -34,6 +34,10 @@ const betSchema = new mongoose_1.Schema({
         type: String,
         required: true
     },
+    sport_key: {
+        type: String,
+        required: true
+    },
     event_id: {
         type: String,
         required: true
@@ -77,7 +81,7 @@ const betSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ['success', 'fail', 'pending', 'retry', 'locked']
+        enum: ['won', 'lost', 'pending', 'locked', 'retry']
     },
     possibleWinningAmount: {
         type: Number,
@@ -87,6 +91,6 @@ const betSchema = new mongoose_1.Schema({
         type: Number,
         default: 0,
     },
-});
+}, { timestamps: true });
 const Bet = mongoose_1.default.model('Bet', betSchema);
 exports.default = Bet;

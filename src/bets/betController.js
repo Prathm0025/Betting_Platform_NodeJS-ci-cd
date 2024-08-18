@@ -18,6 +18,7 @@ const http_errors_1 = __importDefault(require("http-errors"));
 const agentModel_1 = __importDefault(require("../agents/agentModel"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const playerModel_1 = __importDefault(require("../players/playerModel"));
+const storeController_1 = __importDefault(require("../store/storeController"));
 class BetController {
     constructor() {
         if (!db_1.agenda) {
@@ -43,11 +44,14 @@ class BetController {
             const session = yield mongoose_1.default.startSession();
             session.startTransaction();
             try {
-                const now = new Date();
-                const commenceTime = new Date(betData.commence_time);
-                if (commenceTime <= now) {
-                    console.log('Cannot place a bet after the match has started');
-                    throw new Error('Cannot place a bet after the match has started');
+                const oddsData = yield storeController_1.default.getOdds(betData.sport_key);
+                // Find the game data matching the event_id
+                const game = oddsData.live_games.find((g) => g.id === betData.event_id)
+                    || oddsData.upcoming_games.find((g) => g.id === betData.event_id)
+                    || oddsData.completed_games.find((g) => g.id === betData.event_id);
+                if (game && game.completed) {
+                    console.log('Cannot place a bet on a completed game');
+                    throw new Error('Cannot place a bet on a completed game');
                 }
                 // Get the Player
                 const player = yield playerModel_1.default.findById(playerRef.userId).session(session);
@@ -71,12 +75,20 @@ class BetController {
                 // Save the bet with the session
                 const bet = new betModel_1.default(betDataWithWinning);
                 yield bet.save({ session });
+                const now = new Date();
+                const commenceTime = new Date(betData.commence_time);
                 const delay = commenceTime.getTime() - now.getTime();
-                db_1.agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() });
+                const job = db_1.agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() });
+                if (job) {
+                    console.log(`Bet ${bet._id.toString()} scheduled successfully with a delay of ${delay}ms`);
+                }
+                else {
+                    console.error(`Failed to schedule bet ${bet._id.toString()}`);
+                    throw new Error('Failed to schedule bet');
+                }
                 // Commit the transaction
                 yield session.commitTransaction();
                 session.endSession();
-                console.log('Bet placed successfully');
                 return bet;
             }
             catch (error) {
@@ -152,7 +164,7 @@ class BetController {
                 try {
                     bet.retryCount += 1;
                     if (bet.retryCount > 1) {
-                        bet.status = 'fail';
+                        bet.status = 'lost';
                     }
                     else {
                         bet.status = 'retry';
@@ -214,13 +226,29 @@ class BetController {
     getBetForPlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { userId } = req.params;
-                const playerBets = yield betModel_1.default.find({ player: userId }).populate('player', 'username _id');
-                if (playerBets.length === 0)
-                    return res.status(200).json({ "message": "No bets found" });
-                res.status(200).json({ "message": "Success!", Bets: playerBets });
+                const { userId, username } = req.params;
+                let player;
+                if (userId) {
+                    player = yield playerModel_1.default.findById(userId);
+                    if (!player)
+                        throw (0, http_errors_1.default)(404, "Player Not Found");
+                }
+                else if (username) {
+                    player = yield playerModel_1.default.findOne({ username: username });
+                    if (!player)
+                        throw (0, http_errors_1.default)(404, "Player Not Found with the provided username");
+                }
+                else {
+                    throw (0, http_errors_1.default)(400, "User Id or Username not provided");
+                }
+                const playerBets = yield betModel_1.default.find({ player: player._id }).populate('player', 'username _id');
+                if (playerBets.length === 0) {
+                    return res.status(200).json({ message: "No bets found" });
+                }
+                res.status(200).json({ message: "Success!", bets: playerBets });
             }
             catch (error) {
+                console.log(error);
                 next(error);
             }
         });
