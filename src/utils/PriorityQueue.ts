@@ -30,4 +30,7 @@ export class PriorityQueue<T>{
         return this.items.length;
     }
 
+    getItems(): { item: T, priority: number }[] {
+        return this.items;
+    }
 }

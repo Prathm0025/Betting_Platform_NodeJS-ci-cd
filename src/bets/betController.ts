@@ -10,6 +10,7 @@ import { AuthRequest } from '../utils/utils';
 import mongoose from 'mongoose';
 import PlayerModel from '../players/playerModel';
 import Player from '../players/playerSocket';
+import Store from '../store/storeController';
 
 
 class BetController {
@@ -47,12 +48,17 @@ class BetController {
 
 
         try {
-            const now = new Date();
-            const commenceTime = new Date(betData.commence_time);
 
-            if (commenceTime <= now) {
-                console.log('Cannot place a bet after the match has started');
-                throw new Error('Cannot place a bet after the match has started')
+            const oddsData = await Store.getOdds(betData.sport_key);
+
+            // Find the game data matching the event_id
+            const game = oddsData.live_games.find((g: any) => g.id === betData.event_id)
+                || oddsData.upcoming_games.find((g: any) => g.id === betData.event_id)
+                || oddsData.completed_games.find((g: any) => g.id === betData.event_id);
+
+            if (game && game.completed) {
+                console.log('Cannot place a bet on a completed game');
+                throw new Error('Cannot place a bet on a completed game');
             }
 
             // Get the Player
@@ -64,7 +70,6 @@ class BetController {
 
             // check if the player has enought credits
             const betAmount = parseFloat(betData.amount.toString());
-
             if (player.credits < betAmount) {
                 throw new Error('Insufficient credits');
             }
@@ -85,17 +90,25 @@ class BetController {
 
             // Save the bet with the session
             const bet = new Bet(betDataWithWinning);
-
             await bet.save({ session });
 
+            const now = new Date();
+            const commenceTime = new Date(betData.commence_time);
             const delay = commenceTime.getTime() - now.getTime();
-            agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() })
+
+            const job = agenda.schedule(new Date(Date.now() + delay), 'add bet to queue', { betId: bet._id.toString() });
+
+            if (job) {
+                console.log(`Bet ${bet._id.toString()} scheduled successfully with a delay of ${delay}ms`);
+            } else {
+                console.error(`Failed to schedule bet ${bet._id.toString()}`);
+                throw new Error('Failed to schedule bet');
+            }
 
             // Commit the transaction
             await session.commitTransaction();
             session.endSession();
 
-            console.log('Bet placed successfully');
             return bet;
         } catch (error) {
             // Rollback the transaction in case of error
@@ -155,7 +168,7 @@ class BetController {
     }
 
 
-    private async processOutcomeQueue(betId: string, result: 'success' | 'fail') {
+    private async processOutcomeQueue(betId: string, result: 'won' | 'lost') {
         const bet = await Bet.findById(betId);
 
         if (bet) {
@@ -175,7 +188,7 @@ class BetController {
             try {
                 bet.retryCount += 1;
                 if (bet.retryCount > 1) {
-                    bet.status = 'fail';
+                    bet.status = 'lost';
                 } else {
                     bet.status = 'retry'
                 }
@@ -232,22 +245,36 @@ class BetController {
 
     async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
         try {
-            const { userId } = req.params;
-            const playerBets = await Bet.find({ player: userId }).populate('player', 'username _id');
-            if (playerBets.length === 0)
-                return res.status(200).json({ "message": "No bets found" });
-            res.status(200).json({ "message": "Success!", Bets: playerBets });
+          const { userId, username } = req.params;
+        
+          let player:any;
+      
+          if (userId) {
+            player = await PlayerModel.findById(userId);
+            if (!player) throw createHttpError(404, "Player Not Found");
+          } else if (username) {
+            player = await PlayerModel.findOne({  username:username });
+            if (!player) throw createHttpError(404, "Player Not Found with the provided username");
+          } else {
+            throw createHttpError(400, "User Id or Username not provided");
+          }
+      
+          const playerBets = await Bet.find({ player: player._id }).populate('player', 'username _id');
+      
+          if (playerBets.length === 0) {
+            return res.status(200).json({ message: "No bets found" });
+          }
+      
+          res.status(200).json({ message: "Success!", bets: playerBets });
+      
         } catch (error) {
-            next(error);
+          console.log(error);
+          next(error);
         }
-    }
+      }
+      
 
 }
-
-
-
-
-
 
 export default new BetController();
 

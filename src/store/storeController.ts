@@ -59,6 +59,15 @@ class Store {
         params: { ...params, apiKey: config.oddsApi.key },
       });
 
+      // Log the quota-related headers
+      const requestsRemaining = response.headers['x-requests-remaining'];
+      const requestsUsed = response.headers['x-requests-used'];
+      const requestsLast = response.headers['x-requests-last'];
+
+      console.log(`Requests Remaining: ${requestsRemaining}`);
+      console.log(`Requests Used: ${requestsUsed}`);
+      console.log(`Requests Last: ${requestsLast}`);
+
       cache.set(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -66,110 +75,6 @@ class Store {
     }
   }
 
-  private getPollingInterval(
-    marketType: string,
-    eventStartTime: string
-  ): number {
-    const now = new Date();
-    const startTime = new Date(eventStartTime);
-    const timeUntilEvent = startTime.getTime() - now.getTime();
-
-    // Determine if the event is pre-match or in-play
-    const isInPlay = timeUntilEvent <= 0;
-    const minutesUntilEvent = timeUntilEvent / (60 * 1000);
-
-    if (isInPlay) {
-      // In-Play Update Intervals
-      switch (marketType) {
-        case "head_to_head":
-        case "moneyline":
-        case "1x2":
-        case "spreads":
-        case "handicaps":
-        case "totals":
-        case "over_under":
-          return 40 * 1000; // 40 seconds
-        case "player_props":
-        case "alternates":
-        case "period_markets":
-          return 60 * 1000; // 60 seconds
-        case "outrights":
-        case "futures":
-          return 60 * 1000; // 60 seconds
-        default:
-          return 60 * 1000; // Default to 60 seconds
-      }
-    } else {
-      // Pre-Match Update Intervals
-      if (minutesUntilEvent > 360) {
-        // More than 6 hours before the event
-        switch (marketType) {
-          case "head_to_head":
-          case "moneyline":
-          case "1x2":
-          case "spreads":
-          case "handicaps":
-          case "totals":
-          case "over_under":
-          case "player_props":
-          case "alternates":
-          case "period_markets":
-            return 60 * 1000; // 60 seconds
-          case "outrights":
-          case "futures":
-            return 5 * 60 * 1000; // 5 minutes
-          default:
-            return 60 * 1000; // Default to 60 seconds
-        }
-      } else {
-        // Between 0 and 6 hours before the event
-        return Math.max(60 * 1000, (minutesUntilEvent / 360) * 60 * 1000); // Linearly interpolate between 60 seconds and 5 minutes
-      }
-    }
-  }
-
-  private async pollForUpdates(
-    marketType: string,
-    eventStartTime: string
-  ): Promise<void> {
-    const pollingInterval = this.getPollingInterval(marketType, eventStartTime);
-
-    try {
-      // Refresh event odds data
-      await this.getEventOdds(
-        "example_sport",
-        "example_event_id",
-        "us",
-        "head_to_head",
-        "iso",
-        "decimal"
-      );
-    } catch (error) {
-      console.error("Error during polling:", error.message);
-    }
-    setTimeout(
-      () => this.pollForUpdates(marketType, eventStartTime),
-      pollingInterval
-    );
-  }
-
-  public startPollingForEvent(
-    sport: string,
-    eventId: string,
-    marketType: string
-  ): void {
-    // Example of how to start polling for a specific event
-    this.getEvents(sport)
-      .then((events) => {
-        const event = events.find((e) => e.id === eventId);
-        if (event) {
-          this.pollForUpdates(marketType, event.commence_time);
-        }
-      })
-      .catch((error) => {
-        console.error("Error starting polling:", error.message);
-      });
-  }
 
   public getSports(): Promise<any> {
     return this.fetchFromApi(
@@ -194,20 +99,26 @@ class Store {
     );
   }
 
-  // HANDLE 
+  // HANDLE ODDS
   public async getOdds(
     sport: string,
-    markets: string | undefined,
-    regions: string | undefined,
-    player
+    markets?: string | undefined,
+    regions?: string | undefined,
+    player?: any
   ): Promise<any> {
     try {
-      const cacheKey = `odds_${sport}_${markets}_${regions}`;
+      const cacheKey = `odds_${sport}_h2h_us`;
+      console.log("CACHE KEY : ", cacheKey);
+
 
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
-        `${config.oddsApi.url}/sports/${sport}/odds?markets=h2h&oddsFormat=decimal`,
-        { regions, },
+        `${config.oddsApi.url}/sports/${sport}/odds`,
+        {
+          markets: 'h2h', // Default to 'h2h' if not provided
+          regions: 'us', // Default to 'us' if not provided
+          oddsFormat: 'decimal'
+        },
         this.oddsCache,
         cacheKey
       );
@@ -216,8 +127,6 @@ class Store {
 
       // Get the current time for filtering live games
       const now = new Date().toISOString();
-
-
 
       // Process the data
       const processedData = oddsResponse.map((game: any) => {
@@ -238,26 +147,34 @@ class Store {
           home_team: game.home_team,
           away_team: game.away_team,
           markets: bookmaker?.markets || [],
-          scores: matchedScore?.scores || []
+          scores: matchedScore?.scores || [],
+          completed: matchedScore?.completed,
+          last_update: matchedScore?.last_update
         };
       });
 
       // Separate live games and upcoming games
       const liveGames = processedData.filter(
-        (game: any) => game.commence_time <= now
+        (game: any) => game.commence_time <= now && !game.completed
       );
       const upcomingGames = processedData.filter(
         (game: any) => game.commence_time > now
+      );
+      const completedGames = processedData.filter(
+        (game: any) => game.completed
       );
 
       // Return the formatted data
       return {
         live_games: liveGames,
         upcoming_games: upcomingGames,
+        completed_games: completedGames,
       };
     } catch (error) {
       console.log(error.message);
-      player.sendError(error.message);
+      if (player) {
+        player.sendError(error.message);
+      }
     }
   }
 

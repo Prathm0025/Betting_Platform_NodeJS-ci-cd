@@ -156,7 +156,7 @@
       const socket = io("http://localhost:5000", {
         auth: {
           token:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmJjN2U0MmUzYjQ5NmFlMzQxNjA3Y2MiLCJ1c2VybmFtZSI6ImFudXNoYWthIiwicm9sZSI6InBsYXllciIsImNyZWRpdHMiOjAsImlhdCI6MTcyMzc4NDE5NiwiZXhwIjoxNzIzODcwNTk2fQ.U_2i1GHb2qV1Pxdam2CFlZGqZBJ9M_5rebLDpFQrjAo", // Replace with your actual JWT token
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NmJjN2U0MmUzYjQ5NmFlMzQxNjA3Y2MiLCJ1c2VybmFtZSI6ImFudXNoYWthIiwicm9sZSI6InBsYXllciIsImNyZWRpdHMiOjE0MDAsImlhdCI6MTcyMzg4NDgzMSwiZXhwIjoxNzIzOTcxMjMxfQ.a0sVFDQNyWeLRFf79XCYlB2Cm6DBdDmrcavE4Nyemf0", // Replace with your actual JWT token
         },
       });
 
@@ -299,7 +299,7 @@
               amount: betAmount,
               status: "pending",
 
-              sport: sport, // Assuming sport_title corresponds to the sport
+              sport_key: sport, // Assuming sport_title corresponds to the sport
               oddsFormat: oddsFormat,
             };
 
