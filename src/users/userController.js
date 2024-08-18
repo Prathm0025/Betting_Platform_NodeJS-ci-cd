@@ -20,8 +20,16 @@ const playerModel_1 = __importDefault(require("../players/playerModel"));
 const config_1 = require("../config/config");
 const svg_captcha_1 = __importDefault(require("svg-captcha"));
 const uuid_1 = require("uuid");
+const transactionModel_1 = __importDefault(require("../transactions/transactionModel"));
+const betModel_1 = __importDefault(require("../bets/betModel"));
+const agentModel_1 = __importDefault(require("../agents/agentModel"));
 const captchaStore = {};
 class UserController {
+    constructor() {
+        // Bind each method to 'this'
+        this.getSummary = this.getSummary.bind(this);
+        // Repeat for other methods as necessary
+    }
     //TO GET CAPTCHA
     getCaptcha(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -107,12 +115,125 @@ class UserController {
             }
         });
     }
-    getSummary(req, res, next) {
+    getSummary(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                const today = new Date();
+                const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                // const lastWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+                // const last30Days = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+                const limitBets = parseInt(req.query.limitBets) || 4;
+                const limitTransactions = parseInt(req.query.limitTransactions) || 10;
+                const lastDays = parseInt(req.query.lastDays) || 30;
+                const lastPeriodDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - lastDays);
+                const [lastBets, lastTransactions, betTotals, transactionTotals, agentCounts, playerCounts] = yield Promise.all([
+                    this.getLastBets(limitBets),
+                    this.getLastTransactions(limitTransactions),
+                    this.getBetTotals(startOfDay, lastPeriodDate),
+                    this.getTransactionTotals(startOfDay, lastPeriodDate),
+                    this.getAgentCounts(startOfDay, lastPeriodDate),
+                    this.getPlayerCounts(startOfDay, lastPeriodDate),
+                ]);
+                const summary = {
+                    lastBets,
+                    lastTransactions,
+                    betTotals: betTotals[0],
+                    transactionTotals: transactionTotals[0],
+                    agentCounts: agentCounts[0],
+                    playerCounts: playerCounts[0],
+                };
+                res.status(200).json({ message: "Success!", summary });
             }
-            catch (error) {
+            catch (err) {
+                console.error(err);
+                res.status(500).send('Server error');
             }
+        });
+    }
+    getLastBets(limit) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return betModel_1.default.find().sort({ date: -1 }).limit(limit).populate('player', 'username _id').exec();
+        });
+    }
+    getLastTransactions(limit) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return transactionModel_1.default.find().sort({ date: -1 }).limit(limit).select('+senderModel +receiverModel')
+                .populate({
+                path: 'sender',
+                select: 'username',
+            })
+                .populate({
+                path: 'receiver',
+                select: 'username',
+            }).exec();
+        });
+    }
+    getBetTotals(startOfDay, lastPeriodDate) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return betModel_1.default.aggregate([
+                {
+                    $match: { updatedAt: { $gte: lastPeriodDate } },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, '$amount', 0] } },
+                        totalLastPeriod: { $sum: '$amount' },
+                        countToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
+                        countLastPeriod: { $sum: { $cond: [{ $gte: ['$createdAt', lastPeriodDate] }, 1, 0] } },
+                    },
+                },
+            ]).exec();
+        });
+    }
+    getTransactionTotals(startOfDay, lastPeriodDate) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return transactionModel_1.default.aggregate([
+                {
+                    $match: { date: { $gte: lastPeriodDate } },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, '$amount', 0] } },
+                        totalLastPeriod: { $sum: '$amount' },
+                        countToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, 1, 0] } },
+                        countLastPeriod: { $sum: { $cond: [{ $gte: ['$date', lastPeriodDate] }, 1, 0] } },
+                    },
+                },
+            ]).exec();
+        });
+    }
+    getAgentCounts(startOfDay, lastPeriodDate) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return agentModel_1.default.aggregate([
+                {
+                    $match: { createdAt: { $gte: lastPeriodDate } },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        agentsToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
+                        agentsLastPeriod: { $sum: 1 },
+                    },
+                },
+            ]).exec();
+        });
+    }
+    getPlayerCounts(startOfDay, lastPeriodDate) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return playerModel_1.default.aggregate([
+                {
+                    $match: { createdAt: { $gte: lastPeriodDate } },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        playersToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
+                        playersLastPeriod: { $sum: 1 },
+                    },
+                },
+            ]).exec();
         });
     }
 }

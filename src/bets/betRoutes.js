@@ -10,5 +10,6 @@ const betRoutes = express_1.default.Router();
 betRoutes.get("/:agentId", betController_1.default.getAgentBets);
 betRoutes.get("/", (0, middleware_1.verifyRole)(["admin"]), betController_1.default.getAdminBets);
 // betRoutes.get("/all/:adminId",verifyRole(["admin"]), betController.getAdminAgentBets)
-betRoutes.get("/player/:userId", betController_1.default.getBetForPlayer);
+betRoutes.get("/player/:userId?", betController_1.default.getBetForPlayer);
+betRoutes.get("/player/by-username/:username", betController_1.default.getBetForPlayer);
 exports.default = betRoutes;

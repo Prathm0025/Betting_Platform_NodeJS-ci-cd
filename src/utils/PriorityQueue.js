@@ -29,5 +29,8 @@ class PriorityQueue {
     size() {
         return this.items.length;
     }
+    getItems() {
+        return this.items;
+    }
 }
 exports.PriorityQueue = PriorityQueue;
