@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Store from "../store/storeController";
 import { PriorityQueue } from "../utils/PriorityQueue"
 import Bet from "./betModel";
@@ -79,57 +80,75 @@ class BetServices {
 
         // Fetch odds for each sport
         for (const sport of sports) {
-            const oddsData = await Store.getOdds(sport);
-            
+            const { live_games, upcoming_games, completed_games } = await Store.getOdds(sport);
 
 
-            // check bets in queue
-            for (let i = 0; i < this.priorityQueue.size(); i++) {
-                const bet = this.priorityQueue.dequeue();
-
+            completed_games.forEach(async (game: any) => {
+                const bet = this.priorityQueue.getItems().find((b) => b.item.event_id === game.id);
                 if (bet) {
-                    const matchingEvent = oddsData.upcoming_games.find((game: any) => game.id === bet.event_id) ||
-                        oddsData.live_games.find((game: any) => game.id === bet.event_id);
-
-                    if (matchingEvent) {
-                        console.log(`Bet with ID ${bet} matches event ID ${matchingEvent.id}`);
-
-                    }
-
-                    // Re-enqueue the bet
-                    this.priorityQueue.enqueue(bet, this.calculatePriority(bet));
+                    await this.processCompletedBet(bet.item._id.toString(), game);
                 }
+            })
+        }
+    }
+
+    private async processCompletedBet(betId: string, gameData: any) {
+
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        try {
+            const bet = await Bet.findById(betId).session(session);
+            if (!bet) {
+                console.log('Bet not found.');
+                await session.abortTransaction();
+                session.endSession();
+                return;
             }
+
+            const winner = this.determineWinner(bet.home_team.name, bet.away_team.name, gameData.scores);
+            let winningAmount: number | null = null;
+
+
+            if (winner === bet.bet_on) {
+                bet.status = 'won';
+                winningAmount = bet.possibleWinningAmount; // Set the winning amount if the bet is successful
+                console.log(`Bet ${betId} won!`);
+            }
+            else {
+                bet.status = 'lost';
+                console.log(`Bet ${betId} lost.`);
+            }
+            await bet.save({ session });
+            await session.commitTransaction();
+
+        } catch (error) {
+            console.error('Error processing completed bet:', error.message);
+            await session.abortTransaction();
+        }
+        finally {
+            session.endSession();
+        }
+
+
+    }
+
+    private determineWinner(homeTeam: string, awayTeam: string, scores: { name: string, score: string }[]): string | null {
+        const homeScore = parseInt(scores.find(s => s.name === homeTeam)?.score || '0');
+        const awayScore = parseInt(scores.find(s => s.name === awayTeam)?.score || '0');
+
+        if (homeScore > awayScore) {
+            return 'home_team';
+        } else if (awayScore > homeScore) {
+            return 'away_team';
+        } else {
+            return null; // Tie or error
         }
     }
 
 
 }
 
-// {
-//     "id": "0af01ddcf423c17cfb2d18496a3ed644",
-//     "sport_key": "americanfootball_cfl",
-//     "sport_title": "CFL",
-//     "commence_time": "2024-08-17T23:00:00Z",
-//     "home_team": "Hamilton Tiger-Cats",
-//     "away_team": "Edmonton Elks",
-//     "markets": [
-//       {
-//         "key": "h2h",
-//         "last_update": "2024-08-17T10:28:26Z",
-//         "outcomes": [
-//           {
-//             "name": "Edmonton Elks",
-//             "price": 1.83
-//           },
-//           {
-//             "name": "Hamilton Tiger-Cats",
-//             "price": 1.99
-//           }
-//         ]
-//       }
-//     ],
-//     "scores": []
-//   }
+
 
 export default new BetServices()

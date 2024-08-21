@@ -28,11 +28,11 @@ app.use(express.json());
 const server = createServer(app);
 
 app.use("/api/auth", userRoutes);
-app.use("/api/player", checkUser, playerRoutes);
+app.use("/api/players", checkUser, playerRoutes);
 app.use("/api/admin", verifyApiKey, adminRoutes);
-app.use("/api/agent", checkUser, agentRoutes);
+app.use("/api/agents", checkUser, agentRoutes);
 app.use("/api/store", checkUser, storeRoutes);
-app.use("/api/transaction", checkUser, transactionRoutes);
+app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 
 

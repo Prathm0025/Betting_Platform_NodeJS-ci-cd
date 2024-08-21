@@ -285,7 +285,7 @@
               player: "66bc7e42e3b496ae341607cc", // Replace with actual player ID
               sport_title: eventData.sport_title,
               event_id: eventId,
-              commence_time: new Date(new Date().getTime() + 1 * 60 * 1000),
+              commence_time: eventData.commence_time,
               home_team: {
                 name: eventData.home_team,
                 odds: homeTeamOdds.price,
