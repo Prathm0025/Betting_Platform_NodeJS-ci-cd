@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import createHttpError from "http-errors";
-import { AuthRequest } from "../utils/utils";
+import { AuthRequest, sanitizeInput } from "../utils/utils";
 import User from "../users/userModel";
 import Player from "../players/playerModel";
 import { TransactionService } from "./transactionService";
@@ -9,11 +9,16 @@ import Transaction from "./transactionModel";
 import Agent from "../agents/agentModel";
 
 class TransactionController {
+
+  // TO RECORD TRANSACTIONS, RECHARGE AND REDEEM
+
   async transaction(req: Request, res: Response, next: NextFunction) {
     const { reciever: receiverId, amount, type } = req.body;
-
+       
     try {
-      if (!receiverId || !amount || amount <= 0)
+      const sanitizedAmount = sanitizeInput(amount);
+      const sanitizedType = sanitizeInput(type);
+      if (!receiverId || !sanitizedAmount || sanitizedAmount <= 0)
         throw createHttpError(400, "Reciever or Amount is missing");
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
@@ -62,8 +67,8 @@ class TransactionController {
         reciever,
         senderModelName,
         recieverModelName,
-        type,
-        amount,
+        sanitizedType,
+        sanitizedAmount,
         role
       );
       res.status(200).json({ message: "Transaction successful" });
@@ -73,6 +78,8 @@ class TransactionController {
       next(err);
     }
   }
+
+  //GET ALL TRANSCATIONS FOR ADMIN
 
   async getAllTransactions(req: Request, res: Response, next: NextFunction) {
     try {
@@ -91,6 +98,8 @@ class TransactionController {
       next(error);
     }
   }
+
+  //SPECIFIC AGENT TRANSACTIONS
 
   async getSpecificAgentTransactions(req: Request, res: Response, next: NextFunction) {
     try {
@@ -121,31 +130,33 @@ class TransactionController {
 
   }
 
+  //SPECIFIC AGENT AND HIS PLAYERS TRANSACTIONS
 
   async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
     
     try {
-      const { agentId, username } = req.params;
-      console.log(username);
+      const { agent } = req.params;
+     const {type } = req.query;      
+     console.log(agent);
+     console.log(type);
+     
+      let agentPlayers:any;
       
-  
-      let agent:any;
-      
-      if (agentId) {
-        agent = await Agent.findById(agentId);
-        if (!agent) throw createHttpError(404, "Agent Not Found");
-      } else if (username) {
-        agent = await Agent.findOne({ username:username });
-        if (!agent) throw createHttpError(404, "Agent Not Found with the provided username");
+      if (type==="id") {
+        agentPlayers = await Agent.findById(agent);
+        if (!agentPlayers) throw createHttpError(404, "Agent Not Found");
+      } else if (type==="username") {
+        agentPlayers = await Agent.findOne({ username:agent });
+        if (!agentPlayers) throw createHttpError(404, "Agent Not Found with the provided username");
       } else {
         throw createHttpError(400, "Agent Id or Username not provided");
       }
   
-      if (!agent.players || agent.players.length === 0) {
+      if (!agentPlayers.players || agentPlayers.players.length === 0) {
         return res.status(404).json({ message: 'No players found for this agent.' });
       }
   
-      const playerIds = agent.players.map(player => player._id); 
+      const playerIds = agentPlayers.players.map(player => player._id);   
       const transactions = await Transaction.find({
         $or: [
           { sender: { $in: playerIds } },
@@ -163,8 +174,8 @@ class TransactionController {
   
       const agentTransactions = await Transaction.find({
         $or: [
-          { sender: agent._id },
-          { receiver: agent._id }
+          { sender: agentPlayers._id },
+          { receiver: agentPlayers._id }
         ]
       }).select('+senderModel +receiverModel')
         .populate({
@@ -190,6 +201,8 @@ class TransactionController {
     }
   }
   
+//SPECIFIC PLAYER TRANSACTION
+
   async getSpecificPlayerTransactions(req: Request, res: Response, next: NextFunction) {
     try {
       const { playerId, username } = req.params;
@@ -239,8 +252,8 @@ export default new TransactionController();
 // import createHttpError from "http-errors";
 // import mongoose from "mongoose";
 // import { AuthRequest } from "../utils/utils";
-// import { IPlayer, IUser } from "../usersTest/userType";
-// import { ITransaction } from "./transactionType";
+// import { IPlayer, IUser } from "../usersTest/usersanitizedType";
+// import { ITransaction } from "./transactionsanitizedType";
 // import TransactionService from "./transactionService";
 // import { QueryParams } from "../utils/utils";
 
@@ -256,7 +269,7 @@ export default new TransactionController();
 //   }
 
 //   async createTransaction(
-//     type: string,
+//     sanitizedType: string,
 //     debtor: IUser | IPlayer,
 //     creditor: IUser,
 //     amount: number,
@@ -264,7 +277,7 @@ export default new TransactionController();
 //   ): Promise<ITransaction> {
 //     try {
 //       const transaction = await this.transactionService.createTransaction(
-//         type,
+//         sanitizedType,
 //         debtor,
 //         creditor,
 //         amount,
@@ -292,23 +305,23 @@ export default new TransactionController();
 //         totalRedeemed: { From: 0, To: 0 },
 //         credits: { From: 0, To: 0 },
 //         updatedAt: { From: new Date(), To: new Date() },
-//         type: "",
+//         sanitizedType: "",
 //         amount: { From: 0, To: Infinity },
 //       };
-//       let type, updatedAt, amount;
+//       let sanitizedType, updatedAt, amount;
 
 //       if (search) {
 //         parsedData = JSON.parse(search);
 //         if (parsedData) {
-//           type = parsedData.type;
+//           sanitizedType = parsedData.sanitizedType;
 //           updatedAt = parsedData.updatedAt;
 //           amount = parsedData.amount;
 //         }
 //       }
 
 //       let query: any = {};
-//       if (type) {
-//         query.type = type;
+//       if (sanitizedType) {
+//         query.sanitizedType = sanitizedType;
 //       }
 //       if (updatedAt) {
 //         query.updatedAt = {
@@ -387,7 +400,7 @@ export default new TransactionController();
 //       let query: any = {};
 //       if (
 //         user.role === "superadmin" ||
-//         user.subordinates.includes(new mongoose.Types.ObjectId(subordinateId))
+//         user.subordinates.includes(new mongoose.sanitizedTypes.ObjectId(subordinateId))
 //       ) {
 //         const {
 //           transactions,
@@ -454,23 +467,23 @@ export default new TransactionController();
 //         totalRedeemed: { From: 0, To: 0 },
 //         credits: { From: 0, To: 0 },
 //         updatedAt: { From: new Date(), To: new Date() },
-//         type: "",
+//         sanitizedType: "",
 //         amount: { From: 0, To: Infinity },
 //       };
-//       let type, updatedAt, amount;
+//       let sanitizedType, updatedAt, amount;
 
 //       if (search) {
 //         parsedData = JSON.parse(search);
 //         if (parsedData) {
-//           type = parsedData.type;
+//           sanitizedType = parsedData.sanitizedType;
 //           updatedAt = parsedData.updatedAt;
 //           amount = parsedData.amount;
 //         }
 //       }
 
 //       let query: any = {};
-//       if (type) {
-//         query.type = type;
+//       if (sanitizedType) {
+//         query.sanitizedType = sanitizedType;
 //       }
 //       if (updatedAt) {
 //         query.updatedAt = {
@@ -525,7 +538,7 @@ export default new TransactionController();
 //     const session = await mongoose.startSession();
 //     session.startTransaction();
 //     try {
-//       if (!mongoose.Types.ObjectId.isValid(id)) {
+//       if (!mongoose.sanitizedTypes.ObjectId.isValid(id)) {
 //         throw createHttpError(400, "Invalid transaction ID");
 //       }
 

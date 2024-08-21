@@ -38,6 +38,7 @@
     "node-cron": "^3.0.3",
     "socket.io": "^4.7.5",
     "svg-captcha": "^1.4.0",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "validator": "^13.12.0"
   }
 }

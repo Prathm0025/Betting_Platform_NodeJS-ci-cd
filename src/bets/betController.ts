@@ -204,6 +204,7 @@ class BetController {
     }
 
 
+//GET BETS OF PLAYERS UNDER AN AGENT
 
     async getAgentBets(req: Request, res: Response, next: NextFunction) {
         try {
@@ -229,6 +230,7 @@ class BetController {
             next(error);
         }
     }
+  //GET ALL BETS FOR ADMIN
 
     async getAdminBets(req: Request, res: Response, next: NextFunction) {
         try {
@@ -243,23 +245,25 @@ class BetController {
         }
     }
 
+   //GET BETS FOR A PLAYER
+
     async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
         try {
-          const { userId, username } = req.params;
-        
-          let player:any;
+          const { player } = req.params;
+          const { type } = req.query;
+          let playerDoc:any;
       
-          if (userId) {
-            player = await PlayerModel.findById(userId);
-            if (!player) throw createHttpError(404, "Player Not Found");
-          } else if (username) {
-            player = await PlayerModel.findOne({  username:username });
-            if (!player) throw createHttpError(404, "Player Not Found with the provided username");
+          if (type==="id") {
+            playerDoc = await PlayerModel.findById(player);
+            if (!playerDoc) throw createHttpError(404, "Player Not Found");
+          } else if (type==="username") {
+            playerDoc = await PlayerModel.findOne({  username:player });
+            if (!playerDoc) throw createHttpError(404, "Player Not Found with the provided username");
           } else {
             throw createHttpError(400, "User Id or Username not provided");
           }
       
-          const playerBets = await Bet.find({ player: player._id }).populate('player', 'username _id');
+          const playerBets = await Bet.find({ player: playerDoc._id }).populate('player', 'username _id');
       
           if (playerBets.length === 0) {
             return res.status(200).json({ message: "No bets found" });
