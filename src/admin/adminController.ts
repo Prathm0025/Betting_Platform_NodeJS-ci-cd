@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import Admin from "./adminModel";
 import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
-import Agent from "../agents/agentModel";
+import Agent from "../subordinates/agentModel";
 import { sanitizeInput } from "../utils/utils";
+import User from "../users/userModel";
 class AdminController {
   static saltRounds: Number = 10;
 
@@ -18,15 +18,15 @@ class AdminController {
     if (!sanitizedUsername || !sanitizedPassword) {
         throw createHttpError(400, "Username, password are required");
       }
-      const existingAdmin = await Admin.findOne({ username: username });
+      const existingAdmin = await User.findOne({ username: username });
       if (existingAdmin) {
-        throw createHttpError(400, "username already exists");
+        throw createHttpError(400, "Username already exists");
       }
       const hashedPassword = await bcrypt.hash(
         sanitizedPassword,
         AdminController.saltRounds
       );
-      const newAdmin = new Admin({ sanitizedUsername, password: hashedPassword });
+      const newAdmin = new User({ sanitizedUsername, password: hashedPassword });
       newAdmin.credits = Infinity;
       newAdmin.role = "admin";
       await newAdmin.save();
@@ -40,19 +40,19 @@ class AdminController {
 
   //GET AGENT UNDER ADMIN AND PLAYERS UNDER THOSE AGENTS
   
-  async getAdminAgentsandAgentPlayers(req:Request, res:Response, next:NextFunction){
-    try {
-      const {adminId} = req.params;
-      if(!adminId)
-        throw createHttpError(400, "Admin Not Found")
-      const agents = await Agent.find({createdBy:adminId}).populate("players");
-     if (agents.length===0)
-      res.status(200).json({message:"No Agents for Admin"});      
-      res.status(200).json({message:"Success!", agents:agents});
-    } catch (error) {
-      next(error);
-    }
-  }
+  // async getAdminAgentsandAgentPlayers(req:Request, res:Response, next:NextFunction){
+  //   try {
+  //     const {adminId} = req.params;
+  //     if(!adminId)
+  //       throw createHttpError(400, "Admin Not Found")
+  //     const agents = await Agent.find({createdBy:adminId}).populate("players");
+  //    if (agents.length===0)
+  //     res.status(200).json({message:"No Agents for Admin"});      
+  //     res.status(200).json({message:"Success!", agents:agents});
+  //   } catch (error) {
+  //     next(error);
+  //   }
+  // }
 }
 
 export default new AdminController();

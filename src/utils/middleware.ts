@@ -8,6 +8,7 @@ import { config } from "../config/config";
 const API_KEY = config.adminApiKey;
 
 export function checkUser(req: Request, res: Response, next: NextFunction) {
+  
   const cookie = req.headers.cookie
     ?.split("; ")
     .find((row) => row.startsWith("userToken="))
@@ -40,6 +41,8 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
             username: decoded!.username,
             role: decoded!.role,
           };
+          console.log(_req.user);
+          
           next();
         }
       }
@@ -76,8 +79,8 @@ export const loginRateLimiter = rateLimit({
 export function verifyRole(requiredRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const _req = req as AuthRequest;
+
     const userRole = _req?.user?.role;
-    
 
     if (!userRole || !requiredRoles.includes(userRole)) {
       return next(createHttpError(403, "Forbidden: Insufficient role"));

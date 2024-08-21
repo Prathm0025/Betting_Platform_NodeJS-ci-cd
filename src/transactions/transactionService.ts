@@ -34,10 +34,11 @@ export class TransactionService {
       this.validateCredits(type, sender, receiver, amount);
 
       await this.updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session);
-
+      const senderUser = type==="redeem"?receiverId:senderId;
+      const receiverUser = type==="redeem"?senderId:receiverId;
       await Transaction.create([{
-        sender: senderId,
-        receiver: receiverId,
+        sender: senderUser,
+        receiver: receiverUser,
         senderModel,
         receiverModel,
         type,

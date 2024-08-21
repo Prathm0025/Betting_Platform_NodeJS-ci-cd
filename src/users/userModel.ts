@@ -13,6 +13,7 @@ export const userSchemaFields: Partial<Record<keyof IUser, any>> = {
     },
     role: {
         type: String,
+        enum: ['admin', 'distributor', 'sub_distributor', 'agent'], 
         required: true,
     },
     credits: {
@@ -39,7 +40,13 @@ export const userSchemaFields: Partial<Record<keyof IUser, any>> = {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Transaction',
     }],
+    subordinates:[
+        {
+          type:mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        }
+    ]
 };
 
-const User: Model<IUser> = mongoose.model<IUser>('User', new Schema(userSchemaFields, { discriminatorKey: 'role', collection: 'users' }));
+const User: Model<IUser> = mongoose.model<IUser>('User', new Schema(userSchemaFields, { discriminatorKey: 'role', collection: 'users', timestamps: true  },  ));
 export default User;

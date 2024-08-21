@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import mongoose from "mongoose";
 import Transaction from "../transactions/transactionModel";
 import Bet from "../bets/betModel";
-import Agent from "../agents/agentModel";
+import Agent from "../subordinates/agentModel";
 
 const captchaStore: Record<string, string> = {}; 
 
