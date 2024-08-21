@@ -6,6 +6,11 @@ import { JwtPayload } from "jsonwebtoken";
 // import { TransactionController } from "../dashboard/transactions/transactionController";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
+import validator from 'validator';
+
+export function sanitizeInput(input: string) {
+  return validator.escape(validator.trim(input));
+}
 
 // const transactionController = new TransactionController();
 

@@ -7,6 +7,8 @@ import Transaction from "./transactionModel";
 import createHttpError from "http-errors";
 
 export class TransactionService {
+
+  //RECORDING TRANSACTION AND ABORTING USING SESSIONS
   static async performTransaction(
     senderId: mongoose.Types.ObjectId,
     receiverId: mongoose.Types.ObjectId,

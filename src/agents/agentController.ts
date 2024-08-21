@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
 import Agent from "./agentModel";
-import { AuthRequest } from "../utils/utils";
+import { AuthRequest, sanitizeInput } from "../utils/utils";
 import mongoose from "mongoose";
 import Admin from "../admin/adminModel";
 import { IAgent } from "./agentType";
@@ -16,7 +16,9 @@ class AgentController {
     
     try {
       const { username, password } = req.body;
-    if (!username || !password) {
+      const sanitizedUsername = sanitizeInput(username);
+      const sanitizedPassword = sanitizeInput(password);
+    if (!sanitizedUsername || !sanitizedPassword) {
       throw createHttpError(400, "Username, password are required");
     }
       const _req = req as AuthRequest;
@@ -26,11 +28,11 @@ class AgentController {
         throw createHttpError(400, "username already exists");
       }
       const hashedPassword = await bcrypt.hash(
-        password,
+        sanitizedPassword,
         AgentController.saltRounds
       );
       const newAgent = new Agent({
-        username,
+        sanitizedUsername,
         password: hashedPassword,
         createdBy: userId,
       });
@@ -84,54 +86,76 @@ class AgentController {
 
 //UPDATE AN AGENT
 
-  async updateAgent(req: Request, res: Response, next: NextFunction) {
-    const {id, username, password, status} = req.body;
-    console.log(req.body);
-    
-    try {
-      const updateData: Partial<Record<keyof IAgent, any>> = {
-        ...(username && { username }),
-        ...(password && {
-          password: await bcrypt.hash(password, AgentController.saltRounds),
-        }),
-        ...(status && { status }),
-      };
+async updateAgent(req: Request, res: Response, next: NextFunction) {
+  const { username, password, status } = req.body;
+  const { id: agentId } = req.params;
 
-      const updatedAgent = await Agent.findByIdAndUpdate(id, updateData, {
-        new: true,
-      });
-      if (!updatedAgent) {
-        console.log("HERE");
+  try {
+    const _req = req as AuthRequest;
+    const { userId, role } = _req.user;
+
+    const sanitizedUsername = username ? sanitizeInput(username) : undefined;
+    const sanitizedPassword = password ? sanitizeInput(password) : undefined;
+    const sanitizedStatus = status ? sanitizeInput(status) : undefined;
+
+    const updateData: Partial<Record<keyof IAgent, any>> = {
+      ...(sanitizedUsername && { username: sanitizedUsername }),
+      ...(sanitizedPassword && {
+        password: await bcrypt.hash(sanitizedPassword, AgentController.saltRounds),
+      }),
+      ...(sanitizedStatus && { status: sanitizedStatus }),
+    };
+
+    if (role === "admin") {
+      const agent = await Agent.findById(agentId);
+      if (!agent) {
         throw createHttpError(404, "Agent not found");
       }
-
-      res
-        .status(200)
-        .json({ message: "Agent updated successfully", agent: updatedAgent });
-    } catch (error) {
-      next(error);
+    } else {
+      throw createHttpError(403, "You do not have permission to update agents");
     }
+    const updatedAgent = await Agent.findByIdAndUpdate(agentId, updateData, {
+      new: true,
+    });
+
+    if (!updatedAgent) {
+      throw createHttpError(404, "Agent not found");
+    }
+
+    res.status(200).json({
+      message: "Agent updated successfully",
+      agent: updatedAgent,
+    });
+  } catch (error) {
+    console.log(error);
+    
+    next(error);
   }
+}
 
   //DELETE AN AGENT
 
   async deleteAgent(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params;
     try {
+      const _req = req as AuthRequest;
+      const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
+      const admin = await Admin.findById(userId);
+      if(!admin){
+        throw createHttpError(401, "You are not Authorised");
+      }
       const deletedAgent = await Agent.findByIdAndDelete(id);
       if (!deletedAgent) {
         throw createHttpError(404, "Agent not found");
       }
 
-      const _req = req as AuthRequest;
-      const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
-      const admin = await Admin.findById(userId);
-      if (admin) {
+     
+      
         admin.agents = admin.agents.filter(
           (agentId) => agentId.toString() !== id
         );
         await admin.save();
-      }
+      
 
       res.status(200).json({ message: "Agent deleted successfully" });
     } catch (error) {
@@ -143,27 +167,29 @@ class AgentController {
    
  async getPlayersUnderAgent(req: Request, res: Response, next: NextFunction) {
   try {
-    const { agentId, username } = req.params;
+    console.log("Hi");
+    
+    const { agent } = req.params;
+     const {type} = req.query;
+    let agentPlayers:any;
 
-    let agent:any;
-
-    if (agentId) {
-      agent = await Agent.findById(agentId).populate({
+    if (type==="id") {
+      agentPlayers = await Agent.findById(agent).populate({
         path: 'players',
         select: '-password'
       });;
       if (!agent) throw createHttpError(404, "Agent Not Found");
-    } else if (username) {
-      agent = await Agent.findOne({ username }) .populate({
+    } else if (type==="username") {
+      agentPlayers = await Agent.findOne({ username:agent }) .populate({
         path: 'players',
         select: '-password' 
       });;
-      if (!agent) throw createHttpError(404, "Agent Not Found with the provided username");
+      if (!agentPlayers) throw createHttpError(404, "Agent Not Found with the provided username");
     } else {
       throw createHttpError(400, "Agent Id or Username not provided");
     }
 
-    const playersUnderAgent = agent.players;
+    const playersUnderAgent = agentPlayers.players;
 
     if (playersUnderAgent.length === 0) {
       return res.status(200).json({ message: "No Players Under Agent" });
@@ -172,6 +198,8 @@ class AgentController {
     return res.status(200).json({ message: "Success!", players: playersUnderAgent });
 
   } catch (error) {
+    console.log(error);
+    
     next(error);
   }
 }

@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import createHttpError from "http-errors";
-import { AuthRequest } from "../utils/utils";
+import { AuthRequest, sanitizeInput } from "../utils/utils";
 import mongoose from "mongoose";
 import Player from "../players/playerModel";
 import bcrypt from "bcrypt";
@@ -17,9 +17,13 @@ class PlayerController {
    
     try {
       const { username, password } = req.body;
-      if (!username || !password) {
-        throw createHttpError(400, "Username, password are required");
+      const sanitizedUsername = sanitizeInput(username);
+      const sanitizedPassword = sanitizeInput(password);
+      
+      if (!sanitizedUsername || !sanitizedPassword) {
+        throw createHttpError(400, "Username and password are required");
       }
+  
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
       const creatorId = new mongoose.Types.ObjectId(userId);
@@ -39,12 +43,12 @@ class PlayerController {
       }
 
       const hashedPassword = await bcrypt.hash(
-        password,
+        sanitizedPassword,
         PlayerController.saltRounds
       );
 
       const newUser = new Player({
-        username,
+        sanitizedUsername,
         password: hashedPassword,
         createdBy: creatorId,
       });
@@ -66,8 +70,8 @@ class PlayerController {
 
 async getPlayer(req: Request, res: Response, next: NextFunction) {
   try {
-    const { id, username } = req.params;
-
+    const { id } = req.params;
+    const {username} = req.query;
     let player;
 
     if (id) {
@@ -100,34 +104,67 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
   //UPDATE PLAYER
 
   async updatePlayer(req: Request, res: Response, next: NextFunction) {
-    const {id,  username, password, status } = req.body;
+    console.log("hi");
+    
+    const { username, password, status } = req.body;
+    const { id: playerId } = req.params;    
+    console.log(playerId);
+    
     try {
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
-
+  
+      const sanitizedUsername = username ? sanitizeInput(username) : undefined;
+      const sanitizedPassword = password ? sanitizeInput(password) : undefined;
+      const sanitizedStatus = status ? sanitizeInput(status) : undefined;
+  
       const updateData: Partial<IPlayer> = {
-        ...(username && { username }),
-        ...(password && {
-          password: await bcrypt.hash(password, PlayerController.saltRounds),
+        ...(sanitizedUsername && { username: sanitizedUsername }),
+        ...(sanitizedPassword && {
+          password: await bcrypt.hash(sanitizedPassword, PlayerController.saltRounds),
         }),
-        ...(status && { status }),
+        ...(sanitizedStatus && { status: sanitizedStatus }),
       };
-     if(role==="agent"){
-      const player = await Player.findById(id);
-      const objectUserId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.Types.ObjectId(
-        userId
-      );
-     if(player.createdBy !== objectUserId){
-        throw createHttpError(401, "You Are Not Authorised!")
-      }   
-     }  
-      const updatedPlayer = await Player.findByIdAndUpdate(id, updateData, {
+  
+      if (role === "agent") {
+        const agent = await Agent.findById(userId);
+  
+        if (!agent) {
+          throw createHttpError(404, "Agent not found");
+        }
+        console.log(agent.players, "players");
+        
+  
+        const playerExistsInAgent = agent.players.some(
+          (player: mongoose.Schema.Types.ObjectId) => player.toString() === playerId
+        );
+  
+        if (!playerExistsInAgent) {
+          throw createHttpError(401, "You are not authorized to update this player");
+        }
+  
+        const player = await Player.findById(playerId);
+        if (!player) {
+          throw createHttpError(404, "Player not found");
+        }
+  
+      } else if (role === "admin") {
+        const player = await Player.findById(playerId);
+        if (!player) {
+          throw createHttpError(404, "Player not found");
+        }
+      } else {
+        throw createHttpError(403, "You do not have permission to update players");
+      }
+  
+      const updatedPlayer = await Player.findByIdAndUpdate(playerId, updateData, {
         new: true,
       });
+  
       if (!updatedPlayer) {
         throw createHttpError(404, "Player not found");
       }
-
+  
       res.status(200).json({
         message: "Player updated successfully",
         player: updatedPlayer,
@@ -136,6 +173,8 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
       next(error);
     }
   }
+  
+
 
 //DELETE A PLAYER
 
@@ -146,7 +185,10 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
       const {userId:idUser,role} = _req.user;
       const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
       const agent = await Agent.findById(userId);
-       
+      const admin = await Admin.findById(userId);
+       if(!admin){
+        throw createHttpError(401, "You are not authorized");
+       }
       if(role==="agent"){
         const player = await Player.findById(id);
       const objectUserId: mongoose.Schema.Types.ObjectId = new mongoose.Schema.Types.ObjectId(

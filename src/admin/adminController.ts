@@ -3,6 +3,7 @@ import Admin from "./adminModel";
 import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
 import Agent from "../agents/agentModel";
+import { sanitizeInput } from "../utils/utils";
 class AdminController {
   static saltRounds: Number = 10;
 
@@ -10,9 +11,11 @@ class AdminController {
 
   async createAdmin(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
-
+    
     try {
-      if (!username || !password) {
+      const sanitizedUsername = sanitizeInput(username);
+      const sanitizedPassword = sanitizeInput(password);
+    if (!sanitizedUsername || !sanitizedPassword) {
         throw createHttpError(400, "Username, password are required");
       }
       const existingAdmin = await Admin.findOne({ username: username });
@@ -20,10 +23,10 @@ class AdminController {
         throw createHttpError(400, "username already exists");
       }
       const hashedPassword = await bcrypt.hash(
-        password,
+        sanitizedPassword,
         AdminController.saltRounds
       );
-      const newAdmin = new Admin({ username, password: hashedPassword });
+      const newAdmin = new Admin({ sanitizedUsername, password: hashedPassword });
       newAdmin.credits = Infinity;
       newAdmin.role = "admin";
       await newAdmin.save();
