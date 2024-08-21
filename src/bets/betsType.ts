@@ -18,7 +18,9 @@ export interface IBet extends Document {
     market: string,
     bet_on: 'home_team' | 'away_team';
     amount: number;
-    status: 'won' | 'lost' | 'pending' | 'locked' | 'retry',
+    status: 'won' | 'lost' | 'pending' | 'locked' | 'retry'| 'redeem',
     possibleWinningAmount: number,
+    selected: string,
     retryCount: number
+    oddsFormat: string
 }

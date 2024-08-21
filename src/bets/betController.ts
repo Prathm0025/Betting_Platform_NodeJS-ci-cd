@@ -48,6 +48,8 @@ class BetController {
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    console.log("BETDATA", betData);
+
     try {
       const oddsData = await Store.getOdds(betData.sport_key);
 
@@ -83,7 +85,6 @@ class BetController {
       await player.save({ session });
       const playerSocket = users.get(player.username);
       if (playerSocket) {
-        console.log("FOUND PLAYER CONNECTED", playerSocket);
         playerSocket.sendData({ type: "CREDITS", credits: player.credits });
       }
 
@@ -292,6 +293,43 @@ class BetController {
       res.status(200).json({ message: "Success!", bets: playerBets });
     } catch (error) {
       console.log(error);
+      next(error);
+    }
+  }
+
+  //REDEEM PLAYER BET
+  async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { userId } = _req.user;
+      const { betId } = req.params;
+      const bet = await Bet.findById({ _id: betId });
+      if (bet) {
+        const selectedTeam =
+          bet.bet_on === "home_team" ? bet.home_team.name : bet.away_team.name;
+        const oldOdds =
+          bet.bet_on === "home_team" ? bet.home_team.odds : bet.away_team.odds;
+        const oldAmount = bet.amount;
+        const currentData = await Store.getEventOdds(
+          bet.sport_key,
+          bet.event_id,
+          bet.market,
+          "us",
+          bet.oddsFormat,
+          "iso"
+        );
+        console.log(bet.selected);
+        const currentOdds = currentData.bookmakers.find(
+          (item) => item.key === bet.selected
+        );
+        console.log(
+          "current Odds data:",
+          currentOdds.markets[0].outcomes.find(
+            (item) => item.name === selectedTeam
+          )
+        );
+      }
+    } catch (error) {
       next(error);
     }
   }
