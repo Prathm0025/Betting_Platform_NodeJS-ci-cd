@@ -13,7 +13,7 @@ class SubordinateController {
   static readonly roles = Object.freeze([
     'all',
     'distributor',
-    'sub_distributor',
+    'subdistributor',
     'agent',
     'player'
   ]);

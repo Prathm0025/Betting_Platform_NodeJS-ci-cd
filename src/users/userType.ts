@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 export interface IUser extends Document {
     username: string;
     password: string;
-    role: 'admin' | 'distributor' | 'sub_distributor' | 'agent';
+    role: 'admin' | 'distributor' | 'subdistributor' | 'agent';
     credits: number;
     status: 'active' | 'inactive';
     createdAt: Date;

@@ -124,7 +124,7 @@ class UserController {
       if (!user) throw createHttpError(404, "User not found");
       console.log(user, "u");
       
-      res.status(200).json({message:"Success!", user:user});
+      res.status(200).json(user);
     } catch (err) {
       next(err);
     }
@@ -163,7 +163,7 @@ class UserController {
         playerCounts: playerCounts[0],
       };
 
-      res.status(200).json({message:"Success!", summary});
+      res.status(200).json(summary);
     } catch (err) {
       console.error(err);
       res.status(500).send('Server error');
