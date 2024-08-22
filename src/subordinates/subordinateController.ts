@@ -52,7 +52,7 @@ class SubordinateController {
       }
 
       if (!hasPermissionToCreate)
-        throw createHttpError(403, "¸");
+        throw createHttpError(403, "YOU DONT HAVE PERMISSION");
 
       //CREATE
 
