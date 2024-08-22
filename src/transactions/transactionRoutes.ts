@@ -7,7 +7,7 @@ transactionRoutes.post("/", verifyRole(["admin", "agent"]), transactionControlle
 transactionRoutes.get("/", verifyRole(["admin"]), transactionController.getAllTransactions);
 transactionRoutes.get("/:userId", verifyRole(["admin"]), transactionController.getSpecificUserTransactions);
 transactionRoutes.get("/:superior/subordinate", transactionController.getSuperiorSubordinateTransaction);
-transactionRoutes.get("/player/:playerId", checkUser, verifyRole(["admin", "agent"]), transactionController.getSpecificPlayerTransactions);
+transactionRoutes.get("/:player/players", checkUser, verifyRole(["admin","distributor", "sub_distributor", "agent"]), transactionController.getSpecificPlayerTransactions);
 export default transactionRoutes;
 
 

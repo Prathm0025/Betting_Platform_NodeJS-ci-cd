@@ -32,7 +32,7 @@ app.use("/api/players", checkUser, playerRoutes);
 app.use("/api/admin", verifyApiKey, adminRoutes);
 app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
-app.use("/api/transactions", transactionRoutes);
+app.use("/api/transactions", checkUser,transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 
 

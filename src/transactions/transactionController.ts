@@ -92,7 +92,7 @@ class TransactionController {
           path: 'receiver',
           select: '-password',
         });
-      res.status(200).json({ message: "Success!", transactions: allTransactions })
+      res.status(200).json(allTransactions)
     } catch (error) {
       console.log(error);
       next(error);
@@ -123,7 +123,7 @@ class TransactionController {
       if (transactionsOfAgent.length === 0)
         res.status(404).json({ message: "No transactions found for this agent." });
 
-      res.status(200).json({ message: "Success!", transactions: transactionsOfAgent });
+      res.status(200).json(transactionsOfAgent );
 
     } catch (error) {
       next(error);
@@ -198,7 +198,7 @@ class TransactionController {
         return res.status(404).json({ message: 'No transactions for agent.' });
       }
 
-      res.status(200).json({ message: "Success", transactions: combinedTransactions });
+      res.status(200).json( combinedTransactions );
 
     } catch (error) {
       console.log(error);
@@ -210,21 +210,21 @@ class TransactionController {
 
   async getSpecificPlayerTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const { playerId, username } = req.params;
+      const { player } = req.params;
+      const { type } = req.query;
 
-      let player;
-
-      if (playerId) {
-        player = await Player.findById(playerId);
+      let players:any;
+      if (type==="id") {
+        players = await Player.findById(player);
         if (!player) throw createHttpError(404, "Player Not Found");
-      } else if (username) {
-        player = await Player.findOne({ username });
+      } else if (type==="username") {
+        players = await Player.findOne({ username:player });
         if (!player) throw createHttpError(404, "Player Not Found with the provided username");
       } else {
         throw createHttpError(400, "Player Id or Username not provided");
       }
 
-      const playerTransactions = await Transaction.find({ receiver: player._id })
+      const playerTransactions = await Transaction.find({ receiver: players._id })
         .select('+senderModel +receiverModel')
         .populate({
           path: 'sender',
@@ -239,7 +239,7 @@ class TransactionController {
         return res.status(404).json({ message: "No Transactions Found" });
       }
 
-      res.status(200).json({ message: "Success!", transactions: playerTransactions });
+      res.status(200).json( playerTransactions );
 
     } catch (error) {
       console.log(error);
