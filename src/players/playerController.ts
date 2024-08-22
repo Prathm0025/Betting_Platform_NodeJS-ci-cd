@@ -84,7 +84,7 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
     if (!player) {
       throw createHttpError(404, "Player not found");
     }
-    res.status(200).json({ player });
+    res.status(200).json( player );
   } catch (error) {
     next(error);
   }
@@ -95,7 +95,7 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
   async getAllPlayers(req: Request, res: Response, next: NextFunction) {
     try {
       const players = await Player.find();
-      res.status(200).json({ players });
+      res.status(200).json(players );
     } catch (error) {
       next(error);
     }
