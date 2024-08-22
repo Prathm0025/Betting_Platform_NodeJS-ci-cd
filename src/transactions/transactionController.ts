@@ -120,9 +120,7 @@ class TransactionController {
           path: 'receiver',
           select: '-password',
         });
-      if (transactionsOfAgent.length === 0)
-        res.status(404).json({ message: "No transactions found for this agent." });
-
+     
       res.status(200).json(transactionsOfAgent );
 
     } catch (error) {
@@ -155,14 +153,13 @@ class TransactionController {
         throw createHttpError(400, "User Id or Username not provided");
       }
 
-      if (superiorUser.role !== "agent" ? superiorUser.subordinates?.length === 0 : superiorUser.players.length === 0) {
-        return res.status(404).json({ message: 'No subordinate found for this User.' });
-      }
+      
 
       const subordinateIds =
         superiorUser.role === "agent" ? superiorUser.players.map(player => player._id) : superiorUser.subordinates.map(sub => sub._id);
-
-      const transactions = await Transaction.find({
+        let  transactions:any;
+        if(subordinateIds){
+            transactions = await Transaction.find({
         $or: [
           { sender: { $in: subordinateIds } },
           { receiver: { $in: subordinateIds } }
@@ -176,7 +173,7 @@ class TransactionController {
           path: 'receiver',
           select: 'username',
         });
-
+      }
       const superiorTransactions = await Transaction.find({
         $or: [
           { sender: superiorUser._id },
@@ -194,10 +191,7 @@ class TransactionController {
 
       const combinedTransactions = [...transactions, ...superiorTransactions];
 
-      if (combinedTransactions.length === 0) {
-        return res.status(404).json({ message: 'No transactions for agent.' });
-      }
-
+    
       res.status(200).json( combinedTransactions );
 
     } catch (error) {
@@ -235,9 +229,6 @@ class TransactionController {
           select: '-password',
         });
 
-      if (playerTransactions.length === 0) {
-        return res.status(404).json({ message: "No Transactions Found" });
-      }
 
       res.status(200).json( playerTransactions );
 

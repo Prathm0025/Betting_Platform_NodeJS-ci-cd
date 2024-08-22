@@ -13,7 +13,7 @@ class SubordinateController {
   static readonly roles = Object.freeze([
     'all',
     'distributor',
-    'subdistributor',
+    'sub_distributor',
     'agent',
     'player'
   ]);
@@ -305,9 +305,7 @@ class SubordinateController {
       let subordinates
         = superiorUser.role !== "agent" ? superiorUser.subordinates : superiorUser.players;
 
-      if (subordinates.length === 0) {
-        return res.status(200).json({ message: "No Subordinate Under User" });
-      }
+    
 
       return res.status(200).json(subordinates);
 

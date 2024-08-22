@@ -233,9 +233,7 @@ class BetController {
       const bets = await Bet.find({
         player: { $in: playerUnderAgent },
       }).populate("player", "username _id");
-      console.log(bets, "bets");
-      if (bets.length === 0)
-        return res.status(200).json({ message: "No Bets Found" });
+   
       res.status(200).json( bets );
     } catch (error) {
       next(error);
@@ -247,7 +245,6 @@ class BetController {
     try {
       const bets = await Bet.find().populate("player", "username _id");
       console.log(bets, "bets");
-      if (bets.length === 0) res.status(200).json({ message: "No Bets" });
       res.status(200).json(bets );
     } catch (error) {
       console.log(error);
@@ -283,10 +280,6 @@ class BetController {
         "player",
         "username _id"
       );
-
-      if (playerBets.length === 0) {
-        return res.status(200).json({ message: "No bets found" });
-      }
 
       res.status(200).json(playerBets );
     } catch (error) {
