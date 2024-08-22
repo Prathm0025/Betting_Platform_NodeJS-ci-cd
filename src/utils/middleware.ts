@@ -5,9 +5,11 @@ import jwt from "jsonwebtoken";
 import { AuthRequest, DecodedToken } from "./utils";
 import createHttpError from "http-errors";
 import { config } from "../config/config";
+import User from "../users/userModel";
 const API_KEY = config.adminApiKey;
 
 export function checkUser(req: Request, res: Response, next: NextFunction) {
+  
   const cookie = req.headers.cookie
     ?.split("; ")
     .find((row) => row.startsWith("userToken="))
@@ -40,6 +42,8 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
             username: decoded!.username,
             role: decoded!.role,
           };
+          console.log(_req.user);
+          
           next();
         }
       }
@@ -74,11 +78,16 @@ export const loginRateLimiter = rateLimit({
 });
 
 export function verifyRole(requiredRoles: string[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const _req = req as AuthRequest;
-    const userRole = _req?.user?.role;
     
-
+    const {userId, role:userRole} = _req.user;
+    //checking only in User collection 
+    //no need to veify role for players
+    const userExists = await User.exists({ _id: userId });
+    if(!userExists){
+      return next(createHttpError(403, "Forbidden: Not A User"));
+    }
     if (!userRole || !requiredRoles.includes(userRole)) {
       return next(createHttpError(403, "Forbidden: Insufficient role"));
     }

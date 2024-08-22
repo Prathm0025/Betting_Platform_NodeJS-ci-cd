@@ -7,17 +7,43 @@ import { JwtPayload } from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import validator from 'validator';
+import User from "../users/userModel";
 
 export function sanitizeInput(input: string) {
   return validator.escape(validator.trim(input));
 }
 
-// const transactionController = new TransactionController();
+//USERS HEIRARCHy OBJECT
 
-// export const rolesHierarchy = {
-//   superadmin: ["agent", "player"],
-//   agent: ["player"],
-// };
+export const rolesHierarchy = {
+  admin: ["distributor", "sub_distributor", "agent"],
+  distributor: ["sub_distributor", "agent"],
+  sub_distributor: ["agent", "player"],
+  agent: ["player"],
+};
+
+//CHECKS PERMISSION TO PERFORM ACTIONS
+
+export const hasPermission = async (
+  requestingUserId: string,
+  targetUserId: string, 
+  requestingUserRole: string,
+): Promise<boolean> => {
+  if (!requestingUserId || !requestingUserRole || !targetUserId ) {
+    return false;
+  }
+
+  const requestingUser = await User.findById(requestingUserId);
+  if (!requestingUser) return false;
+ 
+  const targetUser = await User.findOne({
+    _id:targetUserId,
+    createdBy:requestingUserId
+  });
+  if (!targetUser) return false;
+  const allowedRoles = rolesHierarchy[requestingUserRole] || [];
+  return allowedRoles.includes(targetUser.role);
+};
 
 export interface DecodedToken {
   userId: string;

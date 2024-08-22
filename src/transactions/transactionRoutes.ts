@@ -5,8 +5,8 @@ const transactionRoutes = express.Router();
 
 transactionRoutes.post("/", verifyRole(["admin", "agent"]),  transactionController.transaction );
 transactionRoutes.get("/", verifyRole(["admin"]), transactionController.getAllTransactions);
-transactionRoutes.get("/:agentId", verifyRole(["admin"]), transactionController.getSpecificAgentTransactions);
-transactionRoutes.get("/:agent/players", verifyRole([ "agent", "admin"]), transactionController.getAgentPlayerTransaction);
+transactionRoutes.get("/:userId", verifyRole(["admin"]), transactionController.getSpecificUserTransactions);
+transactionRoutes.get("/:superior/subordinate", transactionController.getSuperiorSubordinateTransaction);
 transactionRoutes.get("/player/:playerId", checkUser, verifyRole(["admin", "agent"]), transactionController.getSpecificPlayerTransactions);
 export default transactionRoutes;
 

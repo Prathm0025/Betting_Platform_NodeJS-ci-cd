@@ -6,7 +6,7 @@ import Player from "../players/playerModel";
 import { TransactionService } from "./transactionService";
 import mongoose from "mongoose";
 import Transaction from "./transactionModel";
-import Agent from "../agents/agentModel";
+import Agent from "../subordinates/agentModel";
 
 class TransactionController {
 
@@ -130,37 +130,41 @@ class TransactionController {
 
   }
 
-  //SPECIFIC AGENT AND HIS PLAYERS TRANSACTIONS
+  //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
 
-  async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
+  async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
     
     try {
-      const { agent } = req.params;
+      const { superior } = req.params;
      const {type } = req.query;      
-     console.log(agent);
-     console.log(type);
-     
-      let agentPlayers:any;
+   
+      let superiorUser:any;
       
       if (type==="id") {
-        agentPlayers = await Agent.findById(agent);
-        if (!agentPlayers) throw createHttpError(404, "Agent Not Found");
+        superiorUser = await User.findById(superior).populate('_id subordinates role')
+        if(superiorUser.role==="agent")
+         superiorUser = await Agent.findById(superior).populate('_id players role');
+        if (!superiorUser) throw createHttpError(404, "User Not Found");
       } else if (type==="username") {
-        agentPlayers = await Agent.findOne({ username:agent });
-        if (!agentPlayers) throw createHttpError(404, "Agent Not Found with the provided username");
+        superiorUser = await User.findOne({ username:superior }).populate('_id subordinates role')
+        if(superiorUser.role === "agent")
+          superiorUser = await User.findOne({ username:superior }).populate('_id players role')  
+        if (!superiorUser) throw createHttpError(404, "User Not Found with the provided username");
       } else {
-        throw createHttpError(400, "Agent Id or Username not provided");
+        throw createHttpError(400, "User Id or Username not provided");
+      }
+      
+      if (superiorUser.role!=="agent"?superiorUser.subordinates?.length === 0:superiorUser.players.length===0 ) {
+        return res.status(404).json({ message: 'No subordinate found for this User.' });
       }
   
-      if (!agentPlayers.players || agentPlayers.players.length === 0) {
-        return res.status(404).json({ message: 'No players found for this agent.' });
-      }
-  
-      const playerIds = agentPlayers.players.map(player => player._id);   
+      const subordinateIds = 
+      superiorUser.role==="agent"?superiorUser.players.map(player => player._id):superiorUser.subordinates.map(sub => sub._id);   
+      
       const transactions = await Transaction.find({
         $or: [
-          { sender: { $in: playerIds } },
-          { receiver: { $in: playerIds } }
+          { sender: { $in: subordinateIds } },
+          { receiver: { $in: subordinateIds } }
         ]
       }).select('+senderModel +receiverModel')
         .populate({
@@ -172,22 +176,22 @@ class TransactionController {
           select: 'username',
         });
   
-      const agentTransactions = await Transaction.find({
+      const superiorTransactions = await Transaction.find({
         $or: [
-          { sender: agentPlayers._id },
-          { receiver: agentPlayers._id }
+          { sender: superiorUser._id },
+          { receiver: superiorUser._id }
         ]
       }).select('+senderModel +receiverModel')
         .populate({
           path: 'sender',
-          select: '-password',
+          select: 'username',
         })
         .populate({
           path: 'receiver',
-          select: '-password',
+          select: 'username',
         });
   
-      const combinedTransactions = [...transactions, ...agentTransactions];
+      const combinedTransactions = [...transactions, ...superiorTransactions];
   
       if (combinedTransactions.length === 0) {
         return res.status(404).json({ message: 'No transactions for agent.' });

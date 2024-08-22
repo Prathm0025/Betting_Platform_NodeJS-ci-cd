@@ -4,9 +4,9 @@ import { AuthRequest, sanitizeInput } from "../utils/utils";
 import mongoose from "mongoose";
 import Player from "../players/playerModel";
 import bcrypt from "bcrypt";
-import Agent from "../agents/agentModel";
+import Agent from "../subordinates/agentModel";
 import { IPlayer } from "./playerType";
-import Admin from "../admin/adminModel";
+import User from "../users/userModel";
 
 class PlayerController {
   static saltRounds: Number = 10;
@@ -30,7 +30,7 @@ class PlayerController {
 
       const creator =
         role === "admin"
-          ? await Admin.findById(creatorId)
+          ? await User.findById(creatorId)
           : await Agent.findById(creatorId);
 
       if (!creator) {
@@ -53,7 +53,7 @@ class PlayerController {
         createdBy: creatorId,
       });
       await newUser.save();
-      creator.players.push(
+      creator.subordinates.push(
         newUser._id as unknown as mongoose.Schema.Types.ObjectId
       );
       await creator.save();
@@ -185,7 +185,7 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
       const {userId:idUser,role} = _req.user;
       const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
       const agent = await Agent.findById(userId);
-      const admin = await Admin.findById(userId);
+      const admin = await User.findById(userId);
        if(!admin){
         throw createHttpError(401, "You are not authorized");
        }
