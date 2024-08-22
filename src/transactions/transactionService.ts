@@ -41,42 +41,34 @@ export class TransactionService {
 
       this.validateCredits(type, sender, receiver, amount);
 
-      await this.updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session);
-      
-     // to store sender and receiver for DB sendr and reciever field we need to find  who is getting money and who is giving money
+      await this.updateCredits(
+        type,
+        senderId,
+        receiverId,
+        senderModel,
+        receiverModel,
+        senderModelInstance,
+        receiverModelInstance,
+        amount,
+        session
+      );
+      // to store sender and receiver for DB sendr and reciever field we need to find  who is getting money and who is giving money
 
-      const senderUser = type==="redeem"?receiverId:senderId; // recieverId is the user who is getting recharged or redeemed
-      const receiverUser = type==="redeem"?senderId:receiverId;//senderId is user who is redeeming or recharging
-    
+      const senderUser = type === "redeem" ? receiverId : senderId; // recieverId is the user who is getting recharged or redeemed
+      const receiverUser = type === "redeem" ? senderId : receiverId;//senderId is user who is redeeming or recharging
+
       //to get the model of sender and reciever
-      const senderModelForDB = type==="redeem"?receiverModel:senderModel ;
-      const receiverModelForDB = type==="redeem"?senderModel:receiverModel
-     
-
+      const senderModelForDB = type === "redeem" ? receiverModel : senderModel;
+      const receiverModelForDB = type === "redeem" ? senderModel : receiverModel
 
       await Transaction.create([{
         sender: senderUser,
         receiver: receiverUser,
-        senderModel:senderModelForDB,
-        receiverModel:receiverModelForDB,
+        senderModel: senderModelForDB,
+        receiverModel: receiverModelForDB,
         type,
         amount,
-        session
-      );
-
-      await Transaction.create(
-        [
-          {
-            sender: senderId,
-            receiver: receiverId,
-            senderModel,
-            receiverModel,
-            type,
-            amount,
-          },
-        ],
-        { session }
-      );
+      }], { session });
 
       await session.commitTransaction();
       console.log("Transaction committed successfully");
