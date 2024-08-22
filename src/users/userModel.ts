@@ -13,7 +13,7 @@ export const userSchemaFields: Partial<Record<keyof IUser, any>> = {
     },
     role: {
         type: String,
-        enum: ['admin', 'distributor', 'sub_distributor', 'agent'], 
+        enum: ['admin', 'distributor', 'subdistributor', 'agent'], 
         required: true,
     },
     credits: {
