@@ -153,13 +153,13 @@ class TransactionController {
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
-  
-      if (!superiorUser.players.length || superiorUser.subordinates.length === 0) {
+      
+      if (superiorUser.role!=="agent"?superiorUser.subordinates?.length === 0:superiorUser.players.length===0 ) {
         return res.status(404).json({ message: 'No subordinate found for this User.' });
       }
   
       const subordinateIds = 
-      superiorUser.role==="agent"?superiorUser.players.map(player => player._id):superiorUser.subordinatesmap(sub => sub._id);   
+      superiorUser.role==="agent"?superiorUser.players.map(player => player._id):superiorUser.subordinates.map(sub => sub._id);   
       
       const transactions = await Transaction.find({
         $or: [
@@ -184,11 +184,11 @@ class TransactionController {
       }).select('+senderModel +receiverModel')
         .populate({
           path: 'sender',
-          select: '-password',
+          select: 'username',
         })
         .populate({
           path: 'receiver',
-          select: '-password',
+          select: 'username',
         });
   
       const combinedTransactions = [...transactions, ...superiorTransactions];

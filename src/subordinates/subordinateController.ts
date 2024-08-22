@@ -122,9 +122,7 @@ class SubordinateController {
   async getAllSubordinates(req: Request, res: Response, next: NextFunction) {
     try { 
       const { type } = req.query;
-      console.log(type, "d");
       
-
       if (!SubordinateController.roles.includes(type as string)) {
         throw createHttpError(400, "Invalid role type");
       }

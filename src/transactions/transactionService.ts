@@ -20,6 +20,11 @@ export class TransactionService {
     amount: number,
     role: string
   ): Promise<void> {
+
+    //sender and receiver
+    //sender-> User who wants to recharge or redeem
+    //reciever-> User getting recharged or redeemed 
+
     const session: ClientSession = await mongoose.startSession();
     session.startTransaction();
 
@@ -34,13 +39,23 @@ export class TransactionService {
       this.validateCredits(type, sender, receiver, amount);
 
       await this.updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session);
-      const senderUser = type==="redeem"?receiverId:senderId;
-      const receiverUser = type==="redeem"?senderId:receiverId;
+      
+     // to store sender and receiver for DB sendr and reciever field we need to find  who is getting money and who is giving money
+
+      const senderUser = type==="redeem"?receiverId:senderId; // recieverId is the user who is getting recharged or redeemed
+      const receiverUser = type==="redeem"?senderId:receiverId;//senderId is user who is redeeming or recharging
+    
+      //to get the model of sender and reciever
+      const senderModelForDB = type==="redeem"?receiverModel:senderModel ;
+      const receiverModelForDB = type==="redeem"?senderModel:receiverModel
+     
+
+
       await Transaction.create([{
         sender: senderUser,
         receiver: receiverUser,
-        senderModel,
-        receiverModel,
+        senderModel:senderModelForDB,
+        receiverModel:receiverModelForDB,
         type,
         amount,
       }], { session });
@@ -77,10 +92,10 @@ export class TransactionService {
     amount: number
   ): void {
     if (type === "recharge" && sender.credits < amount) {
-      throw createHttpError(400, "Insufficient credits in sender's account for recharge.");
+      throw createHttpError(400, "Insufficient credits in account for recharge.");
     }
     if (type === "redeem" && receiver.credits < amount) {
-      throw createHttpError(400, "Insufficient credits in receiver's account for redemption.");
+      throw createHttpError(400, "Insufficient credits in  account for redemption.");
     }
   }
 
