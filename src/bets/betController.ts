@@ -4,6 +4,7 @@ import { agenda } from "../config/db";
 import { IBet } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
+
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
@@ -47,6 +48,8 @@ class BetController {
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    console.log("BETDATA", betData);
+
     try {
       const oddsData = await Store.getOdds(betData.sport_key);
 
@@ -82,7 +85,6 @@ class BetController {
       await player.save({ session });
       const playerSocket = users.get(player.username);
       if (playerSocket) {
-        console.log("FOUND PLAYER CONNECTED", playerSocket);
         playerSocket.sendData({ type: "CREDITS", credits: player.credits });
       }
 
@@ -257,7 +259,7 @@ class BetController {
   async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
     try {
       const { player } = req.params;
-      const { type } = req.query;
+      const { type, status } = req.query;
       let playerDoc: any;
 
       console.log(player, type);
@@ -276,14 +278,69 @@ class BetController {
         throw createHttpError(400, "User Id or Username not provided");
       }
 
-      const playerBets = await Bet.find({ player: playerDoc._id }).populate(
-        "player",
-        "username _id"
-      );
+      const playerBets = await Bet.find({
+        player: playerDoc._id,
+        ...(status !== "all" && { status }),
+      }).populate("player", "username _id");
 
       res.status(200).json(playerBets );
     } catch (error) {
       console.log(error);
+      next(error);
+    }
+  }
+
+  //REDEEM PLAYER BET
+  async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
+    try {
+      const _req = req as AuthRequest;
+      const { userId } = _req.user;
+      const { betId } = req.params;
+      const player = await PlayerModel.findById({ _id: userId });
+      if (!player) {
+        throw createHttpError(404, "Player not found");
+      }
+      const bet = await Bet.findById({ _id: betId });
+      if (bet && bet.status === "pending") {
+        const selectedTeam =
+          bet.bet_on === "home_team" ? bet.home_team.name : bet.away_team.name;
+        const oldOdds =
+          bet.bet_on === "home_team" ? bet.home_team.odds : bet.away_team.odds;
+        const betAmount = bet.amount;
+        const currentData = await Store.getEventOdds(
+          bet.sport_key,
+          bet.event_id,
+          bet.market,
+          "us",
+          bet.oddsFormat,
+          "iso"
+        );
+
+        const currentOddsData = currentData.bookmakers.find(
+          (item) => item.key === bet.selected
+        );
+
+        const newOdds = currentOddsData.markets[0].outcomes.find(
+          (item) => item.name === selectedTeam
+        ).price;
+
+        const newAmount = betAmount * ((newOdds - 1) / (oldOdds - 1));
+        player.credits += newAmount;
+        await player.save();
+        const playerSocket = users.get(player.username);
+        if (playerSocket) {
+          playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+        }
+        bet.status = "redeem";
+        await bet.save();
+        res.status(200).json({ message: "Bet Redeemed Successfully" });
+      } else {
+        throw createHttpError(
+          400,
+          "This bet can't be redeem since it is not pending!"
+        );
+      }
+    } catch (error) {
       next(error);
     }
   }
