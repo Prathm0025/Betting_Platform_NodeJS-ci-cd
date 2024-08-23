@@ -11,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid';
 import mongoose from "mongoose";
 import Transaction from "../transactions/transactionModel";
 import Bet from "../bets/betModel";
-import Agent from "../subordinates/agentModel";
 
 const captchaStore: Record<string, string> = {}; 
 
@@ -229,9 +228,9 @@ class UserController {
   //AGENTS ADDED BETWEEN A PERIOD
 
   private async getAgentCounts(startOfDay: Date, lastPeriodDate: Date) {
-    return Agent.aggregate([
+    return User.aggregate([
       {
-        $match: { createdAt: { $gte: lastPeriodDate } },
+        $match: { createdAt: { $gte: lastPeriodDate }, role:'agent' },
       },
       {
         $group: {

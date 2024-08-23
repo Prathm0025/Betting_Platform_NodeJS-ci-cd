@@ -6,7 +6,6 @@ import Player from "../players/playerModel";
 import { TransactionService } from "./transactionService";
 import mongoose from "mongoose";
 import Transaction from "./transactionModel";
-import Agent from "../subordinates/agentModel";
 
 class TransactionController {
 
@@ -140,23 +139,29 @@ class TransactionController {
       let superiorUser: any;
 
       if (type === "id") {
-        superiorUser = await User.findById(superior).populate('_id subordinates role')
-        if (superiorUser.role === "agent")
-          superiorUser = await Agent.findById(superior).populate('_id players role');
+        superiorUser = await User.findById(superior);
+        superiorUser && superiorUser.subordinates?
+        superiorUser = await User.findById(superior).populate('_id subordinates role'):
+        superiorUser = await User.findById(superior).populate('_id players role');
         if (!superiorUser) throw createHttpError(404, "User Not Found");
       } else if (type === "username") {
-        superiorUser = await User.findOne({ username: superior }).populate('_id subordinates role')
-        if (superiorUser.role === "agent")
+        superiorUser = await User.findOne({ username: superior });
+        superiorUser && superiorUser.subordinates?
+        superiorUser= await User.findOne({ username: superior }) .populate('_id subordinates role'):
           superiorUser = await User.findOne({ username: superior }).populate('_id players role')
         if (!superiorUser) throw createHttpError(404, "User Not Found with the provided username");
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
-
-      
-
-      const subordinateIds =
-        superiorUser.role === "agent" ? superiorUser.players.map(player => player._id) : superiorUser.subordinates.map(sub => sub._id);
+      const subordinateIds = superiorUser.role === "admin"
+      ? [
+          ...superiorUser.players.map(player => player._id),
+          ...superiorUser.subordinates.map(sub => sub._id)
+        ]
+      : superiorUser.role === "agent"
+      ? superiorUser.players.map(player => player._id)
+      : superiorUser.subordinates.map(sub => sub._id);
+    
         let  transactions:any;
         if(subordinateIds){
             transactions = await Transaction.find({

@@ -11,6 +11,7 @@ export interface IUser extends Document {
     lastLogin: Date;
     transactions: mongoose.Schema.Types.ObjectId[];
     subordinates:mongoose.Schema.Types.ObjectId[];
+    players:mongoose.Schema.Types.ObjectId[];
 }
 
 

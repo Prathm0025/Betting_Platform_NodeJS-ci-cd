@@ -4,13 +4,13 @@ import { agenda } from "../config/db";
 import { IBet } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
-import Agent from '../subordinates/agentModel';
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
 import Player from "../players/playerSocket";
 import Store from "../store/storeController";
 import { users } from "../socket/socket";
+import User from "../users/userModel";
 
 class BetController {
   constructor() {
@@ -223,7 +223,7 @@ class BetController {
     try {
       const { agentId } = req.params;
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
-      const agent = await Agent.findById(agentId);
+      const agent = await User.findById(agentId);
       console.log(agent);
 
       if (!agent) throw createHttpError(404, "Agent Not Found");

@@ -16,9 +16,9 @@ export function sanitizeInput(input: string) {
 //USERS HEIRARCHy OBJECT
 
 export const rolesHierarchy = {
-  admin: ["distributor", "subdistributor", "agent"],
-  distributor: ["subdistributor", "agent"],
-  subdistributor: ["agent", "player"],
+  admin: ["distributor", "subdistributor", "agent", "player"],
+  distributor: ["subdistributor"],
+  subdistributor: ["agent"],
   agent: ["player"],
 };
 
