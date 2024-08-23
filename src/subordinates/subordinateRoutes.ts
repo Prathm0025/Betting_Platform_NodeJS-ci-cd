@@ -7,7 +7,7 @@ subordinatesRoutes.post("/", subordinateController.createSubordinate);
 
 subordinatesRoutes.get("/", verifyRole(["admin"]), subordinateController.getAllSubordinates);
 
-subordinatesRoutes.get("/:id",  subordinateController.getSubordinate);
+subordinatesRoutes.get("/:username",  subordinateController.getSubordinate);
 
 subordinatesRoutes.get("/:superior/subordinates", subordinateController.getSubordinatessUnderSuperior);
 

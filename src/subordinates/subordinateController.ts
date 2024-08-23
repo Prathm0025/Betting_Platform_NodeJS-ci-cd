@@ -123,12 +123,14 @@ class SubordinateController {
   //GET SPECIFC SUBORDINATE
 
   async getSubordinate(req: Request, res: Response, next: NextFunction) {
-    const { id } = req.params;
+    const { username } = req.params;
     try {
-      const subordinate = await User.findById(id);
+      const sanitizedUsername = sanitizeInput(username)
+      const subordinate = await User.findOne({username:sanitizedUsername}).select('-transactions -password') || await Player.findOne({username:sanitizedUsername}).select('-betHistory -transactions -password');
       if (!subordinate) {
         throw createHttpError(404, "User not found");
       }
+
       res.status(200).json(subordinate);
     } catch (error) {
       next(error);
