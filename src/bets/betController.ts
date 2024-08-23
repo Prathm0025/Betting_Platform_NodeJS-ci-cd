@@ -4,7 +4,7 @@ import { agenda } from "../config/db";
 import { IBet } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
-import Agent from '../subordinates/agentModel';
+import Agent from "../subordinates/agentModel";
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
@@ -237,7 +237,7 @@ class BetController {
       console.log(bets, "bets");
       if (bets.length === 0)
         return res.status(200).json({ message: "No Bets Found" });
-      res.status(200).json( bets );
+      res.status(200).json(bets);
     } catch (error) {
       next(error);
     }
@@ -249,7 +249,7 @@ class BetController {
       const bets = await Bet.find().populate("player", "username _id");
       console.log(bets, "bets");
       if (bets.length === 0) res.status(200).json({ message: "No Bets" });
-      res.status(200).json(bets );
+      res.status(200).json(bets);
     } catch (error) {
       console.log(error);
       next(error);
@@ -261,7 +261,7 @@ class BetController {
   async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
     try {
       const { player } = req.params;
-      const { type } = req.query;
+      const { type, status } = req.query;
       let playerDoc: any;
 
       console.log(player, type);
@@ -280,16 +280,16 @@ class BetController {
         throw createHttpError(400, "User Id or Username not provided");
       }
 
-      const playerBets = await Bet.find({ player: playerDoc._id }).populate(
-        "player",
-        "username _id"
-      );
+      const playerBets = await Bet.find({
+        player: playerDoc._id,
+        ...(status !== "all" && { status }),
+      }).populate("player", "username _id");
 
       if (playerBets.length === 0) {
         return res.status(200).json({ message: "No bets found" });
       }
 
-      res.status(200).json(playerBets );
+      res.status(200).json(playerBets);
     } catch (error) {
       console.log(error);
       next(error);
@@ -341,7 +341,10 @@ class BetController {
         await bet.save();
         res.status(200).json({ message: "Bet Redeemed Successfully" });
       } else {
-        throw createHttpError(400, "This bet can't be redeem since it is not pending!");
+        throw createHttpError(
+          400,
+          "This bet can't be redeem since it is not pending!"
+        );
       }
     } catch (error) {
       next(error);
