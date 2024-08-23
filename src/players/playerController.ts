@@ -50,7 +50,10 @@ class PlayerController {
         createdBy: creatorId,
       });
       await newUser.save();
-      creator.subordinates.push(
+      
+        role==="admin"?creator.subordinates.push(
+        newUser._id as unknown as mongoose.Schema.Types.ObjectId
+      ):creator.players.push(
         newUser._id as unknown as mongoose.Schema.Types.ObjectId
       );
       await creator.save();
