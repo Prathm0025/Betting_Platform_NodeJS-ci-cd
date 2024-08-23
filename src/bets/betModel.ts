@@ -1,74 +1,86 @@
 import mongoose, { Model, Schema } from "mongoose";
 import { IBet } from "./betsType";
 
-const betSchema: Schema<IBet> = new Schema({
+const betSchema: Schema<IBet> = new Schema(
+  {
     player: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Player',
-        required: true,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Player",
+      required: true,
     },
     sport_title: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
     sport_key: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
     event_id: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
     commence_time: {
-        type: Date,
-        required: true,
+      type: Date,
+      required: true,
     },
     home_team: {
-        name: {
-            type: String,
-            required: true,
-        },
-        odds: {
-            type: Number,
-            required: true,
-        },
+      name: {
+        type: String,
+        required: true,
+      },
+      odds: {
+        type: Number,
+        required: true,
+      },
     },
     away_team: {
-        name: {
-            type: String,
-            required: true,
-        },
-        odds: {
-            type: Number,
-            required: true,
-        },
+      name: {
+        type: String,
+        required: true,
+      },
+      odds: {
+        type: Number,
+        required: true,
+      },
     },
     market: {
-        type: String,
-        required: true,
+      type: String,
+      required: true,
     },
     bet_on: {
-        type: String,
-        enum: ['home_team', 'away_team'],
-        required: true,
+      type: String,
+      enum: ["home_team", "away_team"],
+      required: true,
     },
     amount: {
-        type: Number,
-        required: true,
+      type: Number,
+      required: true,
     },
     status: {
-        type: String,
-        enum: ['won', 'lost', 'pending', 'locked', 'retry']
+      type: String,
+      enum: ["won", "lost", "pending", "locked", "retry", "redeem"],
     },
-    possibleWinningAmount: { // New field
-        type: Number,
-        required: true,
+    possibleWinningAmount: {
+      // New field
+      type: Number,
+      required: true,
+    },
+    selected: {
+      type: String,
+      required: true,
+    },
+    oddsFormat: {
+      type: String,
+      required: true,
     },
     retryCount: {
-        type: Number,
-        default: 0,
+      type: Number,
+      default: 0,
     },
-}, { timestamps: true })
+  },
+  { timestamps: true }
+);
 
-const Bet: Model<IBet> = mongoose.model<IBet>('Bet', betSchema);
+const Bet: Model<IBet> = mongoose.model<IBet>("Bet", betSchema);
 export default Bet;
