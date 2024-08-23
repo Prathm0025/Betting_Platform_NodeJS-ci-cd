@@ -4,7 +4,7 @@ import { createServer } from "http";
 import globalErrorHandler from "./utils/globalHandler";
 import userRoutes from "./users/userRoutes";
 import adminRoutes from "./admin/adminRoutes";
-import agentRoutes from "./agents/agentRoutes";
+import subordinateRoutes from "./subordinates/subordinateRoutes";
 import { checkUser, verifyApiKey } from "./utils/middleware";
 import { Server } from "socket.io";
 import socketController from "./socket/socket";
@@ -28,11 +28,11 @@ app.use(express.json());
 const server = createServer(app);
 
 app.use("/api/auth", userRoutes);
-app.use("/api/player", checkUser, playerRoutes);
+app.use("/api/players", checkUser, playerRoutes);
 app.use("/api/admin", verifyApiKey, adminRoutes);
-app.use("/api/agent", checkUser, agentRoutes);
+app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
-app.use("/api/transaction", checkUser, transactionRoutes);
+app.use("/api/transactions", checkUser,transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 
 

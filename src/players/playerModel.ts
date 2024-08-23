@@ -46,6 +46,6 @@ const playerSchemaFields: Partial<Record<keyof IPlayer, any>> = {
     }],
 };
 
-const playerSchema: Schema<IPlayer> = new Schema(playerSchemaFields, { collection: 'players' });
+const playerSchema: Schema<IPlayer> = new Schema(playerSchemaFields, { collection: 'players', timestamps: true  });
 const Player: Model<IPlayer> = mongoose.model<IPlayer>('Player', playerSchema);
 export default Player;

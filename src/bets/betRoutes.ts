@@ -4,9 +4,13 @@ import { checkUser, verifyRole } from "../utils/middleware";
 
 const betRoutes = express.Router();
 
-betRoutes.get("/:agentId", betController.getAgentBets)
-betRoutes.get("/", verifyRole(["admin"]), betController.getAdminBets)
+betRoutes.get("/", verifyRole(["admin"]), betController.getAdminBets);
+
+betRoutes.get("/:agentId", betController.getAgentBets);
+
 // betRoutes.get("/all/:adminId",verifyRole(["admin"]), betController.getAdminAgentBets)
-betRoutes.get("/player/:userId?", betController.getBetForPlayer)
-betRoutes.get("/player/by-username/:username", betController.getBetForPlayer)
+
+betRoutes.get("/:player/bets", betController.getBetForPlayer);
+betRoutes.put("/:betId", betController.redeemPlayerBet);
+
 export default betRoutes;

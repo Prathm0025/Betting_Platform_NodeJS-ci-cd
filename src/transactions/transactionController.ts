@@ -1,27 +1,31 @@
 import { NextFunction, Request, Response } from "express";
 import createHttpError from "http-errors";
-import { AuthRequest } from "../utils/utils";
+import { AuthRequest, sanitizeInput } from "../utils/utils";
 import User from "../users/userModel";
 import Player from "../players/playerModel";
 import { TransactionService } from "./transactionService";
 import mongoose from "mongoose";
 import Transaction from "./transactionModel";
-import Agent from "../agents/agentModel";
 
 class TransactionController {
+
+  // TO RECORD TRANSACTIONS, RECHARGE AND REDEEM
+
   async transaction(req: Request, res: Response, next: NextFunction) {
     const { reciever: receiverId, amount, type } = req.body;
 
     try {
-      if (!receiverId || !amount || amount <= 0)
+      const sanitizedAmount = sanitizeInput(amount);
+      const sanitizedType = sanitizeInput(type);
+      if (!receiverId || !sanitizedAmount || sanitizedAmount <= 0)
         throw createHttpError(400, "Reciever or Amount is missing");
       const _req = req as AuthRequest;
       const { userId, role } = _req.user;
       const newObjectId: mongoose.Types.ObjectId = new mongoose.Types.ObjectId(
         userId
       );
-      
-      
+
+
       if (receiverId == userId) {
         throw createHttpError(500, "Can't Recharge or redeem Yourself");
       }
@@ -33,9 +37,9 @@ class TransactionController {
         (await User.findById({ _id: receiverId })) ||
         (await Player.findById({ _id: receiverId }));
       if (!reciever) throw createHttpError(404, "Reciever does not exist");
-      if(role==="agent"){
-       if(reciever?.createdBy.toString() !== userId)
-        throw createHttpError(404, "You Are Not Authorised")
+      if (role !== "admin") {
+        if (reciever?.createdBy.toString() !== userId)
+          throw createHttpError(404, "You Are Not Authorised")
       }
       const senderModelName =
         sender instanceof User
@@ -54,7 +58,7 @@ class TransactionController {
               throw createHttpError(500, "Unknown reciever model");
             })();
 
-      
+
       await TransactionService.performTransaction(
         newObjectId,
         receiverId,
@@ -62,8 +66,8 @@ class TransactionController {
         reciever,
         senderModelName,
         recieverModelName,
-        type,
-        amount,
+        sanitizedType,
+        sanitizedAmount,
         role
       );
       res.status(200).json({ message: "Transaction successful" });
@@ -74,46 +78,49 @@ class TransactionController {
     }
   }
 
+  //GET ALL TRANSCATIONS FOR ADMIN
+
   async getAllTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const allTransactions = await Transaction.find().select('+senderModel +receiverModel') 
-      .populate({
-        path: 'sender',
-        select: '-password', 
-      })
-      .populate({
-        path: 'receiver',
-        select: '-password',
-      });
-      res.status(200).json({ message: "Success!", transactions: allTransactions })
+      const allTransactions = await Transaction.find().select('+senderModel +receiverModel')
+        .populate({
+          path: 'sender',
+          select: '-password',
+        })
+        .populate({
+          path: 'receiver',
+          select: '-password',
+        });
+      res.status(200).json(allTransactions)
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
 
-  async getSpecificAgentTransactions(req: Request, res: Response, next: NextFunction) {
+  //SPECIFIC USER TRANSACTIONS
+
+  async getSpecificUserTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const { agentId } = req.params;
-      if (!agentId) throw createHttpError(400, "Agent Id not Found");
+      const { userId } = req.params;
+
+      if (!userId) throw createHttpError(400, "User Id not Found");
       const transactionsOfAgent = await Transaction.find({
         $or: [
-          { sender: agentId },
-          { receiver: agentId }
+          { sender: userId },
+          { receiver: userId }
         ]
-      }).select('+senderModel +receiverModel') 
-      .populate({
-        path: 'sender',
-        select: '-password', 
-      })
-      .populate({
-        path: 'receiver',
-        select: '-password',
-      });
-      if (transactionsOfAgent.length === 0)
-        res.status(404).json({ message: "No transactions found for this agent." });
-
-      res.status(200).json({ message: "Success!", transactions: transactionsOfAgent });
+      }).select('+senderModel +receiverModel')
+        .populate({
+          path: 'sender',
+          select: '-password',
+        })
+        .populate({
+          path: 'receiver',
+          select: '-password',
+        });
+     
+      res.status(200).json(transactionsOfAgent );
 
     } catch (error) {
       next(error);
@@ -121,35 +128,46 @@ class TransactionController {
 
   }
 
+  //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
 
-  async getAgentPlayerTransaction(req: Request, res: Response, next: NextFunction) {
-    
+  async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
+
     try {
-      const { agentId, username } = req.params;
-      console.log(username);
-      
-  
-      let agent:any;
-      
-      if (agentId) {
-        agent = await Agent.findById(agentId);
-        if (!agent) throw createHttpError(404, "Agent Not Found");
-      } else if (username) {
-        agent = await Agent.findOne({ username:username });
-        if (!agent) throw createHttpError(404, "Agent Not Found with the provided username");
+      const { superior } = req.params;
+      const { type } = req.query;
+
+      let superiorUser: any;
+
+      if (type === "id") {
+        superiorUser = await User.findById(superior);
+        superiorUser && superiorUser.subordinates?
+        superiorUser = await User.findById(superior).populate('_id subordinates role'):
+        superiorUser = await User.findById(superior).populate('_id players role');
+        if (!superiorUser) throw createHttpError(404, "User Not Found");
+      } else if (type === "username") {
+        superiorUser = await User.findOne({ username: superior });
+        superiorUser && superiorUser.subordinates?
+        superiorUser= await User.findOne({ username: superior }) .populate('_id subordinates role'):
+          superiorUser = await User.findOne({ username: superior }).populate('_id players role')
+        if (!superiorUser) throw createHttpError(404, "User Not Found with the provided username");
       } else {
-        throw createHttpError(400, "Agent Id or Username not provided");
+        throw createHttpError(400, "User Id or Username not provided");
       }
-  
-      if (!agent.players || agent.players.length === 0) {
-        return res.status(404).json({ message: 'No players found for this agent.' });
-      }
-  
-      const playerIds = agent.players.map(player => player._id); 
-      const transactions = await Transaction.find({
+      const subordinateIds = superiorUser.role === "admin"
+      ? [
+          ...superiorUser.players.map(player => player._id),
+          ...superiorUser.subordinates.map(sub => sub._id)
+        ]
+      : superiorUser.role === "agent"
+      ? superiorUser.players.map(player => player._id)
+      : superiorUser.subordinates.map(sub => sub._id);
+    
+        let  transactions:any;
+        if(subordinateIds){
+            transactions = await Transaction.find({
         $or: [
-          { sender: { $in: playerIds } },
-          { receiver: { $in: playerIds } }
+          { sender: { $in: subordinateIds } },
+          { receiver: { $in: subordinateIds } }
         ]
       }).select('+senderModel +receiverModel')
         .populate({
@@ -160,53 +178,52 @@ class TransactionController {
           path: 'receiver',
           select: 'username',
         });
-  
-      const agentTransactions = await Transaction.find({
+      }
+      const superiorTransactions = await Transaction.find({
         $or: [
-          { sender: agent._id },
-          { receiver: agent._id }
+          { sender: superiorUser._id },
+          { receiver: superiorUser._id }
         ]
       }).select('+senderModel +receiverModel')
         .populate({
           path: 'sender',
-          select: '-password',
+          select: 'username',
         })
         .populate({
           path: 'receiver',
-          select: '-password',
+          select: 'username',
         });
-  
-      const combinedTransactions = [...transactions, ...agentTransactions];
-  
-      if (combinedTransactions.length === 0) {
-        return res.status(404).json({ message: 'No transactions for agent.' });
-      }
-  
-      res.status(200).json({ message: "Success", transactions: combinedTransactions });
-  
+
+      const combinedTransactions = [...transactions, ...superiorTransactions];
+
+    
+      res.status(200).json( combinedTransactions );
+
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-  
+
+  //SPECIFIC PLAYER TRANSACTION
+
   async getSpecificPlayerTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const { playerId, username } = req.params;
-  
-      let player;
-  
-      if (playerId) {
-        player = await Player.findById(playerId);
+      const { player } = req.params;
+      const { type } = req.query;
+
+      let players:any;
+      if (type==="id") {
+        players = await Player.findById(player);
         if (!player) throw createHttpError(404, "Player Not Found");
-      } else if (username) {
-        player = await Player.findOne({ username });
+      } else if (type==="username") {
+        players = await Player.findOne({ username:player });
         if (!player) throw createHttpError(404, "Player Not Found with the provided username");
       } else {
         throw createHttpError(400, "Player Id or Username not provided");
       }
-  
-      const playerTransactions = await Transaction.find({ receiver: player._id })
+
+      const playerTransactions = await Transaction.find({ receiver: players._id })
         .select('+senderModel +receiverModel')
         .populate({
           path: 'sender',
@@ -216,19 +233,16 @@ class TransactionController {
           path: 'receiver',
           select: '-password',
         });
-  
-      if (playerTransactions.length === 0) {
-        return res.status(404).json({ message: "No Transactions Found" });
-      }
-  
-      res.status(200).json({ message: "Success!", transactions: playerTransactions });
-  
+
+
+      res.status(200).json( playerTransactions );
+
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-  
+
 }
 
 export default new TransactionController();
@@ -239,8 +253,8 @@ export default new TransactionController();
 // import createHttpError from "http-errors";
 // import mongoose from "mongoose";
 // import { AuthRequest } from "../utils/utils";
-// import { IPlayer, IUser } from "../usersTest/userType";
-// import { ITransaction } from "./transactionType";
+// import { IPlayer, IUser } from "../usersTest/usersanitizedType";
+// import { ITransaction } from "./transactionsanitizedType";
 // import TransactionService from "./transactionService";
 // import { QueryParams } from "../utils/utils";
 
@@ -256,7 +270,7 @@ export default new TransactionController();
 //   }
 
 //   async createTransaction(
-//     type: string,
+//     sanitizedType: string,
 //     debtor: IUser | IPlayer,
 //     creditor: IUser,
 //     amount: number,
@@ -264,7 +278,7 @@ export default new TransactionController();
 //   ): Promise<ITransaction> {
 //     try {
 //       const transaction = await this.transactionService.createTransaction(
-//         type,
+//         sanitizedType,
 //         debtor,
 //         creditor,
 //         amount,
@@ -292,23 +306,23 @@ export default new TransactionController();
 //         totalRedeemed: { From: 0, To: 0 },
 //         credits: { From: 0, To: 0 },
 //         updatedAt: { From: new Date(), To: new Date() },
-//         type: "",
+//         sanitizedType: "",
 //         amount: { From: 0, To: Infinity },
 //       };
-//       let type, updatedAt, amount;
+//       let sanitizedType, updatedAt, amount;
 
 //       if (search) {
 //         parsedData = JSON.parse(search);
 //         if (parsedData) {
-//           type = parsedData.type;
+//           sanitizedType = parsedData.sanitizedType;
 //           updatedAt = parsedData.updatedAt;
 //           amount = parsedData.amount;
 //         }
 //       }
 
 //       let query: any = {};
-//       if (type) {
-//         query.type = type;
+//       if (sanitizedType) {
+//         query.sanitizedType = sanitizedType;
 //       }
 //       if (updatedAt) {
 //         query.updatedAt = {
@@ -387,7 +401,7 @@ export default new TransactionController();
 //       let query: any = {};
 //       if (
 //         user.role === "superadmin" ||
-//         user.subordinates.includes(new mongoose.Types.ObjectId(subordinateId))
+//         user.subordinates.includes(new mongoose.sanitizedTypes.ObjectId(subordinateId))
 //       ) {
 //         const {
 //           transactions,
@@ -454,23 +468,23 @@ export default new TransactionController();
 //         totalRedeemed: { From: 0, To: 0 },
 //         credits: { From: 0, To: 0 },
 //         updatedAt: { From: new Date(), To: new Date() },
-//         type: "",
+//         sanitizedType: "",
 //         amount: { From: 0, To: Infinity },
 //       };
-//       let type, updatedAt, amount;
+//       let sanitizedType, updatedAt, amount;
 
 //       if (search) {
 //         parsedData = JSON.parse(search);
 //         if (parsedData) {
-//           type = parsedData.type;
+//           sanitizedType = parsedData.sanitizedType;
 //           updatedAt = parsedData.updatedAt;
 //           amount = parsedData.amount;
 //         }
 //       }
 
 //       let query: any = {};
-//       if (type) {
-//         query.type = type;
+//       if (sanitizedType) {
+//         query.sanitizedType = sanitizedType;
 //       }
 //       if (updatedAt) {
 //         query.updatedAt = {
@@ -525,7 +539,7 @@ export default new TransactionController();
 //     const session = await mongoose.startSession();
 //     session.startTransaction();
 //     try {
-//       if (!mongoose.Types.ObjectId.isValid(id)) {
+//       if (!mongoose.sanitizedTypes.ObjectId.isValid(id)) {
 //         throw createHttpError(400, "Invalid transaction ID");
 //       }
 

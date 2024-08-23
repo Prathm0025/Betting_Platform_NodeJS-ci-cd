@@ -12,8 +12,6 @@ class Store {
   private eventOddsCache: LRUCache<string, any>;
   private storeService: StoreService;
 
-
-
   constructor() {
     this.sportsCache = new LRUCache<string, any>({
       max: 100,
@@ -40,7 +38,7 @@ class Store {
       ttl: 30 * 1000, // 30 seconds
     });
 
-    this.storeService = new StoreService()
+    this.storeService = new StoreService();
   }
 
   private async fetchFromApi(
@@ -60,9 +58,9 @@ class Store {
       });
 
       // Log the quota-related headers
-      const requestsRemaining = response.headers['x-requests-remaining'];
-      const requestsUsed = response.headers['x-requests-used'];
-      const requestsLast = response.headers['x-requests-last'];
+      const requestsRemaining = response.headers["x-requests-remaining"];
+      const requestsUsed = response.headers["x-requests-used"];
+      const requestsLast = response.headers["x-requests-last"];
 
       console.log(`Requests Remaining: ${requestsRemaining}`);
       console.log(`Requests Used: ${requestsUsed}`);
@@ -74,7 +72,6 @@ class Store {
       throw new Error(error.message || "Error Fetching Data");
     }
   }
-
 
   public getSports(): Promise<any> {
     return this.fetchFromApi(
@@ -110,20 +107,19 @@ class Store {
       const cacheKey = `odds_${sport}_h2h_us`;
       console.log("CACHE KEY : ", cacheKey);
 
-
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
         {
-          markets: 'h2h', // Default to 'h2h' if not provided
-          regions: 'us', // Default to 'us' if not provided
-          oddsFormat: 'decimal'
+          markets: "h2h", // Default to 'h2h' if not provided
+          regions: "us", // Default to 'us' if not provided
+          oddsFormat: "decimal",
         },
         this.oddsCache,
         cacheKey
       );
 
-      const scoresResponse = await this.getScores(sport, '1', 'iso');
+      const scoresResponse = await this.getScores(sport, "1", "iso");
 
       // Get the current time for filtering live games
       const now = new Date().toISOString();
@@ -132,12 +128,13 @@ class Store {
       const processedData = oddsResponse.map((game: any) => {
         // Select one bookmaker (e.g., the first one)
 
-        const bookmaker = this.storeService.selectBookmaker(game.bookmakers)
-        const matchedScore = scoresResponse.find((score: any) => score.id === game.id);
+        const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
+        const matchedScore = scoresResponse.find(
+          (score: any) => score.id === game.id
+        );
 
         console.log("GAME ID : ", game.id);
         console.log("matchedScore: ", matchedScore);
-
 
         return {
           id: game.id,
@@ -149,7 +146,8 @@ class Store {
           markets: bookmaker?.markets || [],
           scores: matchedScore?.scores || [],
           completed: matchedScore?.completed,
-          last_update: matchedScore?.last_update
+          last_update: matchedScore?.last_update,
+          selected: bookmaker.key,
         };
       });
 
@@ -192,13 +190,23 @@ class Store {
   public getEventOdds(
     sport: string,
     eventId: string,
-    regions: string | undefined,
     markets: string | undefined,
-    dateFormat: string | undefined,
-    oddsFormat: string | undefined
+    regions?: string | undefined,
+    oddsFormat?: string | undefined,
+    dateFormat?: string | undefined
   ): Promise<any> {
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
-      }_${oddsFormat || "decimal"}`;
+    console.log(
+      "in event odds",
+      sport,
+      eventId,
+      markets,
+      regions,
+      oddsFormat,
+      dateFormat
+    );
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
+      dateFormat || "iso"
+    }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },

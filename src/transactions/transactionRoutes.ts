@@ -3,17 +3,12 @@ import transactionController from "./transactionController";
 import { checkUser, verifyRole } from "../utils/middleware";
 const transactionRoutes = express.Router();
 
-transactionRoutes.post("/", verifyRole(["admin", "agent"]),  transactionController.transaction );
-transactionRoutes.get("/all", verifyRole(["admin"]), transactionController.getAllTransactions);
-transactionRoutes.get("/:agentId", verifyRole(["admin"]), transactionController.getSpecificAgentTransactions);
-transactionRoutes.get("/all/:agentId", verifyRole([ "agent", "admin"]), transactionController.getAgentPlayerTransaction);
-transactionRoutes.get("/all/by-username/:username", verifyRole(["agent", "admin"]), transactionController.getAgentPlayerTransaction)
-transactionRoutes.get("/player/:playerId", checkUser, verifyRole(["admin", "agent"]), transactionController.getSpecificPlayerTransactions);
+transactionRoutes.post("/", verifyRole(["admin", "agent", "distributor", "subdistributor"]), transactionController.transaction);
+transactionRoutes.get("/", verifyRole(["admin"]), transactionController.getAllTransactions);
+transactionRoutes.get("/:userId", verifyRole(["admin"]), transactionController.getSpecificUserTransactions);
+transactionRoutes.get("/:superior/subordinate", transactionController.getSuperiorSubordinateTransaction);
+transactionRoutes.get("/:player/players", checkUser, verifyRole(["admin","distributor", "subdistributor", "agent"]), transactionController.getSpecificPlayerTransactions);
 export default transactionRoutes;
-
-
-
-
 
 
 

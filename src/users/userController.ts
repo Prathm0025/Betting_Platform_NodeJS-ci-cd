@@ -5,13 +5,12 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Player from "../players/playerModel";
 import { config } from "../config/config";
-import { AuthRequest } from "../utils/utils";
+import { AuthRequest, sanitizeInput } from "../utils/utils";
 import svgCaptcha from "svg-captcha";
 import { v4 as uuidv4 } from 'uuid';
 import mongoose from "mongoose";
 import Transaction from "../transactions/transactionModel";
 import Bet from "../bets/betModel";
-import Agent from "../agents/agentModel";
 
 const captchaStore: Record<string, string> = {}; 
 
@@ -48,9 +47,14 @@ class UserController {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { username, password, captchaToken, captcha } = req.body;
-      console.log(req.body);
+      const sanitizedUsername = sanitizeInput(username);
+      console.log(sanitizedUsername, "username");
       
-      if (!username || !password || !captchaToken || !captcha) {
+      const sanitizedPassword = sanitizeInput(password);
+      const sanitizedcaptachaToken = sanitizeInput(captchaToken);
+      const sanitizedCaptcha = sanitizeInput(captcha);
+      
+      if (!sanitizedUsername || !sanitizedPassword|| !sanitizedcaptachaToken || !sanitizedCaptcha) {
         throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
       }
       const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
@@ -64,8 +68,8 @@ class UserController {
       delete captchaStore[decoded.captchaId];
 
       const user =
-        (await User.findOne({ username })) ||
-        (await Player.findOne({ username }));
+        (await User.findOne({ username:sanitizedUsername })) ||
+        (await Player.findOne({ username:sanitizedUsername }));
 
       if (!user) {
         throw createHttpError(401, "User not found");
@@ -76,7 +80,7 @@ class UserController {
         throw createHttpError(403, "You are Blocked!")
       }
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      const isPasswordValid = await bcrypt.compare(sanitizedPassword, user.password);
       if (!isPasswordValid) {
         throw createHttpError(401, "Incoreect password");
       }
@@ -114,14 +118,18 @@ class UserController {
       const { userId } = _req.user;
       if (!userId) throw createHttpError(400, "Invalid Request, Missing User");
       const user =
-        (await User.findById({ _id: userId })) ||
-        (await Player.findById({ _id: userId }));
+      await User.findById(userId).select("username role status credits") ||
+      (await Player.findById({ _id: userId }).select("username role status credits"));
       if (!user) throw createHttpError(404, "User not found");
+      console.log(user, "u");
+      
       res.status(200).json(user);
     } catch (err) {
       next(err);
     }
   }
+
+  //GET SUMMARY(e.g. recent transactions and bets) FOR AGENT AND ADMIN DASHBOARD
   
   async getSummary(req: Request, res: Response): Promise<void> {
     try {
@@ -154,12 +162,14 @@ class UserController {
         playerCounts: playerCounts[0],
       };
 
-      res.status(200).json({message:"Success!", summary});
+      res.status(200).json(summary);
     } catch (err) {
       console.error(err);
       res.status(500).send('Server error');
     }
   }
+
+  //RECENT BETS DEPENDING ON LIMIT (E.G. LIMIT =4 )
 
   private async getLastBets(limit: number) {
     return Bet.find().sort({ date: -1 }).limit(limit).populate('player', 'username _id').exec();
@@ -176,6 +186,8 @@ class UserController {
       select: 'username',
     }).exec();
   }
+
+  //TOTAL BETS COUNT AND TOTAL BET AMOUNT FOR A PERIOD
 
   private async getBetTotals(startOfDay: Date, lastPeriodDate: Date) {
     return Bet.aggregate([
@@ -194,6 +206,8 @@ class UserController {
     ]).exec();
   }
 
+ //TOTAL TRANSACTIOM COUNT AND TOTAL TRANSACTION AMOUNT FOR A PERIOD
+
   private async getTransactionTotals(startOfDay: Date, lastPeriodDate: Date) {
     return Transaction.aggregate([
       {
@@ -211,10 +225,12 @@ class UserController {
     ]).exec();
   }
 
+  //AGENTS ADDED BETWEEN A PERIOD
+
   private async getAgentCounts(startOfDay: Date, lastPeriodDate: Date) {
-    return Agent.aggregate([
+    return User.aggregate([
       {
-        $match: { createdAt: { $gte: lastPeriodDate } },
+        $match: { createdAt: { $gte: lastPeriodDate }, role:'agent' },
       },
       {
         $group: {
@@ -225,6 +241,8 @@ class UserController {
       },
     ]).exec();
   }
+
+ //PLAYERS ADDED BETEWEEN A PERIOD
 
   private async getPlayerCounts(startOfDay: Date, lastPeriodDate: Date) {
     return Player.aggregate([
