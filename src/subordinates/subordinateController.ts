@@ -53,7 +53,7 @@ class SubordinateController {
       }
 
       if (!hasPermissionToCreate())
-        throw createHttpError(403, "YOU DONT HAVE PERMISSION");
+        throw createHttpError(403, "YOU DON'T HAVE PERMISSION");
 
       //CREATE
       let existingSubordinate:any;
@@ -296,11 +296,18 @@ class SubordinateController {
 
         //PLAYERS FOR AGENT(AGENT HAS PLAYERS AS SUBORDINATE)
 
-        if (superiorUser.role === "agent")
+        if (superiorUser.role === "agent"){
           superiorUser = await User.findById(superior).populate({
             path: 'players',
             select: '-password'
-          })
+          })}else if(superiorUser.role ==="admin"){
+            superiorUser=   await User.findById(superior).populate({
+          path: 'subordinates players',
+          select: '-password'
+        });
+        
+
+          }
         if (!superiorUser) throw createHttpError(404, "User Not Found");
       } else if (type === "username") {
         superiorUser = await User.findOne({ username: superior }).populate({
@@ -308,11 +315,18 @@ class SubordinateController {
           select: '-password'
         });
 
-        if (superiorUser.role === "agent")
+        if (superiorUser.role === "agent"){
           superiorUser = await User.findOne({ username: superior }).populate({
-            path: 'subordinates',
+            path: 'players',
             select: '-password'
-          })
+          })}else if(superiorUser.role ==="admin"){
+            superiorUser=   await User.findOne({username:superior}).populate({
+          path: 'subordinates players',
+          select: '-password'
+        });
+        
+
+          }
 
         if (!superiorUser) throw createHttpError(404, "User Not Found with the provided username");
       } else {
@@ -322,7 +336,10 @@ class SubordinateController {
       // ACCESS SUBORDINATE DEPENDING ON ROLE
 
       let subordinates
-        = superiorUser.subordinates 
+        = superiorUser.role === "admin"
+        ?[
+          ...superiorUser.subordinates, ...superiorUser.players
+        ]:superiorUser.role === "agent"?superiorUser.players: superiorUser.subordinates 
 
     
 
