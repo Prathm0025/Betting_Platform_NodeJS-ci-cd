@@ -37,7 +37,7 @@ class TransactionController {
         (await User.findById({ _id: receiverId })) ||
         (await Player.findById({ _id: receiverId }));
       if (!reciever) throw createHttpError(404, "Reciever does not exist");
-      if (role === "agent") {
+      if (role !== "admin") {
         if (reciever?.createdBy.toString() !== userId)
           throw createHttpError(404, "You Are Not Authorised")
       }
