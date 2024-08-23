@@ -4,13 +4,14 @@ import { agenda } from "../config/db";
 import { IBet } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
-import Agent from "../subordinates/agentModel";
+
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
 import Player from "../players/playerSocket";
 import Store from "../store/storeController";
 import { users } from "../socket/socket";
+import User from "../users/userModel";
 
 class BetController {
   constructor() {
@@ -224,7 +225,7 @@ class BetController {
     try {
       const { agentId } = req.params;
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
-      const agent = await Agent.findById(agentId);
+      const agent = await User.findById(agentId);
       console.log(agent);
 
       if (!agent) throw createHttpError(404, "Agent Not Found");
@@ -234,10 +235,8 @@ class BetController {
       const bets = await Bet.find({
         player: { $in: playerUnderAgent },
       }).populate("player", "username _id");
-      console.log(bets, "bets");
-      if (bets.length === 0)
-        return res.status(200).json({ message: "No Bets Found" });
-      res.status(200).json(bets);
+   
+      res.status(200).json( bets );
     } catch (error) {
       next(error);
     }
@@ -248,8 +247,7 @@ class BetController {
     try {
       const bets = await Bet.find().populate("player", "username _id");
       console.log(bets, "bets");
-      if (bets.length === 0) res.status(200).json({ message: "No Bets" });
-      res.status(200).json(bets);
+      res.status(200).json(bets );
     } catch (error) {
       console.log(error);
       next(error);
@@ -285,11 +283,7 @@ class BetController {
         ...(status !== "all" && { status }),
       }).populate("player", "username _id");
 
-      if (playerBets.length === 0) {
-        return res.status(200).json({ message: "No bets found" });
-      }
-
-      res.status(200).json(playerBets);
+      res.status(200).json(playerBets );
     } catch (error) {
       console.log(error);
       next(error);

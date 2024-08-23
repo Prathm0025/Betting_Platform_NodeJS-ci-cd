@@ -4,7 +4,6 @@ import { AuthRequest, sanitizeInput } from "../utils/utils";
 import mongoose from "mongoose";
 import Player from "../players/playerModel";
 import bcrypt from "bcrypt";
-import Agent from "../subordinates/agentModel";
 import { IPlayer } from "./playerType";
 import User from "../users/userModel";
 
@@ -29,9 +28,7 @@ class PlayerController {
       const creatorId = new mongoose.Types.ObjectId(userId);
 
       const creator =
-        role === "admin"
-          ? await User.findById(creatorId)
-          : await Agent.findById(creatorId);
+           await User.findById(creatorId)
 
       if (!creator) {
         throw createHttpError(404, "Creator not found");
@@ -127,7 +124,7 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
       };
   
       if (role === "agent") {
-        const agent = await Agent.findById(userId);
+        const agent = await User.findById(userId);
   
         if (!agent) {
           throw createHttpError(404, "Agent not found");
@@ -184,7 +181,7 @@ async getPlayer(req: Request, res: Response, next: NextFunction) {
       const _req = req as AuthRequest;
       const {userId:idUser,role} = _req.user;
       const userId = new mongoose.Types.ObjectId(_req?.user?.userId);
-      const agent = await Agent.findById(userId);
+      const agent = await User.findById(userId);
       const admin = await User.findById(userId);
        if(!admin){
         throw createHttpError(401, "You are not authorized");

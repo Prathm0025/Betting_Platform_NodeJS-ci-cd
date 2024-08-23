@@ -1,7 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
-import Agent from "../subordinates/agentModel";
 import { sanitizeInput } from "../utils/utils";
 import User from "../users/userModel";
 class AdminController {

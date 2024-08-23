@@ -40,13 +40,46 @@ export const userSchemaFields: Partial<Record<keyof IUser, any>> = {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Transaction',
     }],
-    subordinates:[
+    subordinates: [
         {
-          type:mongoose.Schema.Types.ObjectId,
-          ref: 'User'
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }
+    ],
+    players: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Player'
         }
     ]
 };
 
-const User: Model<IUser> = mongoose.model<IUser>('User', new Schema(userSchemaFields, { discriminatorKey: 'role', collection: 'users', timestamps: true  },  ));
+const userSchema = new Schema(userSchemaFields, {
+    collection: 'users',
+    timestamps: true,
+});
+
+userSchema.pre('save', function (next) {
+    if (this.role && (this.role !== 'admin' && this.role !== 'agent')) {
+        this.players = undefined;
+    }else if(this.role === 'agent'){
+        this.subordinates = undefined;
+    }
+
+    next();
+});
+
+userSchema.pre('findOneAndUpdate', function (next) {
+    const update = this.getUpdate() as Partial<IUser>;
+
+    if (update.role && (update.role !== 'admin' && update.role !== 'agent')) {
+        this.set({ players: undefined });
+    }else if(update.role ==='agent'){
+        this.set({subordintes:undefined})
+    }
+
+    next();
+});
+
+const User: Model<IUser> = mongoose.model<IUser>('User', userSchema);
 export default User;
