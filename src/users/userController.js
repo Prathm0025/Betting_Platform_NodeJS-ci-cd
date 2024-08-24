@@ -18,11 +18,11 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const playerModel_1 = __importDefault(require("../players/playerModel"));
 const config_1 = require("../config/config");
+const utils_1 = require("../utils/utils");
 const svg_captcha_1 = __importDefault(require("svg-captcha"));
 const uuid_1 = require("uuid");
 const transactionModel_1 = __importDefault(require("../transactions/transactionModel"));
 const betModel_1 = __importDefault(require("../bets/betModel"));
-const agentModel_1 = __importDefault(require("../agents/agentModel"));
 const captchaStore = {};
 class UserController {
     constructor() {
@@ -53,8 +53,12 @@ class UserController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { username, password, captchaToken, captcha } = req.body;
-                console.log(req.body);
-                if (!username || !password || !captchaToken || !captcha) {
+                const sanitizedUsername = (0, utils_1.sanitizeInput)(username);
+                console.log(sanitizedUsername, "username");
+                const sanitizedPassword = (0, utils_1.sanitizeInput)(password);
+                const sanitizedcaptachaToken = (0, utils_1.sanitizeInput)(captchaToken);
+                const sanitizedCaptcha = (0, utils_1.sanitizeInput)(captcha);
+                if (!sanitizedUsername || !sanitizedPassword || !sanitizedcaptachaToken || !sanitizedCaptcha) {
                     throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
                 }
                 const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
@@ -63,8 +67,8 @@ class UserController {
                     throw (0, http_errors_1.default)(400, "Invalid CAPTCHA");
                 }
                 delete captchaStore[decoded.captchaId];
-                const user = (yield userModel_1.default.findOne({ username })) ||
-                    (yield playerModel_1.default.findOne({ username }));
+                const user = (yield userModel_1.default.findOne({ username: sanitizedUsername })) ||
+                    (yield playerModel_1.default.findOne({ username: sanitizedUsername }));
                 if (!user) {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
@@ -72,7 +76,7 @@ class UserController {
                 if (userStatus) {
                     throw (0, http_errors_1.default)(403, "You are Blocked!");
                 }
-                const isPasswordValid = yield bcrypt_1.default.compare(password, user.password);
+                const isPasswordValid = yield bcrypt_1.default.compare(sanitizedPassword, user.password);
                 if (!isPasswordValid) {
                     throw (0, http_errors_1.default)(401, "Incoreect password");
                 }
@@ -104,10 +108,11 @@ class UserController {
                 const { userId } = _req.user;
                 if (!userId)
                     throw (0, http_errors_1.default)(400, "Invalid Request, Missing User");
-                const user = (yield userModel_1.default.findById({ _id: userId })) ||
-                    (yield playerModel_1.default.findById({ _id: userId }));
+                const user = (yield userModel_1.default.findById(userId).select("username role status credits")) ||
+                    (yield playerModel_1.default.findById({ _id: userId }).select("username role status credits"));
                 if (!user)
                     throw (0, http_errors_1.default)(404, "User not found");
+                console.log(user, "u");
                 res.status(200).json(user);
             }
             catch (err) {
@@ -115,6 +120,7 @@ class UserController {
             }
         });
     }
+    //GET SUMMARY(e.g. recent transactions and bets) FOR AGENT AND ADMIN DASHBOARD
     getSummary(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -142,7 +148,7 @@ class UserController {
                     agentCounts: agentCounts[0],
                     playerCounts: playerCounts[0],
                 };
-                res.status(200).json({ message: "Success!", summary });
+                res.status(200).json(summary);
             }
             catch (err) {
                 console.error(err);
@@ -150,6 +156,7 @@ class UserController {
             }
         });
     }
+    //RECENT BETS DEPENDING ON LIMIT (E.G. LIMIT =4 )
     getLastBets(limit) {
         return __awaiter(this, void 0, void 0, function* () {
             return betModel_1.default.find().sort({ date: -1 }).limit(limit).populate('player', 'username _id').exec();
@@ -168,6 +175,7 @@ class UserController {
             }).exec();
         });
     }
+    //TOTAL BETS COUNT AND TOTAL BET AMOUNT FOR A PERIOD
     getBetTotals(startOfDay, lastPeriodDate) {
         return __awaiter(this, void 0, void 0, function* () {
             return betModel_1.default.aggregate([
@@ -186,6 +194,7 @@ class UserController {
             ]).exec();
         });
     }
+    //TOTAL TRANSACTIOM COUNT AND TOTAL TRANSACTION AMOUNT FOR A PERIOD
     getTransactionTotals(startOfDay, lastPeriodDate) {
         return __awaiter(this, void 0, void 0, function* () {
             return transactionModel_1.default.aggregate([
@@ -204,11 +213,12 @@ class UserController {
             ]).exec();
         });
     }
+    //AGENTS ADDED BETWEEN A PERIOD
     getAgentCounts(startOfDay, lastPeriodDate) {
         return __awaiter(this, void 0, void 0, function* () {
-            return agentModel_1.default.aggregate([
+            return userModel_1.default.aggregate([
                 {
-                    $match: { createdAt: { $gte: lastPeriodDate } },
+                    $match: { createdAt: { $gte: lastPeriodDate }, role: 'agent' },
                 },
                 {
                     $group: {
@@ -220,6 +230,7 @@ class UserController {
             ]).exec();
         });
     }
+    //PLAYERS ADDED BETEWEEN A PERIOD
     getPlayerCounts(startOfDay, lastPeriodDate) {
         return __awaiter(this, void 0, void 0, function* () {
             return playerModel_1.default.aggregate([

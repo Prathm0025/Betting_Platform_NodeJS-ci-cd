@@ -6,6 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const adminController_1 = __importDefault(require("./adminController"));
 const adminRoutes = express_1.default.Router();
-adminRoutes.get("/:adminId", adminController_1.default.getAdminAgentsandAgentPlayers);
+// adminRoutes.get("/:adminId", adminController.getAdminAgentsandAgentPlayers)
 adminRoutes.post("/", adminController_1.default.createAdmin);
 exports.default = adminRoutes;

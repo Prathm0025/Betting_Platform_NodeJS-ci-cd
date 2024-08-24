@@ -27,20 +27,20 @@ const mongoose_1 = __importStar(require("mongoose"));
 const betSchema = new mongoose_1.Schema({
     player: {
         type: mongoose_1.default.Schema.Types.ObjectId,
-        ref: 'Player',
+        ref: "Player",
         required: true,
     },
     sport_title: {
         type: String,
-        required: true
+        required: true,
     },
     sport_key: {
         type: String,
-        required: true
+        required: true,
     },
     event_id: {
         type: String,
-        required: true
+        required: true,
     },
     commence_time: {
         type: Date,
@@ -72,7 +72,7 @@ const betSchema = new mongoose_1.Schema({
     },
     bet_on: {
         type: String,
-        enum: ['home_team', 'away_team'],
+        enum: ["home_team", "away_team"],
         required: true,
     },
     amount: {
@@ -81,10 +81,19 @@ const betSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ['won', 'lost', 'pending', 'locked', 'retry']
+        enum: ["won", "lost", "pending", "locked", "retry", "redeem"],
     },
     possibleWinningAmount: {
+        // New field
         type: Number,
+        required: true,
+    },
+    selected: {
+        type: String,
+        required: true,
+    },
+    oddsFormat: {
+        type: String,
         required: true,
     },
     retryCount: {
@@ -92,5 +101,5 @@ const betSchema = new mongoose_1.Schema({
         default: 0,
     },
 }, { timestamps: true });
-const Bet = mongoose_1.default.model('Bet', betSchema);
+const Bet = mongoose_1.default.model("Bet", betSchema);
 exports.default = Bet;
