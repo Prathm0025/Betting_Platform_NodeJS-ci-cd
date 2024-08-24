@@ -120,7 +120,7 @@ class SubordinateController {
     }
   }
 
-  //GET SPECIFC SUBORDINATE
+  //GET SPECIFC SUBORDINATE DETAILS
 
   async getSubordinate(req: Request, res: Response, next: NextFunction) {
     const { username } = req.params;
@@ -129,17 +129,21 @@ class SubordinateController {
 
     try {
       const requestingUser = await User.findById(userId);
+      if(!requestingUser){
+        throw createHttpError(404, "User Not Found")
+      }
       const subordinatesofRequestingUser = requestingUser.subordinates || [];
       const  players = requestingUser.players || [];
       const sanitizedUsername = sanitizeInput(username)
-      const subordinate = await User.findOne({username:sanitizedUsername}).select('-transactions -password') || await Player.findOne({username:sanitizedUsername}).select('-betHistory -transactions -password');
+      const subordinate:any = await User.findOne({username:sanitizedUsername}).select('-transactions -password') || await Player.findOne({username:sanitizedUsername}).select('-betHistory -transactions -password');
       
       if (!subordinate) {
         throw createHttpError(404, "User not found");
       }
-      if(role!=="admin"){
-        
-      }
+       if(role!=="admin" &&  (requestingUser?.username!==username) && (!subordinatesofRequestingUser.includes(subordinate._id))&&(!players.includes(subordinate._id)) ){
+          throw createHttpError(401, "Unauthorized!")
+       }
+      
       res.status(200).json(subordinate);
     } catch (error) {
       next(error);
