@@ -228,18 +228,6 @@ class TransactionController {
     }
   }
   
-  
-  
-  
-  
-  
-  
-
-
-
-
-
-
 
   // async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
 
