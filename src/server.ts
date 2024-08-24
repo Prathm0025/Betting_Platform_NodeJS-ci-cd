@@ -48,7 +48,7 @@ app.get("/", (req, res, next) => {
 
 app.use(express.static("src"));
 
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],

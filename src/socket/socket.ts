@@ -3,6 +3,7 @@ import { verifySocketToken } from "./socketMiddleware";
 import Player from "../players/playerSocket";
 
 export let users: Map<string, Player> = new Map();
+export const activeRooms: Set<string> = new Set();
 
 const socketController = (io: Server) => {
   // socket authentication middleware
@@ -46,14 +47,14 @@ const socketController = (io: Server) => {
         socket.disconnect(true);
       } else {
         existingSocket.updateSocket(socket);
-        console.log(existingSocket);
       }
     } else {
       const newUser = new Player(
         socket,
         decoded.userId,
         username,
-        decoded.credits
+        decoded.credits,
+        io
       );
       users.set(username, newUser);
       console.log(`Player ${username} entered the platform.`);

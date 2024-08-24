@@ -133,9 +133,6 @@ class Store {
           (score: any) => score.id === game.id
         );
 
-        console.log("GAME ID : ", game.id);
-        console.log("matchedScore: ", matchedScore);
-
         return {
           id: game.id,
           sport_key: game.sport_key,

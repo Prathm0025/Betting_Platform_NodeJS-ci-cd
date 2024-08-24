@@ -9,7 +9,7 @@ subordinatesRoutes.get("/", verifyRole(["admin"]), subordinateController.getAllS
 
 subordinatesRoutes.get("/:username",  subordinateController.getSubordinate);
 
-subordinatesRoutes.get("/:superior/subordinates", subordinateController.getSubordinatessUnderSuperior);
+subordinatesRoutes.get("/:superior/subordinates",verifyRole(["admin", "distributor", "subdistributor", "agent"]), subordinateController.getSubordinatessUnderSuperior);
 
 subordinatesRoutes.put("/:id",  subordinateController.updateSubordinate);
 
