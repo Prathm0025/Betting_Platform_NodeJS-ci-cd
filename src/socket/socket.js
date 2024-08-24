@@ -12,10 +12,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.users = void 0;
+exports.activeRooms = exports.users = void 0;
 const socketMiddleware_1 = require("./socketMiddleware");
 const playerSocket_1 = __importDefault(require("../players/playerSocket"));
 exports.users = new Map();
+exports.activeRooms = new Set();
 const socketController = (io) => {
     // socket authentication middleware
     io.use((socket, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -54,11 +55,10 @@ const socketController = (io) => {
             }
             else {
                 existingSocket.updateSocket(socket);
-                console.log(existingSocket);
             }
         }
         else {
-            const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits);
+            const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits, io);
             exports.users.set(username, newUser);
             console.log(`Player ${username} entered the platform.`);
         }

@@ -112,7 +112,6 @@ class UserController {
                     (yield playerModel_1.default.findById({ _id: userId }).select("username role status credits"));
                 if (!user)
                     throw (0, http_errors_1.default)(404, "User not found");
-                console.log(user, "u");
                 res.status(200).json(user);
             }
             catch (err) {

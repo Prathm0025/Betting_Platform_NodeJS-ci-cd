@@ -94,15 +94,26 @@ class SubordinateController {
             }
         });
     }
-    //GET SPECIFC SUBORDINATE
+    //GET SPECIFC SUBORDINATE DETAILS
     getSubordinate(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { username } = req.params;
+            const _req = req;
+            const { userId, role } = _req.user;
             try {
+                const requestingUser = yield userModel_1.default.findById(userId);
+                if (!requestingUser) {
+                    throw (0, http_errors_1.default)(404, "User Not Found");
+                }
+                const subordinatesofRequestingUser = requestingUser.subordinates || [];
+                const players = requestingUser.players || [];
                 const sanitizedUsername = (0, utils_1.sanitizeInput)(username);
                 const subordinate = (yield userModel_1.default.findOne({ username: sanitizedUsername }).select('-transactions -password')) || (yield playerModel_1.default.findOne({ username: sanitizedUsername }).select('-betHistory -transactions -password'));
                 if (!subordinate) {
                     throw (0, http_errors_1.default)(404, "User not found");
+                }
+                if (role !== "admin" && ((requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser.username) !== username) && (!subordinatesofRequestingUser.includes(subordinate._id)) && (!players.includes(subordinate._id))) {
+                    throw (0, http_errors_1.default)(401, "Unauthorized!");
                 }
                 res.status(200).json(subordinate);
             }
@@ -213,16 +224,27 @@ class SubordinateController {
     //GET SUBORDINATE UNDER SUPERIOR
     getSubordinatessUnderSuperior(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             try {
                 const { superior } = req.params;
                 const { type } = req.query;
+                const _req = req;
+                const { userId } = _req.user;
+                let requestingUser = yield userModel_1.default.findById(userId);
+                let subordinatesofRequestingUser = requestingUser.subordinates || [];
+                let players = requestingUser.players || [];
                 let superiorUser;
                 // GETTING SUBORDINATE BASED ON QUERY TYPE(username, id)
                 if (type === "id") {
-                    superiorUser = yield userModel_1.default.findById(superior).populate({
-                        path: 'subordinates',
-                        select: '-password'
-                    });
+                    superiorUser = yield userModel_1.default.findById(superior).select('-password -transactions');
+                    if (!superiorUser) {
+                        throw (0, http_errors_1.default)(404, "Superior user not found");
+                    }
+                    if (requestingUser.role !== "admin" &&
+                        (((_a = requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser._id) === null || _a === void 0 ? void 0 : _a.toString()) !== superior) && ((!subordinatesofRequestingUser.includes(superiorUser._id)) && (!players.includes(superiorUser._id)))) {
+                        console.log("here", subordinatesofRequestingUser, superiorUser._id);
+                        throw (0, http_errors_1.default)(401, "Not Authorised");
+                    }
                     //PLAYERS FOR AGENT(AGENT HAS PLAYERS AS SUBORDINATE)
                     if (superiorUser.role === "agent") {
                         superiorUser = yield userModel_1.default.findById(superior).populate({
@@ -230,7 +252,7 @@ class SubordinateController {
                             select: '-password'
                         });
                     }
-                    else if (superiorUser.role === "admin") {
+                    else {
                         superiorUser = yield userModel_1.default.findById(superior).populate({
                             path: 'subordinates players',
                             select: '-password'
@@ -240,22 +262,19 @@ class SubordinateController {
                         throw (0, http_errors_1.default)(404, "User Not Found");
                 }
                 else if (type === "username") {
+                    superiorUser = yield userModel_1.default.findOne({ username: superior }).select('-password -transactions');
+                    if (!superiorUser) {
+                        throw (0, http_errors_1.default)(404, "Superior user not found");
+                    }
+                    if (requestingUser.role !== "admin" &&
+                        ((requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser.username) !== superior) && ((!subordinatesofRequestingUser.includes(superiorUser._id)) && (!players.includes(superiorUser._id)))) {
+                        console.log("here", subordinatesofRequestingUser, superiorUser._id);
+                        throw (0, http_errors_1.default)(401, "Not Authorised");
+                    }
                     superiorUser = yield userModel_1.default.findOne({ username: superior }).populate({
-                        path: 'subordinates',
+                        path: 'subordinates players',
                         select: '-password'
                     });
-                    if (superiorUser.role === "agent") {
-                        superiorUser = yield userModel_1.default.findOne({ username: superior }).populate({
-                            path: 'players',
-                            select: '-password'
-                        });
-                    }
-                    else if (superiorUser.role === "admin") {
-                        superiorUser = yield userModel_1.default.findOne({ username: superior }).populate({
-                            path: 'subordinates players',
-                            select: '-password'
-                        });
-                    }
                     if (!superiorUser)
                         throw (0, http_errors_1.default)(404, "User Not Found with the provided username");
                 }
