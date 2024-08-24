@@ -1,23 +1,28 @@
-import { Socket } from "socket.io";
+import { Server, Socket } from "socket.io";
 import PlayerModel from "./playerModel";
 import { IBet } from "../bets/betsType";
 import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
+import { activeRooms } from "../socket/socket";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
   private username: string;
   private credits: number;
   public socket: Socket;
+  public currentRoom: string;
+  private io: Server;
 
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
     username: string,
-    credits: number
+    credits: number,
+    io: Server
   ) {
     this.socket = socket;
+    this.io = io;
     this.userId = userId;
     this.username = username;
     this.credits = credits;
@@ -136,16 +141,16 @@ export default class Player {
             break;
 
           case "ODDS":
-            console.log("ODDS : ", res);
 
             const oddsData = await Store.getOdds(
               res.payload.sport,
               res.payload.markets,
               res.payload.regions,
-              this,
+              this
             );
             this.sendData({ type: "ODDS", data: oddsData });
-            console.log("HERE");
+            console.log("Sending to join room");
+            this.joinRoom(res.payload.sport);
             break;
 
           case "EVENT_ODDS":
@@ -202,7 +207,6 @@ export default class Player {
                           status: "success",
                           message: "Bet placed successfully.",
                         });
-
                       }
                     } catch (error) {
                       console.error("Error adding bet: ", error);
@@ -214,7 +218,6 @@ export default class Player {
                       return; // Optionally, stop processing further bets on error
                     }
                   }
-
                 } else {
                   // Handle single bet case (fallback if payload is not an array)
                   const betRes = await BetController.placeBet(this, payload);
@@ -224,7 +227,6 @@ export default class Player {
                       status: "success",
                       message: "Bet placed successfully.",
                     });
-
                   }
                 }
               } catch (error) {
@@ -254,21 +256,13 @@ export default class Player {
       }
     );
   }
+
+  public joinRoom(room: string) {
+    if (this.currentRoom) {
+      this.socket.leave(this.currentRoom);
+    }
+    activeRooms.add(room);
+    this.socket.join(room);
+    this.currentRoom = room;
+  }
 }
-
-
-// {
-//     player: '66b4669df50c0da50679c821',
-//     sport_title: 'CFL',
-//     commence_time: '2024-08-16T01:00:00Z',
-//     home_team: { name: 'Calgary Stampeders', odds: 1.66 },
-//     away_team: { name: 'Ottawa Redblacks', odds: 2.26 },
-//     market: 'h2h',
-//     bet_on: 'home_team',
-//     amount: '12',
-//     status: 'pending',
-//     sport: 'americanfootball_cfl',
-//     eventId: '1927cc7c6702c485102eb689b64d72ea',
-//     regions: 'us',
-//     oddsFormat: 'decimal'
-//   }
