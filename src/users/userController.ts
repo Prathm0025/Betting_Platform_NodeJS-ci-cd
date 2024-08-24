@@ -121,7 +121,6 @@ class UserController {
       await User.findById(userId).select("username role status credits") ||
       (await Player.findById({ _id: userId }).select("username role status credits"));
       if (!user) throw createHttpError(404, "User not found");
-      console.log(user, "u");
       
       res.status(200).json(user);
     } catch (err) {
