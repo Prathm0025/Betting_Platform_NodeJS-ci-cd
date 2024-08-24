@@ -17,7 +17,9 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const config_1 = require("./config");
 const agenda_1 = __importDefault(require("agenda"));
 const betServices_1 = __importDefault(require("../bets/betServices"));
+const storeServices_1 = __importDefault(require("../store/storeServices"));
 let agenda;
+const storeService = new storeServices_1.default();
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         mongoose_1.default.connection.on("connected", () => __awaiter(void 0, void 0, void 0, function* () {
@@ -29,22 +31,26 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
         yield mongoose_1.default.connect(config_1.config.databaseUrl);
         // Initialize Agenda
         exports.agenda = agenda = new agenda_1.default({
-            db: { address: config_1.config.databaseUrl, collection: "jobs" }
+            db: { address: config_1.config.databaseUrl, collection: "jobs" },
         });
         // Define a sample job
-        agenda.define('add bet to queue', (job) => __awaiter(void 0, void 0, void 0, function* () {
+        agenda.define("add bet to queue", (job) => __awaiter(void 0, void 0, void 0, function* () {
             const { betId } = job.attrs.data;
             yield betServices_1.default.addBetToQueueAtCommenceTime(betId);
             console.log(`Bet ${betId} is added to processing queue`);
         }));
-        agenda.define('fetch odds for queue bets', () => __awaiter(void 0, void 0, void 0, function* () {
+        agenda.define("fetch odds for queue bets", () => __awaiter(void 0, void 0, void 0, function* () {
             yield betServices_1.default.fetchOddsForQueueBets();
+        }));
+        agenda.define("fetch live sports odds", () => __awaiter(void 0, void 0, void 0, function* () {
+            yield storeService.updateLiveData();
         }));
         // // Start Agenda
         yield agenda.start();
         // Schedule the recurring job
-        yield agenda.every('30 seconds', 'fetch odds for queue bets');
-        console.log('Agenda started');
+        yield agenda.every("30 seconds", "fetch odds for queue bets");
+        yield agenda.every("30 seconds", "fetch live sports odds");
+        console.log("Agenda started");
     }
     catch (err) {
         console.error("Failed to connect to database.", err);

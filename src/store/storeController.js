@@ -92,8 +92,6 @@ class Store {
                     // Select one bookmaker (e.g., the first one)
                     const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
                     const matchedScore = scoresResponse.find((score) => score.id === game.id);
-                    console.log("GAME ID : ", game.id);
-                    console.log("matchedScore: ", matchedScore);
                     return {
                         id: game.id,
                         sport_key: game.sport_key,

@@ -15,9 +15,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const playerModel_1 = __importDefault(require("./playerModel"));
 const betController_1 = __importDefault(require("../bets/betController"));
 const storeController_1 = __importDefault(require("../store/storeController"));
+const socket_1 = require("../socket/socket");
 class Player {
-    constructor(socket, userId, username, credits) {
+    constructor(socket, userId, username, credits, io) {
         this.socket = socket;
+        this.io = io;
         this.userId = userId;
         this.username = username;
         this.credits = credits;
@@ -121,10 +123,10 @@ class Player {
                         this.sendData({ scores: scoresData });
                         break;
                     case "ODDS":
-                        console.log("ODDS : ", res);
                         const oddsData = yield storeController_1.default.getOdds(res.payload.sport, res.payload.markets, res.payload.regions, this);
                         this.sendData({ type: "ODDS", data: oddsData });
-                        console.log("HERE");
+                        console.log("Sending to join room");
+                        this.joinRoom(res.payload.sport);
                         break;
                     case "EVENT_ODDS":
                         const eventOddsData = yield storeController_1.default.getEventOdds(res.payload.sport, res.payload.eventId, res.payload.regions, res.payload.markets, res.payload.dateFormat, res.payload.oddsFormat);
@@ -214,20 +216,13 @@ class Player {
             }
         }));
     }
+    joinRoom(room) {
+        if (this.currentRoom) {
+            this.socket.leave(this.currentRoom);
+        }
+        socket_1.activeRooms.add(room);
+        this.socket.join(room);
+        this.currentRoom = room;
+    }
 }
 exports.default = Player;
-// {
-//     player: '66b4669df50c0da50679c821',
-//     sport_title: 'CFL',
-//     commence_time: '2024-08-16T01:00:00Z',
-//     home_team: { name: 'Calgary Stampeders', odds: 1.66 },
-//     away_team: { name: 'Ottawa Redblacks', odds: 2.26 },
-//     market: 'h2h',
-//     bet_on: 'home_team',
-//     amount: '12',
-//     status: 'pending',
-//     sport: 'americanfootball_cfl',
-//     eventId: '1927cc7c6702c485102eb689b64d72ea',
-//     regions: 'us',
-//     oddsFormat: 'decimal'
-//   }

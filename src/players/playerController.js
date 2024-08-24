@@ -47,7 +47,9 @@ class PlayerController {
                     createdBy: creatorId,
                 });
                 yield newUser.save();
-                role === "admin" ? creator.subordinates.push(newUser._id) : creator.players.push(newUser._id);
+                role === "admin"
+                    ? creator.subordinates.push(newUser._id)
+                    : creator.players.push(newUser._id);
                 yield creator.save();
                 res
                     .status(201)
@@ -66,10 +68,10 @@ class PlayerController {
                 const { username } = req.query;
                 let player;
                 if (id) {
-                    player = yield playerModel_1.default.findById(id).select('-password');
+                    player = yield playerModel_1.default.findById(id).select("-password");
                 }
                 else if (username) {
-                    player = yield playerModel_1.default.findOne({ username }).select('-password');
+                    player = yield playerModel_1.default.findOne({ username }).select("-password");
                 }
                 else {
                     throw (0, http_errors_1.default)(400, "Player id or username not provided");
@@ -84,7 +86,7 @@ class PlayerController {
             }
         });
     }
-    //GET ALL PLAYERS 
+    //GET ALL PLAYERS
     getAllPlayers(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -99,10 +101,8 @@ class PlayerController {
     //UPDATE PLAYER
     updatePlayer(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("hi");
             const { username, password, status } = req.body;
             const { id: playerId } = req.params;
-            console.log(playerId);
             try {
                 const _req = req;
                 const { userId, role } = _req.user;
@@ -117,7 +117,6 @@ class PlayerController {
                     if (!agent) {
                         throw (0, http_errors_1.default)(404, "Agent not found");
                     }
-                    console.log(agent.players, "players");
                     const playerExistsInAgent = agent.players.some((player) => player.toString() === playerId);
                     if (!playerExistsInAgent) {
                         throw (0, http_errors_1.default)(401, "You are not authorized to update this player");
