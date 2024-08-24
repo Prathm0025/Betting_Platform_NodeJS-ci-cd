@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransactionService = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
@@ -18,9 +19,14 @@ const userModel_1 = __importDefault(require("../users/userModel"));
 const playerModel_1 = __importDefault(require("../players/playerModel"));
 const transactionModel_1 = __importDefault(require("./transactionModel"));
 const http_errors_1 = __importDefault(require("http-errors"));
+const socket_1 = require("../socket/socket");
 class TransactionService {
+    //RECORDING TRANSACTION AND ABORTING USING SESSIONS
     static performTransaction(senderId, receiverId, sender, receiver, senderModel, receiverModel, type, amount, role) {
         return __awaiter(this, void 0, void 0, function* () {
+            //sender and receiver
+            //sender-> User who wants to recharge or redeem
+            //reciever-> User getting recharged or redeemed 
             const session = yield mongoose_1.default.startSession();
             session.startTransaction();
             try {
@@ -30,12 +36,18 @@ class TransactionService {
                 const senderModelInstance = this.getModelInstance(senderModel);
                 const receiverModelInstance = this.getModelInstance(receiverModel);
                 this.validateCredits(type, sender, receiver, amount);
-                yield this.updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session);
+                yield this.updateCredits(type, senderId, receiverId, senderModel, receiverModel, senderModelInstance, receiverModelInstance, amount, session);
+                // to store sender and receiver for DB sendr and reciever field we need to find  who is getting money and who is giving money
+                const senderUser = type === "redeem" ? receiverId : senderId; // recieverId is the user who is getting recharged or redeemed
+                const receiverUser = type === "redeem" ? senderId : receiverId; //senderId is user who is redeeming or recharging
+                //to get the model of sender and reciever
+                const senderModelForDB = type === "redeem" ? receiverModel : senderModel;
+                const receiverModelForDB = type === "redeem" ? senderModel : receiverModel;
                 yield transactionModel_1.default.create([{
-                        sender: senderId,
-                        receiver: receiverId,
-                        senderModel,
-                        receiverModel,
+                        sender: senderUser,
+                        receiver: receiverUser,
+                        senderModel: senderModelForDB,
+                        receiverModel: receiverModelForDB,
                         type,
                         amount,
                     }], { session });
@@ -64,22 +76,37 @@ class TransactionService {
     }
     static validateCredits(type, sender, receiver, amount) {
         if (type === "recharge" && sender.credits < amount) {
-            throw (0, http_errors_1.default)(400, "Insufficient credits in sender's account for recharge.");
+            throw (0, http_errors_1.default)(400, "Insufficient credits in account for recharge.");
         }
         if (type === "redeem" && receiver.credits < amount) {
-            throw (0, http_errors_1.default)(400, "Insufficient credits in receiver's account for redemption.");
+            throw (0, http_errors_1.default)(400, "Insufficient credits in  account for redemption.");
         }
     }
-    static updateCredits(type, senderId, receiverId, senderModelInstance, receiverModelInstance, amount, session) {
+    static updateCredits(type, senderId, receiverId, senderModel, receiverModel, senderModelInstance, receiverModelInstance, amount, session) {
         return __awaiter(this, void 0, void 0, function* () {
             const senderUpdate = type === "recharge" ? -amount : amount;
             const receiverUpdate = type === "recharge" ? amount : -amount;
             yield senderModelInstance.updateOne({ _id: senderId }, { $inc: { credits: senderUpdate } }, { session });
             yield receiverModelInstance.updateOne({ _id: receiverId }, { $inc: { credits: receiverUpdate } }, { session });
+            yield this.handlePlayerUpdate(senderModel, senderId, session);
+            yield this.handlePlayerUpdate(receiverModel, receiverId, session);
         });
     }
 }
 exports.TransactionService = TransactionService;
+_a = TransactionService;
+TransactionService.handlePlayerUpdate = (model, id, session) => __awaiter(void 0, void 0, void 0, function* () {
+    if (model === "Player") {
+        const player = yield playerModel_1.default.findById(id).session(session);
+        if (player) {
+            const playerName = player.username;
+            const playerSocket = socket_1.users.get(playerName);
+            if (playerSocket) {
+                playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+            }
+        }
+    }
+});
 // import mongoose from "mongoose";
 // import { ITransaction } from "./transactionType";
 // import { rolesHierarchy } from "../utils/utils";

@@ -13,18 +13,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const http_errors_1 = __importDefault(require("http-errors"));
+const utils_1 = require("../utils/utils");
 const userModel_1 = __importDefault(require("../users/userModel"));
 const playerModel_1 = __importDefault(require("../players/playerModel"));
 const transactionService_1 = require("./transactionService");
 const mongoose_1 = __importDefault(require("mongoose"));
 const transactionModel_1 = __importDefault(require("./transactionModel"));
-const agentModel_1 = __importDefault(require("../agents/agentModel"));
 class TransactionController {
+    // TO RECORD TRANSACTIONS, RECHARGE AND REDEEM
     transaction(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             const { reciever: receiverId, amount, type } = req.body;
             try {
-                if (!receiverId || !amount || amount <= 0)
+                const sanitizedAmount = (0, utils_1.sanitizeInput)(amount);
+                const sanitizedType = (0, utils_1.sanitizeInput)(type);
+                if (!receiverId || !sanitizedAmount || sanitizedAmount <= 0)
                     throw (0, http_errors_1.default)(400, "Reciever or Amount is missing");
                 const _req = req;
                 const { userId, role } = _req.user;
@@ -40,7 +43,7 @@ class TransactionController {
                     (yield playerModel_1.default.findById({ _id: receiverId }));
                 if (!reciever)
                     throw (0, http_errors_1.default)(404, "Reciever does not exist");
-                if (role === "agent") {
+                if (role !== "admin") {
                     if ((reciever === null || reciever === void 0 ? void 0 : reciever.createdBy.toString()) !== userId)
                         throw (0, http_errors_1.default)(404, "You Are Not Authorised");
                 }
@@ -58,7 +61,7 @@ class TransactionController {
                         : (() => {
                             throw (0, http_errors_1.default)(500, "Unknown reciever model");
                         })();
-                yield transactionService_1.TransactionService.performTransaction(newObjectId, receiverId, sender, reciever, senderModelName, recieverModelName, type, amount, role);
+                yield transactionService_1.TransactionService.performTransaction(newObjectId, receiverId, sender, reciever, senderModelName, recieverModelName, sanitizedType, sanitizedAmount, role);
                 res.status(200).json({ message: "Transaction successful" });
             }
             catch (err) {
@@ -67,6 +70,7 @@ class TransactionController {
             }
         });
     }
+    //GET ALL TRANSCATIONS FOR ADMIN
     getAllTransactions(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -79,7 +83,7 @@ class TransactionController {
                     path: 'receiver',
                     select: '-password',
                 });
-                res.status(200).json({ message: "Success!", transactions: allTransactions });
+                res.status(200).json(allTransactions);
             }
             catch (error) {
                 console.log(error);
@@ -87,16 +91,17 @@ class TransactionController {
             }
         });
     }
-    getSpecificAgentTransactions(req, res, next) {
+    //SPECIFIC USER TRANSACTIONS
+    getSpecificUserTransactions(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { agentId } = req.params;
-                if (!agentId)
-                    throw (0, http_errors_1.default)(400, "Agent Id not Found");
+                const { userId } = req.params;
+                if (!userId)
+                    throw (0, http_errors_1.default)(400, "User Id not Found");
                 const transactionsOfAgent = yield transactionModel_1.default.find({
                     $or: [
-                        { sender: agentId },
-                        { receiver: agentId }
+                        { sender: userId },
+                        { receiver: userId }
                     ]
                 }).select('+senderModel +receiverModel')
                     .populate({
@@ -107,42 +112,68 @@ class TransactionController {
                     path: 'receiver',
                     select: '-password',
                 });
-                if (transactionsOfAgent.length === 0)
-                    res.status(404).json({ message: "No transactions found for this agent." });
-                res.status(200).json({ message: "Success!", transactions: transactionsOfAgent });
+                res.status(200).json(transactionsOfAgent);
             }
             catch (error) {
                 next(error);
             }
         });
     }
-    getAgentPlayerTransaction(req, res, next) {
+    //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
+    getSuperiorSubordinateTransaction(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { agentId, username } = req.params;
-                console.log(username);
-                let agent;
-                if (agentId) {
-                    agent = yield agentModel_1.default.findById(agentId);
-                    if (!agent)
-                        throw (0, http_errors_1.default)(404, "Agent Not Found");
+                const { superior } = req.params;
+                const { type } = req.query;
+                let superiorUser;
+                if (type === "id") {
+                    superiorUser = yield userModel_1.default.findById(superior);
+                    superiorUser && superiorUser.subordinates ?
+                        superiorUser = yield userModel_1.default.findById(superior).populate('_id subordinates role') :
+                        superiorUser = yield userModel_1.default.findById(superior).populate('_id players role');
+                    if (!superiorUser)
+                        throw (0, http_errors_1.default)(404, "User Not Found");
                 }
-                else if (username) {
-                    agent = yield agentModel_1.default.findOne({ username: username });
-                    if (!agent)
-                        throw (0, http_errors_1.default)(404, "Agent Not Found with the provided username");
+                else if (type === "username") {
+                    superiorUser = yield userModel_1.default.findOne({ username: superior });
+                    superiorUser && superiorUser.subordinates ?
+                        superiorUser = yield userModel_1.default.findOne({ username: superior }).populate('_id subordinates role') :
+                        superiorUser = yield userModel_1.default.findOne({ username: superior }).populate('_id players role');
+                    if (!superiorUser)
+                        throw (0, http_errors_1.default)(404, "User Not Found with the provided username");
                 }
                 else {
-                    throw (0, http_errors_1.default)(400, "Agent Id or Username not provided");
+                    throw (0, http_errors_1.default)(400, "User Id or Username not provided");
                 }
-                if (!agent.players || agent.players.length === 0) {
-                    return res.status(404).json({ message: 'No players found for this agent.' });
+                const subordinateIds = superiorUser.role === "admin"
+                    ? [
+                        ...superiorUser.players.map(player => player._id),
+                        ...superiorUser.subordinates.map(sub => sub._id)
+                    ]
+                    : superiorUser.role === "agent"
+                        ? superiorUser.players.map(player => player._id)
+                        : superiorUser.subordinates.map(sub => sub._id);
+                let transactions;
+                if (subordinateIds) {
+                    transactions = yield transactionModel_1.default.find({
+                        $or: [
+                            { sender: { $in: subordinateIds } },
+                            { receiver: { $in: subordinateIds } }
+                        ]
+                    }).select('+senderModel +receiverModel')
+                        .populate({
+                        path: 'sender',
+                        select: 'username',
+                    })
+                        .populate({
+                        path: 'receiver',
+                        select: 'username',
+                    });
                 }
-                const playerIds = agent.players.map(player => player._id);
-                const transactions = yield transactionModel_1.default.find({
+                const superiorTransactions = yield transactionModel_1.default.find({
                     $or: [
-                        { sender: { $in: playerIds } },
-                        { receiver: { $in: playerIds } }
+                        { sender: superiorUser._id },
+                        { receiver: superiorUser._id }
                     ]
                 }).select('+senderModel +receiverModel')
                     .populate({
@@ -153,25 +184,8 @@ class TransactionController {
                     path: 'receiver',
                     select: 'username',
                 });
-                const agentTransactions = yield transactionModel_1.default.find({
-                    $or: [
-                        { sender: agent._id },
-                        { receiver: agent._id }
-                    ]
-                }).select('+senderModel +receiverModel')
-                    .populate({
-                    path: 'sender',
-                    select: '-password',
-                })
-                    .populate({
-                    path: 'receiver',
-                    select: '-password',
-                });
-                const combinedTransactions = [...transactions, ...agentTransactions];
-                if (combinedTransactions.length === 0) {
-                    return res.status(404).json({ message: 'No transactions for agent.' });
-                }
-                res.status(200).json({ message: "Success", transactions: combinedTransactions });
+                const combinedTransactions = [...transactions, ...superiorTransactions];
+                res.status(200).json(combinedTransactions);
             }
             catch (error) {
                 console.log(error);
@@ -179,25 +193,27 @@ class TransactionController {
             }
         });
     }
+    //SPECIFIC PLAYER TRANSACTION
     getSpecificPlayerTransactions(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { playerId, username } = req.params;
-                let player;
-                if (playerId) {
-                    player = yield playerModel_1.default.findById(playerId);
+                const { player } = req.params;
+                const { type } = req.query;
+                let players;
+                if (type === "id") {
+                    players = yield playerModel_1.default.findById(player);
                     if (!player)
                         throw (0, http_errors_1.default)(404, "Player Not Found");
                 }
-                else if (username) {
-                    player = yield playerModel_1.default.findOne({ username });
+                else if (type === "username") {
+                    players = yield playerModel_1.default.findOne({ username: player });
                     if (!player)
                         throw (0, http_errors_1.default)(404, "Player Not Found with the provided username");
                 }
                 else {
                     throw (0, http_errors_1.default)(400, "Player Id or Username not provided");
                 }
-                const playerTransactions = yield transactionModel_1.default.find({ receiver: player._id })
+                const playerTransactions = yield transactionModel_1.default.find({ receiver: players._id })
                     .select('+senderModel +receiverModel')
                     .populate({
                     path: 'sender',
@@ -207,10 +223,7 @@ class TransactionController {
                     path: 'receiver',
                     select: '-password',
                 });
-                if (playerTransactions.length === 0) {
-                    return res.status(404).json({ message: "No Transactions Found" });
-                }
-                res.status(200).json({ message: "Success!", transactions: playerTransactions });
+                res.status(200).json(playerTransactions);
             }
             catch (error) {
                 console.log(error);
@@ -226,8 +239,8 @@ exports.default = new TransactionController();
 // import createHttpError from "http-errors";
 // import mongoose from "mongoose";
 // import { AuthRequest } from "../utils/utils";
-// import { IPlayer, IUser } from "../usersTest/userType";
-// import { ITransaction } from "./transactionType";
+// import { IPlayer, IUser } from "../usersTest/usersanitizedType";
+// import { ITransaction } from "./transactionsanitizedType";
 // import TransactionService from "./transactionService";
 // import { QueryParams } from "../utils/utils";
 // export class TransactionController {
@@ -240,7 +253,7 @@ exports.default = new TransactionController();
 //     this.getAllTransactions = this.getAllTransactions.bind(this);
 //   }
 //   async createTransaction(
-//     type: string,
+//     sanitizedType: string,
 //     debtor: IUser | IPlayer,
 //     creditor: IUser,
 //     amount: number,
@@ -248,7 +261,7 @@ exports.default = new TransactionController();
 //   ): Promise<ITransaction> {
 //     try {
 //       const transaction = await this.transactionService.createTransaction(
-//         type,
+//         sanitizedType,
 //         debtor,
 //         creditor,
 //         amount,
@@ -274,21 +287,21 @@ exports.default = new TransactionController();
 //         totalRedeemed: { From: 0, To: 0 },
 //         credits: { From: 0, To: 0 },
 //         updatedAt: { From: new Date(), To: new Date() },
-//         type: "",
+//         sanitizedType: "",
 //         amount: { From: 0, To: Infinity },
 //       };
-//       let type, updatedAt, amount;
+//       let sanitizedType, updatedAt, amount;
 //       if (search) {
 //         parsedData = JSON.parse(search);
 //         if (parsedData) {
-//           type = parsedData.type;
+//           sanitizedType = parsedData.sanitizedType;
 //           updatedAt = parsedData.updatedAt;
 //           amount = parsedData.amount;
 //         }
 //       }
 //       let query: any = {};
-//       if (type) {
-//         query.type = type;
+//       if (sanitizedType) {
+//         query.sanitizedType = sanitizedType;
 //       }
 //       if (updatedAt) {
 //         query.updatedAt = {
@@ -358,7 +371,7 @@ exports.default = new TransactionController();
 //       let query: any = {};
 //       if (
 //         user.role === "superadmin" ||
-//         user.subordinates.includes(new mongoose.Types.ObjectId(subordinateId))
+//         user.subordinates.includes(new mongoose.sanitizedTypes.ObjectId(subordinateId))
 //       ) {
 //         const {
 //           transactions,
@@ -420,21 +433,21 @@ exports.default = new TransactionController();
 //         totalRedeemed: { From: 0, To: 0 },
 //         credits: { From: 0, To: 0 },
 //         updatedAt: { From: new Date(), To: new Date() },
-//         type: "",
+//         sanitizedType: "",
 //         amount: { From: 0, To: Infinity },
 //       };
-//       let type, updatedAt, amount;
+//       let sanitizedType, updatedAt, amount;
 //       if (search) {
 //         parsedData = JSON.parse(search);
 //         if (parsedData) {
-//           type = parsedData.type;
+//           sanitizedType = parsedData.sanitizedType;
 //           updatedAt = parsedData.updatedAt;
 //           amount = parsedData.amount;
 //         }
 //       }
 //       let query: any = {};
-//       if (type) {
-//         query.type = type;
+//       if (sanitizedType) {
+//         query.sanitizedType = sanitizedType;
 //       }
 //       if (updatedAt) {
 //         query.updatedAt = {
@@ -482,7 +495,7 @@ exports.default = new TransactionController();
 //     const session = await mongoose.startSession();
 //     session.startTransaction();
 //     try {
-//       if (!mongoose.Types.ObjectId.isValid(id)) {
+//       if (!mongoose.sanitizedTypes.ObjectId.isValid(id)) {
 //         throw createHttpError(400, "Invalid transaction ID");
 //       }
 //       const deletedTransaction =

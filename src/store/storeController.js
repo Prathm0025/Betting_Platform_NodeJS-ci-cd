@@ -51,9 +51,9 @@ class Store {
                     params: Object.assign(Object.assign({}, params), { apiKey: config_1.config.oddsApi.key }),
                 });
                 // Log the quota-related headers
-                const requestsRemaining = response.headers['x-requests-remaining'];
-                const requestsUsed = response.headers['x-requests-used'];
-                const requestsLast = response.headers['x-requests-last'];
+                const requestsRemaining = response.headers["x-requests-remaining"];
+                const requestsUsed = response.headers["x-requests-used"];
+                const requestsLast = response.headers["x-requests-last"];
                 console.log(`Requests Remaining: ${requestsRemaining}`);
                 console.log(`Requests Used: ${requestsUsed}`);
                 console.log(`Requests Last: ${requestsLast}`);
@@ -80,11 +80,11 @@ class Store {
                 console.log("CACHE KEY : ", cacheKey);
                 // Fetch data from the API
                 const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds`, {
-                    markets: 'h2h', // Default to 'h2h' if not provided
-                    regions: 'us', // Default to 'us' if not provided
-                    oddsFormat: 'decimal'
+                    markets: "h2h", // Default to 'h2h' if not provided
+                    regions: "us", // Default to 'us' if not provided
+                    oddsFormat: "decimal",
                 }, this.oddsCache, cacheKey);
-                const scoresResponse = yield this.getScores(sport, '1', 'iso');
+                const scoresResponse = yield this.getScores(sport, "1", "iso");
                 // Get the current time for filtering live games
                 const now = new Date().toISOString();
                 // Process the data
@@ -104,7 +104,8 @@ class Store {
                         markets: (bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.markets) || [],
                         scores: (matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.scores) || [],
                         completed: matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.completed,
-                        last_update: matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.last_update
+                        last_update: matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.last_update,
+                        selected: bookmaker.key,
                     };
                 });
                 // Separate live games and upcoming games
@@ -130,7 +131,8 @@ class Store {
         const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
         return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events`, { dateFormat }, this.eventsCache, cacheKey);
     }
-    getEventOdds(sport, eventId, regions, markets, dateFormat, oddsFormat) {
+    getEventOdds(sport, eventId, markets, regions, oddsFormat, dateFormat) {
+        console.log("in event odds", sport, eventId, markets, regions, oddsFormat, dateFormat);
         const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"}_${oddsFormat || "decimal"}`;
         return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`, { regions, markets, dateFormat, oddsFormat }, this.eventOddsCache, cacheKey);
     }

@@ -68,6 +68,6 @@ const playerSchemaFields = {
             ref: 'Bet',
         }],
 };
-const playerSchema = new mongoose_1.Schema(playerSchemaFields, { collection: 'players' });
+const playerSchema = new mongoose_1.Schema(playerSchemaFields, { collection: 'players', timestamps: true });
 const Player = mongoose_1.default.model('Player', playerSchema);
 exports.default = Player;

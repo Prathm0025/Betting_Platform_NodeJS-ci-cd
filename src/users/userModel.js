@@ -37,6 +37,7 @@ exports.userSchemaFields = {
     },
     role: {
         type: String,
+        enum: ['admin', 'distributor', 'subdistributor', 'agent'],
         required: true,
     },
     credits: {
@@ -63,6 +64,41 @@ exports.userSchemaFields = {
             type: mongoose_1.default.Schema.Types.ObjectId,
             ref: 'Transaction',
         }],
+    subordinates: [
+        {
+            type: mongoose_1.default.Schema.Types.ObjectId,
+            ref: 'User'
+        }
+    ],
+    players: [
+        {
+            type: mongoose_1.default.Schema.Types.ObjectId,
+            ref: 'Player'
+        }
+    ]
 };
-const User = mongoose_1.default.model('User', new mongoose_1.Schema(exports.userSchemaFields, { discriminatorKey: 'role', collection: 'users' }));
+const userSchema = new mongoose_1.Schema(exports.userSchemaFields, {
+    collection: 'users',
+    timestamps: true,
+});
+userSchema.pre('save', function (next) {
+    if (this.role && (this.role !== 'admin' && this.role !== 'agent')) {
+        this.players = undefined;
+    }
+    else if (this.role === 'agent') {
+        this.subordinates = undefined;
+    }
+    next();
+});
+userSchema.pre('findOneAndUpdate', function (next) {
+    const update = this.getUpdate();
+    if (update.role && (update.role !== 'admin' && update.role !== 'agent')) {
+        this.set({ players: undefined });
+    }
+    else if (update.role === 'agent') {
+        this.set({ subordintes: undefined });
+    }
+    next();
+});
+const User = mongoose_1.default.model('User', userSchema);
 exports.default = User;
