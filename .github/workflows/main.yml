@@ -35,7 +35,6 @@ jobs:
         with:
           name: artifact
           path: ./dist/**/*.js
-                ./package.json
 
       - name: Commit and Push Build Artifacts
         env:
