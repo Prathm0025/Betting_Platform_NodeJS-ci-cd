@@ -128,82 +128,193 @@ class TransactionController {
 
   }
 
-  //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
-
+  // //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
   async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
-
     try {
       const { superior } = req.params;
-      const { type } = req.query;
-
+      const { type, search } = req.query;
+  
       let superiorUser: any;
-
+  
+      // Fetching superior user based on type (id or username)
       if (type === "id") {
-        superiorUser = await User.findById(superior);
-        superiorUser && superiorUser.subordinates?
-        superiorUser = await User.findById(superior).populate('_id subordinates role'):
-        superiorUser = await User.findById(superior).populate('_id players role');
-        if (!superiorUser) throw createHttpError(404, "User Not Found");
+        superiorUser = await User.findById(superior).select('_id subordinates players role');
       } else if (type === "username") {
-        superiorUser = await User.findOne({ username: superior });
-        superiorUser && superiorUser.subordinates?
-        superiorUser= await User.findOne({ username: superior }) .populate('_id subordinates role'):
-          superiorUser = await User.findOne({ username: superior }).populate('_id players role')
-        if (!superiorUser) throw createHttpError(404, "User Not Found with the provided username");
+        superiorUser = await User.findOne({ username: superior }).select('_id subordinates players role');
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
+  
+      if (!superiorUser) throw createHttpError(404, "User Not Found");
+  
       const subordinateIds = superiorUser.role === "admin"
-      ? [
-          ...superiorUser.players.map(player => player._id),
-          ...superiorUser.subordinates.map(sub => sub._id)
-        ]
-      : superiorUser.role === "agent"
-      ? superiorUser.players.map(player => player._id)
-      : superiorUser.subordinates.map(sub => sub._id);
-    
-        let  transactions:any;
-        if(subordinateIds){
-            transactions = await Transaction.find({
-        $or: [
-          { sender: { $in: subordinateIds } },
-          { receiver: { $in: subordinateIds } }
-        ]
-      }).select('+senderModel +receiverModel')
-        .populate({
-          path: 'sender',
-          select: 'username',
-        })
-        .populate({
-          path: 'receiver',
-          select: 'username',
-        });
+        ? [
+            ...superiorUser.players.map(player => player._id),
+            ...superiorUser.subordinates.map(sub => sub._id)
+          ]
+        : superiorUser.role === "agent"
+          ? superiorUser.players.map(player => player._id)
+          : superiorUser.subordinates.map(sub => sub._id);
+  
+      const matchConditions: Record<string, any>[] = [
+        {
+          $or: [
+            { sender: { $in: subordinateIds } },
+            { receiver: { $in: subordinateIds } },
+            { sender: superiorUser._id },
+            { receiver: superiorUser._id }
+          ]
+        }
+      ];
+  
+      if (search) {
+        if (!isNaN(Number(search))) {
+          matchConditions.push({ amount: Number(search) });
+        } else {
+          matchConditions.push({
+            $or: [
+              { 'senderUser.username': { $regex: new RegExp(search as string, 'i') } },
+              { 'receiverUser.username': { $regex: new RegExp(search as string, 'i') } },
+              { type: { $regex: new RegExp(search as string, 'i') } }
+            ]
+          });
+        }
       }
-      const superiorTransactions = await Transaction.find({
-        $or: [
-          { sender: superiorUser._id },
-          { receiver: superiorUser._id }
-        ]
-      }).select('+senderModel +receiverModel')
-        .populate({
-          path: 'sender',
-          select: 'username',
-        })
-        .populate({
-          path: 'receiver',
-          select: 'username',
-        });
-
-      const combinedTransactions = [...transactions, ...superiorTransactions];
-
-    
-      res.status(200).json( combinedTransactions );
-
+  
+      const pipeline = [
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'sender',
+            foreignField: '_id',
+            as: 'senderUser'
+          }
+        },
+        {
+          $lookup: {
+            from: 'users', 
+            localField: 'receiver',
+            foreignField: '_id',
+            as: 'receiverUser'
+          }
+        },
+        {
+          $unwind: '$senderUser'
+        },
+        {
+          $unwind: '$receiverUser'
+        },
+        {
+          $match: { $and: matchConditions }
+        },
+        {
+          $project: {
+            sender: '$senderUser.username',
+            receiver: '$receiverUser.username',
+            amount: 1,
+            type: 1,
+            date: 1
+          }
+        }, 
+      ];
+  
+      const transactions = await Transaction.aggregate(pipeline);
+  
+      res.status(200).json(transactions);
+  
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+
+
+
+  // async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
+
+  //   try {
+  //     const { superior } = req.params;
+  //     const { type } = req.query;
+
+  //     let superiorUser: any;
+
+  //     if (type === "id") {
+  //       superiorUser = await User.findById(superior);
+  //       superiorUser && superiorUser.subordinates?
+  //       superiorUser = await User.findById(superior).populate('_id subordinates role'):
+  //       superiorUser = await User.findById(superior).populate('_id players role');
+  //       if (!superiorUser) throw createHttpError(404, "User Not Found");
+  //     } else if (type === "username") {
+  //       superiorUser = await User.findOne({ username: superior });
+  //       superiorUser && superiorUser.subordinates?
+  //       superiorUser= await User.findOne({ username: superior }) .populate('_id subordinates role'):
+  //         superiorUser = await User.findOne({ username: superior }).populate('_id players role')
+  //       if (!superiorUser) throw createHttpError(404, "User Not Found with the provided username");
+  //     } else {
+  //       throw createHttpError(400, "User Id or Username not provided");
+  //     }
+  //     const subordinateIds = superiorUser.role === "admin"
+  //     ? [
+  //         ...superiorUser.players.map(player => player._id),
+  //         ...superiorUser.subordinates.map(sub => sub._id)
+  //       ]
+  //     : superiorUser.role === "agent"
+  //     ? superiorUser.players.map(player => player._id)
+  //     : superiorUser.subordinates.map(sub => sub._id);
+    
+  //       let  transactions:any;
+  //       if(subordinateIds){
+  //           transactions = await Transaction.find({
+  //       $or: [
+  //         { sender: { $in: subordinateIds } },
+  //         { receiver: { $in: subordinateIds } }
+  //       ]
+  //     }).select('+senderModel +receiverModel')
+  //       .populate({
+  //         path: 'sender',
+  //         select: 'username',
+  //       })
+  //       .populate({
+  //         path: 'receiver',
+  //         select: 'username',
+  //       });
+  //     }
+  //     const superiorTransactions = await Transaction.find({
+  //       $or: [
+  //         { sender: superiorUser._id },
+  //         { receiver: superiorUser._id }
+  //       ]
+  //     }).select('+senderModel +receiverModel')
+  //       .populate({
+  //         path: 'sender',
+  //         select: 'username',
+  //       })
+  //       .populate({
+  //         path: 'receiver',
+  //         select: 'username',
+  //       });
+
+  //     const combinedTransactions = [...transactions, ...superiorTransactions];
+
+    
+  //     res.status(200).json( combinedTransactions );
+
+  //   } catch (error) {
+  //     console.log(error);
+  //     next(error);
+  //   }
+  // }
 
   //SPECIFIC PLAYER TRANSACTION
 

@@ -298,7 +298,7 @@ class SubordinateController {
     try {
 
       const { superior } = req.params;
-      const { type } = req.query;
+      const { type, search } = req.query;
       const _req = req as AuthRequest;
       const {userId} = _req.user;
     
@@ -369,7 +369,11 @@ class SubordinateController {
           ...superiorUser.subordinates, ...superiorUser.players
         ]:superiorUser.role === "agent"?superiorUser.players: superiorUser.subordinates 
 
-    
+        if (search) {
+          subordinates = subordinates.filter((subordinate: any) => 
+            subordinate.username === search
+          );
+        }
 
       return res.status(200).json(subordinates);
 
