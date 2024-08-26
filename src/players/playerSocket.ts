@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import PlayerModel from "./playerModel";
-import { IBet } from "../bets/betsType";
+import { IBet, IBetDetail } from "../bets/betsType";
 import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
@@ -8,21 +8,18 @@ import { activeRooms } from "../socket/socket";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
-  private username: string;
+  public username: string;
   private credits: number;
   public socket: Socket;
   public currentRoom: string;
-  private io: Server;
 
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
     username: string,
-    credits: number,
-    io: Server
+    credits: number
   ) {
     this.socket = socket;
-    this.io = io;
     this.userId = userId;
     this.username = username;
     this.credits = credits;
@@ -141,7 +138,6 @@ export default class Player {
             break;
 
           case "ODDS":
-
             const oddsData = await Store.getOdds(
               res.payload.sport,
               res.payload.markets,
@@ -149,8 +145,8 @@ export default class Player {
               this
             );
             this.sendData({ type: "ODDS", data: oddsData });
-            console.log("Sending to join room");
             this.joinRoom(res.payload.sport);
+
             break;
 
           case "EVENT_ODDS":
@@ -185,7 +181,7 @@ export default class Player {
     this.socket.on(
       "bet",
       async (
-        message: { action: string; payload: IBet },
+        message: { action: string; payload: any },
         callback: (response: { status: string; message: string }) => void
       ) => {
         try {
@@ -195,10 +191,18 @@ export default class Player {
             case "PLACE":
               try {
                 // Check if the payload is an array of bets
-                if (Array.isArray(payload)) {
-                  for (const bet of payload) {
+                if (
+                  Array.isArray(payload.data) &&
+                  payload.betType === "single"
+                ) {
+                  for (const bet of payload.data) {
                     try {
-                      const betRes = await BetController.placeBet(this, bet);
+                      const betRes = await BetController.placeBet(
+                        this,
+                        [bet],
+                        bet.amount,
+                        payload.betType
+                      );
                       console.log("BET RECEIVED AND PROCESSED: ", bet);
 
                       if (betRes) {
@@ -220,7 +224,12 @@ export default class Player {
                   }
                 } else {
                   // Handle single bet case (fallback if payload is not an array)
-                  const betRes = await BetController.placeBet(this, payload);
+                  const betRes = await BetController.placeBet(
+                    this,
+                    payload.data,
+                    payload.amount,
+                    payload.betType
+                  );
                   console.log("BET RECEIVED AND PROCESSED: ", payload);
                   if (betRes) {
                     callback({

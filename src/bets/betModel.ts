@@ -1,86 +1,49 @@
 import mongoose, { Model, Schema } from "mongoose";
-import { IBet } from "./betsType";
+import { IBet, IBetDetail } from "./betsType";
 
-const betSchema: Schema<IBet> = new Schema(
-  {
-    player: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Player",
-      required: true,
-    },
-    sport_title: {
-      type: String,
-      required: true,
-    },
-    sport_key: {
-      type: String,
-      required: true,
-    },
-    event_id: {
-      type: String,
-      required: true,
-    },
-    commence_time: {
-      type: Date,
-      required: true,
-    },
-    home_team: {
-      name: {
-        type: String,
-        required: true,
-      },
-      odds: {
-        type: Number,
-        required: true,
-      },
-    },
-    away_team: {
-      name: {
-        type: String,
-        required: true,
-      },
-      odds: {
-        type: Number,
-        required: true,
-      },
-    },
-    market: {
-      type: String,
-      required: true,
-    },
-    bet_on: {
-      type: String,
-      enum: ["home_team", "away_team"],
-      required: true,
-    },
-    amount: {
-      type: Number,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["won", "lost", "pending", "locked", "retry", "redeem"],
-    },
-    possibleWinningAmount: {
-      // New field
-      type: Number,
-      required: true,
-    },
-    selected: {
-      type: String,
-      required: true,
-    },
-    oddsFormat: {
-      type: String,
-      required: true,
-    },
-    retryCount: {
-      type: Number,
-      default: 0,
-    },
+const BetDetailSchema: Schema = new Schema({
+  key: { type: Schema.Types.ObjectId, ref: "Bet", required: true }, // Reference to the parent Bet
+  event_id: { type: String, required: true },
+  sport_title: { type: String, required: true },
+  sport_key: { type: String, required: true },
+  commence_time: { type: Date, required: true },
+  home_team: {
+    name: { type: String, required: true },
+    odds: { type: Number, required: true },
   },
-  { timestamps: true }
-);
+  away_team: {
+    name: { type: String, required: true },
+    odds: { type: Number, required: true },
+  },
+  market: { type: String, required: true },
+  bet_on: { type: String, enum: ["home_team", "away_team"], required: true },
+  selected: { type: String, required: true },
+  oddsFormat: { type: String, required: true },
+  status: {
+    type: String,
+    enum: ["won", "lost", "pending", "locked", "retry", "redeem"],
+    required: true,
+  },
+});
 
-const Bet: Model<IBet> = mongoose.model<IBet>("Bet", betSchema);
+const BetSchema: Schema = new Schema({
+  player: { type: Schema.Types.ObjectId, ref: "Player", required: true },
+  data: [{ type: Schema.Types.ObjectId, ref: "BetDetail", required: true }],
+  amount: { type: Number, required: true },
+  possibleWinningAmount: { type: Number, required: true },
+  status: {
+    type: String,
+    enum: ["won", "lost", "pending", "locked", "retry", "redeem"],
+    required: true,
+  },
+  retryCount: { type: Number, default: 0 },
+  betType: { type: String, enum: ["single", "combo"], required: true },
+});
+
+export const BetDetail = mongoose.model<IBetDetail>(
+  "BetDetail",
+  BetDetailSchema
+);
+const Bet = mongoose.model<IBet>("Bet", BetSchema);
+
 export default Bet;

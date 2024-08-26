@@ -1,10 +1,9 @@
 import { Bookmaker } from "./types";
-import { activeRooms } from "../socket/socket";
-import { Server } from "socket.io";
-import { io } from "../server";
-import Store from "./storeController";
 
 class StoreService {
+  constructor(){
+
+  }
   public selectBookmaker(bookmakers: Bookmaker[]): Bookmaker | null {
     let bestBookmaker: Bookmaker | null = null;
     let highestMargin = -Infinity;
@@ -32,40 +31,6 @@ class StoreService {
     return bestBookmaker;
   }
 
-  public async updateLiveData() {
-    console.log("i will update the live data");
-    const currentActive = this.removeInactiveRooms();
-    if (currentActive.size <= 0) {
-      console.log("no active rooms to update");
-      return;
-    }
-    for (const sport of currentActive) {
-      console.log("sending req again");
-      const { live_games, upcoming_games } = await Store.getOdds(sport);
-      io.to(sport).emit("data", {
-        type: "ODDS",
-        data: {
-          live_games,
-          upcoming_games,
-        },
-      });
-      console.log(`Data broadcasted to room: ${sport}`);
-    }
-  }
-
-  public removeInactiveRooms() {
-    const rooms = io.sockets.adapter.rooms;
-
-    const currentRooms = new Set(rooms.keys());
-
-    activeRooms.forEach((room) => {
-      if (!currentRooms.has(room)) {
-        activeRooms.delete(room);
-        console.log(`Removed inactive room: ${room}`);
-      }
-    });
-    return activeRooms;
-  }
 }
 
 export default StoreService;
