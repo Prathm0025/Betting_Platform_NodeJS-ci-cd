@@ -154,43 +154,96 @@ class SubordinateController {
   //GET ALL SUBORDINATES  (ADMIN SPECIFC)
 
   async getAllSubordinates(req: Request, res: Response, next: NextFunction) {
-    try { 
-      const { type } = req.query;
+    try {
+      const { type, search } = req.query;
+  
       
-      if (!SubordinateController.roles.includes(type as string)) {
-        throw createHttpError(400, "Invalid role type");
-      }
-
-
+  
       const _req = req as AuthRequest;
       const { userId } = _req.user;
+  
+      const admin = await User.findById(userId);
+      if (!admin) throw createHttpError(401, "You are Not Authorized");
+  
+      let pipeline: any[] = [];
+  
+      if (type === "all") {
+        pipeline.push(
+          {
+            $unionWith: {
+              coll: 'players',
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    username: 1,
+                    role: { $literal: "player" },
+                    status:1,
+                    credits:1,
+                    createdAt:1
 
-      const admin = await User.findById(userId)
-      if (!admin)
-      throw createHttpError(401, "You are Not Authorized")
-      
-      //GETTING USERS BASED ON QUERY
-
-      let subordinates:any;
-
-      if(type==="all"){
-       const user = await User.find();
-       const player = await Player.find();
-       subordinates = [...user, ...player];
+                  }
+                }
+              ]
+            }
+          }
+        );
+      } else if (type === "player") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: 'players',
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    username: 1,
+                    role: { $literal: "player" },
+                    status:1,
+                    credits:1,
+                    createdAt:1
+                  }
+                }
+              ],
+              as: 'players'
+            }
+          },
+          {
+            $unwind: '$players'
+          },
+          {
+            $replaceRoot: { newRoot: '$players' }
+          }
+        );
+      } else {
+        pipeline.push(
+          {
+            $match: { role: type }
+          }
+        );
       }
-      else
-       if(type==="player")
-       subordinates = await Player.find();
-       else 
-       subordinates = await User.find({
-        role:type
-      });
+  
+      if (search) {
+        pipeline.push(
+          {
+            $match: {
+              username: { $regex: new RegExp(search as string, 'i') },
 
-      res.status(200).json(subordinates);
+            }
+          }
+        );
+      }
+  
+      // Perform aggregation
+      const results = await User.aggregate(pipeline);
+  
+      res.status(200).json(results);
     } catch (error) {
+      console.log(error);
       next(error);
     }
   }
+  
 
   //UPDATE USER (SUBORDINATES)
 
