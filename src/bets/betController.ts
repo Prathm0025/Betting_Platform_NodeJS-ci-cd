@@ -254,34 +254,53 @@ class BetController {
     try {
       const { agentId } = req.params;
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
+  
       const agent = await User.findById(agentId);
-      console.log(agent);
-
       if (!agent) throw createHttpError(404, "Agent Not Found");
+  
       const playerUnderAgent = agent.players;
       if (playerUnderAgent.length === 0)
-        res.status(200).json({ message: "No Players Under Agent" });
+        return res.status(200).json({ message: "No Players Under Agent" });
+  
       const bets = await Bet.find({
         player: { $in: playerUnderAgent },
-      }).populate("player", "username _id");
-
+      })
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
+  
       res.status(200).json(bets);
     } catch (error) {
       next(error);
     }
   }
+  
   //GET ALL BETS FOR ADMIN
 
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
-      const bets = await Bet.find().populate("player", "username _id");
-      console.log(bets, "bets");
+      const bets = await Bet.find()
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
+  
       res.status(200).json(bets);
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
+  
 
   //GET BETS FOR A PLAYER
 
@@ -290,11 +309,10 @@ class BetController {
       const { player } = req.params;
       const { type, status } = req.query;
       let playerDoc: any;
-
-      console.log(player, type);
-
+  
       if (type === "id") {
         playerDoc = await PlayerModel.findById(player);
+        
         if (!playerDoc) throw createHttpError(404, "Player Not Found");
       } else if (type === "username") {
         playerDoc = await PlayerModel.findOne({ username: player });
@@ -306,18 +324,27 @@ class BetController {
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
-
+  
       const playerBets = await Bet.find({
-        player: playerDoc._id,
-        ...(status !== "all" && { status }),
-      }).populate("player", "username _id");
-
+        player: player,
+      })
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
+  
       res.status(200).json(playerBets);
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
+  
+  
 
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
