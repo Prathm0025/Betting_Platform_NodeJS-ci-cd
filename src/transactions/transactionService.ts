@@ -132,7 +132,29 @@ export class TransactionService {
       { $inc: { credits: receiverUpdate } },
       { session }
     );
-
+    if (type === "recharge") {
+      await receiverModelInstance.updateOne(
+        { _id: receiverId },
+        { $inc: { totalRecharge: amount } },
+        { session }
+      );
+      await senderModelInstance.updateOne(
+        { _id: senderId },
+        { $inc: { totalRedeem: amount } },
+        { session }
+      );
+    } else if (type === "redeem") {
+      await senderModelInstance.updateOne(
+        { _id: senderId },
+        { $inc: { totalRecharge: amount } },
+        { session }
+      );
+      await receiverModelInstance.updateOne(
+        { _id: receiverId },
+        { $inc: { totalRedeem: amount } },
+        { session }
+      );
+    }
     await this.handlePlayerUpdate(senderModel, senderId, session);
     await this.handlePlayerUpdate(receiverModel, receiverId, session);
   }

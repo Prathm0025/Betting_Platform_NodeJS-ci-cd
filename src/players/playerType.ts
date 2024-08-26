@@ -11,4 +11,6 @@ export interface IPlayer extends Document {
     lastLogin: Date;
     transactions: mongoose.Schema.Types.ObjectId[];
     betHistory: mongoose.Schema.Types.ObjectId[];
+    totalRecharge:number;
+    totalRedeem:number;
 }

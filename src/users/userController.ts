@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import mongoose from "mongoose";
 import Transaction from "../transactions/transactionModel";
 import Bet from "../bets/betModel";
+import { IUser } from "./userType";
 
 const captchaStore: Record<string, string> = {}; 
 
@@ -133,136 +134,237 @@ class UserController {
   
   async getSummary(req: Request, res: Response): Promise<void> {
     try {
+      const { id } = req.params;
+      const { period } = req.query;
+      const user = await User.findById(id);
       const today = new Date();
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      // const lastWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-      // const last30Days = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
-
+      const startOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+      const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(startOfDay.getDate() + 1);
       const limitBets = parseInt(req.query.limitBets as string) || 4;
       const limitTransactions = parseInt(req.query.limitTransactions as string) || 10;
-      const lastDays = parseInt(req.query.lastDays as string) || 30;
-
-      const lastPeriodDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - lastDays);
-
-      const [lastBets, lastTransactions, betTotals, transactionTotals, agentCounts, playerCounts] = await Promise.all([
-        this.getLastBets(limitBets),
-        this.getLastTransactions(limitTransactions),
-        this.getBetTotals(startOfDay, lastPeriodDate),
-        this.getTransactionTotals(startOfDay, lastPeriodDate),
-        this.getAgentCounts(startOfDay, lastPeriodDate),
-        this.getPlayerCounts(startOfDay, lastPeriodDate),
-      ]);
-
-      const summary = {
-        lastBets,
-        lastTransactions,
-        betTotals: betTotals[0],
-        transactionTotals: transactionTotals[0],
-        agentCounts: agentCounts[0],
-        playerCounts: playerCounts[0],
-      };
-
-      res.status(200).json(summary);
+  
+      let periodStart: Date;
+      let periodEnd: Date;
+      
+      switch (period) {
+        case 'week':
+          periodStart = startOfWeek;
+          periodEnd = today;
+          break;
+        case 'month':
+          periodStart = startOfMonth;
+          periodEnd = today;
+          break;
+        case 'today':
+        default:
+          periodStart = startOfDay;
+          periodEnd = endOfDay;
+          break;
+      }
+  
+      const periodSummary = await this.getPeriodSummary(periodStart, periodEnd, limitBets, limitTransactions, user);
+  
+      res.status(200).json(periodSummary);
     } catch (err) {
       console.error(err);
       res.status(500).send('Server error');
     }
   }
-
-  //RECENT BETS DEPENDING ON LIMIT (E.G. LIMIT =4 )
-
-  private async getLastBets(limit: number) {
-    return Bet.find().sort({ date: -1 }).limit(limit).populate('player', 'username _id').exec();
-  }
-
-  private async getLastTransactions(limit: number) {
-    return Transaction.find().sort({ date: -1 }).limit(limit).select('+senderModel +receiverModel')
-    .populate({
-      path: 'sender',
-      select: 'username',
-    })
-    .populate({
-      path: 'receiver',
-      select: 'username',
-    }).exec();
-  }
-
-  //TOTAL BETS COUNT AND TOTAL BET AMOUNT FOR A PERIOD
-
-  private async getBetTotals(startOfDay: Date, lastPeriodDate: Date) {
-    return Bet.aggregate([
-      {
-        $match: { updatedAt: { $gte: lastPeriodDate } },
-      },
-      {
-        $group: {
-          _id: null,
-          totalToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, '$amount', 0] } },
-          totalLastPeriod: { $sum: '$amount' },
-          countToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
-          countLastPeriod: { $sum: { $cond: [{ $gte: ['$createdAt', lastPeriodDate] }, 1, 0] } },
-        },
-      },
-    ]).exec();
-  }
-
- //TOTAL TRANSACTIOM COUNT AND TOTAL TRANSACTION AMOUNT FOR A PERIOD
-
-  private async getTransactionTotals(startOfDay: Date, lastPeriodDate: Date) {
-    return Transaction.aggregate([
-      {
-        $match: { date: { $gte: lastPeriodDate } },
-      },
-      {
-        $group: {
-          _id: null,
-          totalToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, '$amount', 0] } },
-          totalLastPeriod: { $sum: '$amount' },
-          countToday: { $sum: { $cond: [{ $gte: ['$date', startOfDay] }, 1, 0] } },
-        countLastPeriod: { $sum: { $cond: [{ $gte: ['$date', lastPeriodDate] }, 1, 0] } },
-        },
-      },
-    ]).exec();
-  }
-
-  //AGENTS ADDED BETWEEN A PERIOD
-
-  private async getAgentCounts(startOfDay: Date, lastPeriodDate: Date) {
-    return User.aggregate([
-      {
-        $match: { createdAt: { $gte: lastPeriodDate }, role:'agent' },
-      },
-      {
-        $group: {
-          _id: null,
-          agentsToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
-          agentsLastPeriod: { $sum: 1 },
-        },
-      },
-    ]).exec();
-  }
-
- //PLAYERS ADDED BETEWEEN A PERIOD
-
-  private async getPlayerCounts(startOfDay: Date, lastPeriodDate: Date) {
-    return Player.aggregate([
-      {
-        $match: { createdAt: { $gte: lastPeriodDate } },
-      },
-      {
-        $group: {
-          _id: null,
-          playersToday: { $sum: { $cond: [{ $gte: ['$createdAt', startOfDay] }, 1, 0] } },
-          playersLastPeriod: { $sum: 1 },
-        },
-      },
-    ]).exec();
-  }
-
   
+  
+  private async getPeriodSummary(
+    startPeriod: Date,
+    endPeriod: Date,
+    limitBets: number,
+    limitTransactions: number,
+    user
+  ) {
+    const [
+      lastTransactions,
+      transactionTotals,
+      subordinateCounts,
+      totalRecharged,
+      totalRedeemed,
+      playerCounts
+    ] = await Promise.all([
+      this.getLastTransactions(limitTransactions, user),
+      this.getTransactionTotals(startPeriod, endPeriod, user),
+      this.getSubordinateCounts(startPeriod, endPeriod, user),
+      this.getTotalRecharged(startPeriod, endPeriod, user),
+      this.getTotalRedeemed(startPeriod, endPeriod, user),
+      (user.role === 'agent'|| user.role === 'admin') ? this.getPlayerCounts(startPeriod, endPeriod, user) : undefined,
+    ]);
+  
+    const result: any = {
+      lastTransactions,
+      transactionTotals: transactionTotals[0]||{},
+      subordinateCounts: subordinateCounts[0]||{},
+      totalRecharged: totalRecharged[0]||{},
+      totalRedeemed: totalRedeemed[0]||{},
+    };
+  
+    if (user.role === 'agent' || user.role==='admin') {
+      const lastBets = await this.getLastBets(limitBets, user);
+      result.lastBets = lastBets;
+      result.betTotals = await this.getBetTotals(startPeriod, endPeriod, user);
+      result.playerCounts = playerCounts[0]||0;
+    }
+  
+    return result;
+  }
+  
+  private async getLastBets(limit: number, user) {
+    const query = user.role === 'admin' 
+      ? {} 
+      : { player: { $in: user.players } };
+  
+    return Bet.find(query)
+      .sort({ date: -1 })
+      .limit(limit)
+      .populate('player', 'username _id')
+      .exec();
+  }
+  
+  
+  private async getLastTransactions(limit: number, user) {
+    const query: any = {};
+    let userId = user._id;
+    if (user.role !== 'admin') {
+      query.$or = [
+        {sender:userId},
+        {receiver:userId},
+        { sender: { $in: user.subordinates } },
+        { receiver: { $in: user.subordinates } }
+      ];
+    }
+  
+    return Transaction.find(query)
+      .sort({ date: -1 })
+      .limit(limit)
+      .select('+senderModel +receiverModel')
+      .populate('sender', 'username')
+      .populate('receiver', 'username')
+      .exec();
+  }
+  
+  private async getBetTotals(startPeriod: Date, endPeriod: Date, user) {
+    const matchCriteria: any = {
+      updatedAt: { $gte: startPeriod, $lt: endPeriod },
+    };
+  
+    if (user.role === 'agent' ) {
+      matchCriteria.player = { $in: user.players };
+    }
+  
+    return Bet.aggregate([
+      { $match: matchCriteria },
+      {
+        $group: {
+          _id: null,
+          totalPeriod: { $sum: '$amount' },
+          countPeriod: { $sum: 1 },
+        },
+      },
+    ]).exec();
+  }
+  
+  private async getTransactionTotals(startPeriod: Date, endPeriod: Date, user) {
+    const matchCriteria: any = {
+      date: { $gte: startPeriod, $lte: endPeriod },
+    };
+  console.log(startPeriod, endPeriod);
+  let userId = user._id;
+    if (user.role !== 'admin') {
+      matchCriteria.$or = [
+        { sender: { $in: user.subordinates } },
+        { receiver: { $in: user.subordinates } },
+        {sender:userId},
+        { receiver: userId },
 
-}
-
+      ];
+    }
+  
+    return Transaction.aggregate([
+      { $match: matchCriteria },
+      {
+        $group: {
+          _id: null,
+          totalPeriod: { $sum: '$amount' },
+          countPeriod: { $sum: 1 },
+        },
+      },
+    ]).exec();
+  }
+  
+  private async getSubordinateCounts(startPeriod: Date, endPeriod: Date, user) {
+    const matchCriteria: any = {
+      createdAt: { $gte: startPeriod, $lt: endPeriod },
+      role: { $in: ['distributor', 'subdistributor', 'agent'] },
+    };
+  
+    if (user.role !== 'admin') {
+      matchCriteria.createdBy = user._id;
+    }
+  
+    return User.aggregate([
+      { $match: matchCriteria },
+      {
+        $group: {
+          _id: null,
+          subordinatesPeriod: { $sum: 1 },
+        },
+      },
+    ]).exec();
+  }
+  
+  private async getTotalRecharged(startPeriod: Date, endPeriod: Date, user) {
+    return Transaction.aggregate([
+      { $match: { type: 'recharge', date: { $gte: startPeriod, $lt: endPeriod } } },
+      {
+        $group: {
+          _id: null,
+          totalRecharged: { $sum: '$amount' },
+        },
+      },
+    ]).exec();
+  }
+  
+  private async getTotalRedeemed(startPeriod: Date, endPeriod: Date, user) {
+    return Transaction.aggregate([
+      { $match: { type: 'redeem', date: { $gte: startPeriod, $lt: endPeriod } } },
+      {
+        $group: {
+          _id: null,
+          totalRedeemed: { $sum: '$amount' },
+        },
+      },
+    ]).exec();
+  }
+  
+  private async getPlayerCounts(startPeriod: Date, endPeriod: Date, user) {
+    const matchCriteria: any = {
+      createdAt: { $gte: startPeriod, $lt: endPeriod },
+    };
+  
+    if (user.role === 'agent') {
+      matchCriteria.createdBy = user._id;
+    }
+  
+    return Player.aggregate([
+      { $match: matchCriteria },
+      {
+        $group: {
+          _id: null,
+          playersPeriod: { $sum: 1 },
+        },
+      },
+    ]).exec();
+  }
+  
+}  
 
 
 export default new UserController();
