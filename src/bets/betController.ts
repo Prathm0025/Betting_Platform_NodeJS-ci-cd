@@ -325,7 +325,7 @@ class BetController {
       }
 
       const playerBets = await Bet.find({
-        player: player,
+        player: playerDoc._id,
       })
         .populate("player", "username _id")
         .populate({
