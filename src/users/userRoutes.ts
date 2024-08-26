@@ -8,7 +8,7 @@ const userRoutes = express.Router();
 userRoutes.get("/", checkUser, userController.getCurrentUser)
 userRoutes.get("/captcha", userController.getCaptcha);
 userRoutes.post("/login",  userController.login)
-userRoutes.get("/summary/:id",checkUser, verifyRole(["agent", "admin"]), userController.getSummary)
+userRoutes.get("/summary/:id",checkUser, verifyRole(["agent", "admin", "distributor", "subdistributor"]), userController.getSummary)
 
 
 
