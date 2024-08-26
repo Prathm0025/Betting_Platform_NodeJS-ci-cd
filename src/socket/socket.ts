@@ -53,8 +53,7 @@ const socketController = (io: Server) => {
         socket,
         decoded.userId,
         username,
-        decoded.credits,
-        io
+        decoded.credits
       );
       users.set(username, newUser);
       console.log(`Player ${username} entered the platform.`);
