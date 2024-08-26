@@ -254,14 +254,14 @@ class BetController {
     try {
       const { agentId } = req.params;
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
-  
+
       const agent = await User.findById(agentId);
       if (!agent) throw createHttpError(404, "Agent Not Found");
-  
+
       const playerUnderAgent = agent.players;
       if (playerUnderAgent.length === 0)
         return res.status(200).json({ message: "No Players Under Agent" });
-  
+
       const bets = await Bet.find({
         player: { $in: playerUnderAgent },
       })
@@ -273,13 +273,13 @@ class BetController {
             select: "event_id sport_title commence_time status",
           },
         });
-  
+
       res.status(200).json(bets);
     } catch (error) {
       next(error);
     }
   }
-  
+
   //GET ALL BETS FOR ADMIN
 
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
@@ -293,14 +293,13 @@ class BetController {
             select: "event_id sport_title commence_time status",
           },
         });
-  
+
       res.status(200).json(bets);
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-  
 
   //GET BETS FOR A PLAYER
 
@@ -309,10 +308,10 @@ class BetController {
       const { player } = req.params;
       const { type, status } = req.query;
       let playerDoc: any;
-  
+
       if (type === "id") {
         playerDoc = await PlayerModel.findById(player);
-        
+
         if (!playerDoc) throw createHttpError(404, "Player Not Found");
       } else if (type === "username") {
         playerDoc = await PlayerModel.findOne({ username: player });
@@ -324,75 +323,83 @@ class BetController {
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
-   
+
       const playerBets = await Bet.find({
         player: playerDoc._id,
       })
         .populate("player", "username _id")
         .populate({
           path: "data",
+          match: status !== "all" ? { status } : {},
           populate: {
             path: "key",
             select: "event_id sport_title commence_time status",
           },
         });
-  
+
       res.status(200).json(playerBets);
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-  
-  
 
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
     try {
-      //   const _req = req as AuthRequest;
-      //   const { userId } = _req.user;
-      //   const { betId } = req.params;
-      //   const player = await PlayerModel.findById({ _id: userId });
-      //   if (!player) {
-      //     throw createHttpError(404, "Player not found");
-      //   }
-      //   const bet = await Bet.findById({ _id: betId });
-      //   if (bet && bet.status === "pending") {
-      //     const selectedTeam =
-      //       bet.bet_on === "home_team" ? bet.home_team.name : bet.away_team.name;
-      //     const oldOdds =
-      //       bet.bet_on === "home_team" ? bet.home_team.odds : bet.away_team.odds;
-      //     const betAmount = bet.amount;
-      //     const currentData = await Store.getEventOdds(
-      //       bet.sport_key,
-      //       bet.event_id,
-      //       bet.market,
-      //       "us",
-      //       bet.oddsFormat,
-      //       "iso"
-      //     );
-      //     const currentOddsData = currentData.bookmakers.find(
-      //       (item) => item.key === bet.selected
-      //     );
-      //     const newOdds = currentOddsData.markets[0].outcomes.find(
-      //       (item) => item.name === selectedTeam
-      //     ).price;
-      //     const newAmount = betAmount * ((newOdds - 1) / (oldOdds - 1));
-      //     player.credits += newAmount;
-      //     await player.save();
-      //     const playerSocket = users.get(player.username);
-      //     if (playerSocket) {
-      //       playerSocket.sendData({ type: "CREDITS", credits: player.credits });
-      //     }
-      //     bet.status = "redeem";
-      //     await bet.save();
-      //     res.status(200).json({ message: "Bet Redeemed Successfully" });
-      //   } else {
-      //     throw createHttpError(
-      //       400,
-      //       "This bet can't be redeem since it is not pending!"
-      //     );
-      //   }
+      const _req = req as AuthRequest;
+      const { userId } = _req.user;
+      const { betId } = req.params;
+      const player = await PlayerModel.findById({ _id: userId });
+      if (!player) {
+        throw createHttpError(404, "Player not found");
+      }
+      const betObjectId = new mongoose.Types.ObjectId(betId);
+      const bet = await Bet.findById(betObjectId);
+      if (!bet) {
+        throw createHttpError(404, "Bet not found");
+      }
+      const allBets = bet.data;
+      if (bet.betType === "single") {
+        const betDetails = await BetDetail.findById(allBets);
+        const selectedTeam =
+          betDetails.bet_on === "home_team"
+            ? betDetails.home_team.name
+            : betDetails.away_team.name;
+        const oldOdds =
+          betDetails.bet_on === "home_team"
+            ? betDetails.home_team.odds
+            : betDetails.away_team.odds;
+        const betAmount = bet.amount;
+        const currentData = await Store.getEventOdds(
+          betDetails.sport_key,
+          betDetails.event_id,
+          betDetails.market,
+          "us",
+          betDetails.oddsFormat,
+          "iso"
+        );
+        const currentOddsData = currentData.bookmakers.find(
+          (item) => item.key === betDetails.selected
+        );
+        const newOdds = currentOddsData.markets[0].outcomes.find(
+          (item) => item.name === selectedTeam
+        ).price;
+        const newAmount = betAmount * ((newOdds - 1) / (oldOdds - 1));
+        player.credits += newAmount;
+        await player.save();
+        betDetails.status = "redeem";
+        await betDetails.save();
+        bet.status = "redeem";
+        await bet.save();
+        const playerSocket = users.get(player.username);
+        if (playerSocket) {
+          playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+        }
+        res.status(200).json({ message: "Bet Redeemed Successfully" });
+      } else if (bet.betType === "combo") {
+        res.status(400).json({ message: "Not handled yet" });
+      }
     } catch (error) {
       next(error);
     }
