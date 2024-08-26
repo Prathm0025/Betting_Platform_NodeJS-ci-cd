@@ -324,9 +324,9 @@ class BetController {
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
-  
+   
       const playerBets = await Bet.find({
-        player: player,
+        player: playerDoc._id,
       })
         .populate("player", "username _id")
         .populate({
