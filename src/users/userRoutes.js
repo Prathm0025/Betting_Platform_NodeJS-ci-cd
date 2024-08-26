@@ -10,5 +10,5 @@ const userRoutes = express_1.default.Router();
 userRoutes.get("/", middleware_1.checkUser, userController_1.default.getCurrentUser);
 userRoutes.get("/captcha", userController_1.default.getCaptcha);
 userRoutes.post("/login", userController_1.default.login);
-userRoutes.get("/summary", middleware_1.checkUser, (0, middleware_1.verifyRole)(["agent", "admin"]), userController_1.default.getSummary);
+userRoutes.get("/summary/:id", middleware_1.checkUser, (0, middleware_1.verifyRole)(["agent", "admin", "distributor", "subdistributor"]), userController_1.default.getSummary);
 exports.default = userRoutes;

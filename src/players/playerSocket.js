@@ -17,9 +17,8 @@ const betController_1 = __importDefault(require("../bets/betController"));
 const storeController_1 = __importDefault(require("../store/storeController"));
 const socket_1 = require("../socket/socket");
 class Player {
-    constructor(socket, userId, username, credits, io) {
+    constructor(socket, userId, username, credits) {
         this.socket = socket;
-        this.io = io;
         this.userId = userId;
         this.username = username;
         this.credits = credits;
@@ -125,7 +124,6 @@ class Player {
                     case "ODDS":
                         const oddsData = yield storeController_1.default.getOdds(res.payload.sport, res.payload.markets, res.payload.regions, this);
                         this.sendData({ type: "ODDS", data: oddsData });
-                        console.log("Sending to join room");
                         this.joinRoom(res.payload.sport);
                         break;
                     case "EVENT_ODDS":
@@ -155,10 +153,11 @@ class Player {
                     case "PLACE":
                         try {
                             // Check if the payload is an array of bets
-                            if (Array.isArray(payload)) {
-                                for (const bet of payload) {
+                            if (Array.isArray(payload.data) &&
+                                payload.betType === "single") {
+                                for (const bet of payload.data) {
                                     try {
-                                        const betRes = yield betController_1.default.placeBet(this, bet);
+                                        const betRes = yield betController_1.default.placeBet(this, [bet], bet.amount, payload.betType);
                                         console.log("BET RECEIVED AND PROCESSED: ", bet);
                                         if (betRes) {
                                             // Send success acknowledgment to the client after all bets are processed
@@ -181,7 +180,7 @@ class Player {
                             }
                             else {
                                 // Handle single bet case (fallback if payload is not an array)
-                                const betRes = yield betController_1.default.placeBet(this, payload);
+                                const betRes = yield betController_1.default.placeBet(this, payload.data, payload.amount, payload.betType);
                                 console.log("BET RECEIVED AND PROCESSED: ", payload);
                                 if (betRes) {
                                     callback({

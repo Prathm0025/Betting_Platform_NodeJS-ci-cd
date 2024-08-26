@@ -88,6 +88,14 @@ class TransactionService {
             const receiverUpdate = type === "recharge" ? amount : -amount;
             yield senderModelInstance.updateOne({ _id: senderId }, { $inc: { credits: senderUpdate } }, { session });
             yield receiverModelInstance.updateOne({ _id: receiverId }, { $inc: { credits: receiverUpdate } }, { session });
+            if (type === "recharge") {
+                yield receiverModelInstance.updateOne({ _id: receiverId }, { $inc: { totalRecharge: amount } }, { session });
+                yield senderModelInstance.updateOne({ _id: senderId }, { $inc: { totalRedeem: amount } }, { session });
+            }
+            else if (type === "redeem") {
+                yield senderModelInstance.updateOne({ _id: senderId }, { $inc: { totalRecharge: amount } }, { session });
+                yield receiverModelInstance.updateOne({ _id: receiverId }, { $inc: { totalRedeem: amount } }, { session });
+            }
             yield this.handlePlayerUpdate(senderModel, senderId, session);
             yield this.handlePlayerUpdate(receiverModel, receiverId, session);
         });

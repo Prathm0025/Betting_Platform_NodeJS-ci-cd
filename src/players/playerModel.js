@@ -67,6 +67,14 @@ const playerSchemaFields = {
             type: mongoose_1.default.Schema.Types.ObjectId,
             ref: 'Bet',
         }],
+    totalRecharge: {
+        type: Number,
+        default: 0
+    },
+    totalRedeem: {
+        type: Number,
+        default: 0
+    }
 };
 const playerSchema = new mongoose_1.Schema(playerSchemaFields, { collection: 'players', timestamps: true });
 const Player = mongoose_1.default.model('Player', playerSchema);
