@@ -82,21 +82,121 @@ class TransactionController {
 
   async getAllTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const allTransactions = await Transaction.find().select('+senderModel +receiverModel')
-        .populate({
-          path: 'sender',
-          select: '-password',
-        })
-        .populate({
-          path: 'receiver',
-          select: '-password',
-        });
-      res.status(200).json(allTransactions)
+      const { search } = req.query;
+  
+      // Initial match conditions
+      const matchConditions: Record<string, any>[] = [];
+  
+      // Add search filters
+      if (search) {
+        if (!isNaN(Number(search))) {
+          matchConditions.push({ amount: Number(search) });
+        } else {
+          const regex = new RegExp(search as string, 'i');
+          matchConditions.push({
+            $or: [
+              { 'senderUser.username': { $regex: regex } },
+              { 'receiverUser.username': { $regex: regex } },
+              { 'senderPlayer.username': { $regex: regex } },
+              { 'receiverPlayer.username': { $regex: regex } },
+              { type: { $regex: regex } },
+            ],
+          });
+        }
+      }
+  
+      const pipeline = [
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'sender',
+            foreignField: '_id',
+            as: 'senderUser',
+          },
+        },
+        {
+          $lookup: {
+            from: 'players',
+            localField: 'sender',
+            foreignField: '_id',
+            as: 'senderPlayer',
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'receiver',
+            foreignField: '_id',
+            as: 'receiverUser',
+          },
+        },
+        {
+          $lookup: {
+            from: 'players',
+            localField: 'receiver',
+            foreignField: '_id',
+            as: 'receiverPlayer',
+          },
+        },
+        {
+          $unwind: {
+            path: '$senderUser',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: '$senderPlayer',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: '$receiverUser',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: '$receiverPlayer',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+        {
+          $project: {
+            sender: {
+              $cond: {
+                if: { $ifNull: ['$senderUser.username', false] },
+                then: '$senderUser.username',
+                else: '$senderPlayer.username',
+              },
+            },
+            receiver: {
+              $cond: {
+                if: { $ifNull: ['$receiverUser.username', false] },
+                then: '$receiverUser.username',
+                else: '$receiverPlayer.username',
+              },
+            },
+            amount: 1,
+            type: 1,
+            date: 1,
+           
+          },
+        },
+      ];
+  
+      const allTransactions = await Transaction.aggregate(pipeline);
+     console.log(allTransactions.length);
+     
+      res.status(200).json(allTransactions);
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
+  
 
   //SPECIFIC USER TRANSACTIONS
 
@@ -171,12 +271,15 @@ class TransactionController {
         if (!isNaN(Number(search))) {
           matchConditions.push({ amount: Number(search) });
         } else {
+          const regex = new RegExp(search as string, 'i');
           matchConditions.push({
             $or: [
-              { 'senderUser.username': { $regex: new RegExp(search as string, 'i') } },
-              { 'receiverUser.username': { $regex: new RegExp(search as string, 'i') } },
-              { type: { $regex: new RegExp(search as string, 'i') } }
-            ]
+              { 'senderUser.username': { $regex: regex } },
+              { 'receiverUser.username': { $regex: regex } },
+              { 'senderPlayer.username': { $regex: regex } },
+              { 'receiverPlayer.username': { $regex: regex } },
+              { type: { $regex: regex } },
+            ],
           });
         }
       }
@@ -187,37 +290,81 @@ class TransactionController {
             from: 'users',
             localField: 'sender',
             foreignField: '_id',
-            as: 'senderUser'
-          }
+            as: 'senderUser',
+          },
         },
         {
           $lookup: {
-            from: 'users', 
+            from: 'players',
+            localField: 'sender',
+            foreignField: '_id',
+            as: 'senderPlayer',
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
             localField: 'receiver',
             foreignField: '_id',
-            as: 'receiverUser'
-          }
+            as: 'receiverUser',
+          },
         },
         {
-          $unwind: '$senderUser'
+          $lookup: {
+            from: 'players',
+            localField: 'receiver',
+            foreignField: '_id',
+            as: 'receiverPlayer',
+          },
         },
         {
-          $unwind: '$receiverUser'
+          $unwind: {
+            path: '$senderUser',
+            preserveNullAndEmptyArrays: true,
+          },
         },
         {
-          $match: { $and: matchConditions }
+          $unwind: {
+            path: '$senderPlayer',
+            preserveNullAndEmptyArrays: true,
+          },
         },
+        {
+          $unwind: {
+            path: '$receiverUser',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: '$receiverPlayer',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
         {
           $project: {
-            sender: '$senderUser.username',
-            receiver: '$receiverUser.username',
+            sender: {
+              $cond: {
+                if: { $ifNull: ['$senderUser.username', false] },
+                then: '$senderUser.username',
+                else: '$senderPlayer.username',
+              },
+            },
+            receiver: {
+              $cond: {
+                if: { $ifNull: ['$receiverUser.username', false] },
+                then: '$receiverUser.username',
+                else: '$receiverPlayer.username',
+              },
+            },
             amount: 1,
             type: 1,
-            date: 1
-          }
-        }, 
+            date: 1,
+           
+          },
+        },
       ];
-  
       const transactions = await Transaction.aggregate(pipeline);
   
       res.status(200).json(transactions);
