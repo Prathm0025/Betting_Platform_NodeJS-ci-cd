@@ -69,7 +69,12 @@ export interface AuthRequest extends Request {
 export interface CustomJwtPayload extends JwtPayload {
   role: string;
 }
-
+export interface SearchQuery {
+  type?: string;
+  searchQuery?: Object;
+  username?: string;
+  amount?: number;
+}
 // interface amount {
 //   From: number;
 //   To: number;
