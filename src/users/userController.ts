@@ -222,11 +222,18 @@ class UserController {
     const query = user.role === 'admin' 
       ? {} 
       : { player: { $in: user.players } };
-  
+   
     return Bet.find(query)
       .sort({ date: -1 })
       .limit(limit)
       .populate('player', 'username _id')
+      .populate({
+        path: "data",
+        populate: {
+          path: "key",
+          select: "event_id sport_title commence_time status",
+        },
+      })
       .exec();
   }
   
