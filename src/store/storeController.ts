@@ -1,8 +1,10 @@
 import { config } from "../config/config";
 import { LRUCache } from "lru-cache";
 import axios from "axios";
-import { Socket } from "socket.io";
 import StoreService from "./storeServices";
+import { activeRooms } from "../socket/socket";
+import { Server } from "socket.io";
+import { io } from "../server";
 
 class Store {
   private sportsCache: LRUCache<string, any>;
@@ -262,6 +264,41 @@ class Store {
       console.error("Error fetching category sports:", error);
       throw new Error("Failed to fetch category sports");
     }
+  }
+
+  public async updateLiveData() {
+    console.log("i will update the live data");
+    const currentActive = this.removeInactiveRooms();
+    if (currentActive.size <= 0) {
+      console.log("no active rooms to update");
+      return;
+    }
+    for (const sport of currentActive) {
+      console.log("sending req again");
+      const { live_games, upcoming_games } = await this.getOdds(sport);
+      io.to(sport).emit("data", {
+        type: "ODDS",
+        data: {
+          live_games,
+          upcoming_games,
+        },
+      });
+      console.log(`Data broadcasted to room: ${sport}`);
+    }
+  }
+
+  public removeInactiveRooms() {
+    const rooms = io.sockets.adapter.rooms;
+
+    const currentRooms = new Set(rooms.keys());
+
+    activeRooms.forEach((room) => {
+      if (!currentRooms.has(room)) {
+        activeRooms.delete(room);
+        console.log(`Removed inactive room: ${room}`);
+      }
+    });
+    return activeRooms;
   }
 }
 

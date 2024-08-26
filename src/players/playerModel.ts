@@ -44,6 +44,14 @@ const playerSchemaFields: Partial<Record<keyof IPlayer, any>> = {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Bet',
     }],
+    totalRecharge:{
+        type: Number,
+        default:0
+    },
+    totalRedeem:{
+        type:Number,
+        default:0
+    }
 };
 
 const playerSchema: Schema<IPlayer> = new Schema(playerSchemaFields, { collection: 'players', timestamps: true  });

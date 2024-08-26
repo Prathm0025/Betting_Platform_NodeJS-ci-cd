@@ -1,7 +1,7 @@
 import Agenda, { Job } from "agenda";
-import Bet from "./betModel";
+import Bet, { BetDetail } from "./betModel";
 import { agenda } from "../config/db";
-import { IBet } from "./betsType";
+import { IBet, IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 
@@ -44,27 +44,25 @@ class BetController {
     agenda.start();
   }
 
-  public async placeBet(playerRef: Player, betData: IBet) {
+  public async placeBet(
+    playerRef: Player,
+    betDetails: IBetDetail[],
+    amount: number,
+    betType: "single" | "combo"
+  ) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
-    console.log("BETDATA", betData);
-
     try {
-      const oddsData = await Store.getOdds(betData.sport_key);
-
-      // Find the game data matching the event_id
-      const game =
-        oddsData.live_games.find((g: any) => g.id === betData.event_id) ||
-        oddsData.upcoming_games.find((g: any) => g.id === betData.event_id) ||
-        oddsData.completed_games.find((g: any) => g.id === betData.event_id);
-
-      if (game && game.completed) {
-        console.log("Cannot place a bet on a completed game");
-        throw new Error("Cannot place a bet on a completed game");
+      // Check if the player is connected to the socket
+      const playerSocket = users.get(playerRef.username);
+      if (!playerSocket) {
+        throw new Error(
+          "Player must be connected to the socket to place a bet"
+        );
       }
 
-      // Get the Player
+      // Find the player by ID and ensure they exist
       const player = await PlayerModel.findById(playerRef.userId).session(
         session
       );
@@ -73,53 +71,61 @@ class BetController {
         throw new Error("Player not found");
       }
 
-      // check if the player has enought credits
-      const betAmount = parseFloat(betData.amount.toString());
-      if (player.credits < betAmount) {
+      // Ensure the player has enough credits to place the bet
+      if (player.credits < amount) {
         throw new Error("Insufficient credits");
       }
 
-      // Deduct the bet amount from player's credits
-      player.credits -= betAmount;
-
+      // Deduct the bet amount from the player's credits
+      player.credits -= amount;
       await player.save({ session });
-      const playerSocket = users.get(player.username);
-      if (playerSocket) {
-        playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+
+      playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+
+      // Manually generate the Bet's _id
+      const betId = new mongoose.Types.ObjectId();
+      const betDetailIds: mongoose.Types.ObjectId[] = [];
+      let cumulativeOdds = 1; // Initialize cumulative odds
+
+      // Loop through each BetDetail and create it
+      for (const betDetailData of betDetails) {
+        // Calculate the selected team's odds
+        const selectedOdds =
+          betDetailData.bet_on === "home_team"
+            ? betDetailData.home_team.odds
+            : betDetailData.away_team.odds;
+
+        cumulativeOdds *= selectedOdds;
+
+        // Create the BetDetail document
+        const betDetail = new BetDetail({
+          ...betDetailData,
+          key: betId,
+          status: "pending", // Set the betId as the key in BetDetail
+        });
+
+        await betDetail.save({ session });
+        betDetailIds.push(betDetail._id); // No need to cast, using mongoose.Types.ObjectId
+
+        // Schedule the job for this BetDetail based on its commence_time
+        await this.scheduleBetDetailJob(betDetail, session);
       }
 
       // Calculate the possible winning amount
-      const possibleWinningAmount = this.calculatePossibleWinning(betData);
-      console.log("POSSIBLE WINNING AMOUNT: ", possibleWinningAmount);
+      const possibleWinningAmount = cumulativeOdds * amount;
 
-      // Add the possibleWinningAmount to the betData
-      const betDataWithWinning = {
-        ...betData,
-        possibleWinningAmount: possibleWinningAmount,
-      };
-
-      // Save the bet with the session
-      const bet = new Bet(betDataWithWinning);
+      // Create the Bet document with the manually generated _id
+      const bet = new Bet({
+        _id: betId, // Use the manually generated _id
+        player: player._id,
+        data: betDetailIds, // Store all the BetDetail references
+        amount,
+        possibleWinningAmount,
+        status: "pending",
+        retryCount: 0,
+        betType,
+      });
       await bet.save({ session });
-
-      const now = new Date();
-      const commenceTime = new Date(betData.commence_time);
-      const delay = commenceTime.getTime() - now.getTime();
-
-      const job = agenda.schedule(
-        new Date(Date.now() + delay),
-        "add bet to queue",
-        { betId: bet._id.toString() }
-      );
-
-      if (job) {
-        console.log(
-          `Bet ${bet._id.toString()} scheduled successfully with a delay of ${delay}ms`
-        );
-      } else {
-        console.error(`Failed to schedule bet ${bet._id.toString()}`);
-        throw new Error("Failed to schedule bet");
-      }
 
       // Commit the transaction
       await session.commitTransaction();
@@ -133,6 +139,29 @@ class BetController {
       console.error("Error placing bet:", error.message);
       playerRef.sendError(error.message);
     }
+  }
+
+  private async scheduleBetDetailJob(
+    betDetail: IBetDetail,
+    session: mongoose.ClientSession
+  ) {
+    const commence_time = new Date(betDetail.commence_time);
+    const delay = commence_time.getTime() - Date.now();
+
+    const job = await agenda.schedule(
+      new Date(Date.now() + delay),
+      "add bet to queue",
+      { betDetailId: betDetail._id.toString() }
+    );
+
+    if (!job) {
+      throw new Error(
+        `Failed to schedule bet detail ${betDetail._id.toString()}`
+      );
+    }
+    console.log(
+      `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
+    );
   }
 
   private calculatePossibleWinning(data: any) {
@@ -225,29 +254,47 @@ class BetController {
     try {
       const { agentId } = req.params;
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
-      const agent = await User.findById(agentId);
-      console.log(agent);
 
+      const agent = await User.findById(agentId);
       if (!agent) throw createHttpError(404, "Agent Not Found");
+
       const playerUnderAgent = agent.players;
       if (playerUnderAgent.length === 0)
-        res.status(200).json({ message: "No Players Under Agent" });
+        return res.status(200).json({ message: "No Players Under Agent" });
+
       const bets = await Bet.find({
         player: { $in: playerUnderAgent },
-      }).populate("player", "username _id");
-   
-      res.status(200).json( bets );
+      })
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
+
+      res.status(200).json(bets);
     } catch (error) {
       next(error);
     }
   }
+
   //GET ALL BETS FOR ADMIN
 
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
-      const bets = await Bet.find().populate("player", "username _id");
-      console.log(bets, "bets");
-      res.status(200).json(bets );
+      const bets = await Bet.find()
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
+
+      res.status(200).json(bets);
     } catch (error) {
       console.log(error);
       next(error);
@@ -262,10 +309,9 @@ class BetController {
       const { type, status } = req.query;
       let playerDoc: any;
 
-      console.log(player, type);
-
       if (type === "id") {
         playerDoc = await PlayerModel.findById(player);
+
         if (!playerDoc) throw createHttpError(404, "Player Not Found");
       } else if (type === "username") {
         playerDoc = await PlayerModel.findOne({ username: player });
@@ -280,10 +326,18 @@ class BetController {
 
       const playerBets = await Bet.find({
         player: playerDoc._id,
-        ...(status !== "all" && { status }),
-      }).populate("player", "username _id");
+      })
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          match: status !== "all" ? { status } : {},
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
 
-      res.status(200).json(playerBets );
+      res.status(200).json(playerBets);
     } catch (error) {
       console.log(error);
       next(error);
@@ -300,45 +354,51 @@ class BetController {
       if (!player) {
         throw createHttpError(404, "Player not found");
       }
-      const bet = await Bet.findById({ _id: betId });
-      if (bet && bet.status === "pending") {
+      const betObjectId = new mongoose.Types.ObjectId(betId);
+      const bet = await Bet.findById(betObjectId);
+      if (!bet) {
+        throw createHttpError(404, "Bet not found");
+      }
+      const allBets = bet.data;
+      if (bet.betType === "single") {
+        const betDetails = await BetDetail.findById(allBets);
         const selectedTeam =
-          bet.bet_on === "home_team" ? bet.home_team.name : bet.away_team.name;
+          betDetails.bet_on === "home_team"
+            ? betDetails.home_team.name
+            : betDetails.away_team.name;
         const oldOdds =
-          bet.bet_on === "home_team" ? bet.home_team.odds : bet.away_team.odds;
+          betDetails.bet_on === "home_team"
+            ? betDetails.home_team.odds
+            : betDetails.away_team.odds;
         const betAmount = bet.amount;
         const currentData = await Store.getEventOdds(
-          bet.sport_key,
-          bet.event_id,
-          bet.market,
+          betDetails.sport_key,
+          betDetails.event_id,
+          betDetails.market,
           "us",
-          bet.oddsFormat,
+          betDetails.oddsFormat,
           "iso"
         );
-
         const currentOddsData = currentData.bookmakers.find(
-          (item) => item.key === bet.selected
+          (item) => item.key === betDetails.selected
         );
-
         const newOdds = currentOddsData.markets[0].outcomes.find(
           (item) => item.name === selectedTeam
         ).price;
-
         const newAmount = betAmount * ((newOdds - 1) / (oldOdds - 1));
         player.credits += newAmount;
         await player.save();
+        betDetails.status = "redeem";
+        await betDetails.save();
+        bet.status = "redeem";
+        await bet.save();
         const playerSocket = users.get(player.username);
         if (playerSocket) {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
-        bet.status = "redeem";
-        await bet.save();
         res.status(200).json({ message: "Bet Redeemed Successfully" });
-      } else {
-        throw createHttpError(
-          400,
-          "This bet can't be redeem since it is not pending!"
-        );
+      } else if (bet.betType === "combo") {
+        res.status(400).json({ message: "Not handled yet" });
       }
     } catch (error) {
       next(error);

@@ -51,7 +51,16 @@ export const userSchemaFields: Partial<Record<keyof IUser, any>> = {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Player'
         }
-    ]
+    ],
+    totalRecharge:{
+        type: Number,
+        default:0
+    },
+    totalRedeem:{
+        type:Number,
+        default:0
+    }
+
 };
 
 const userSchema = new Schema(userSchemaFields, {
