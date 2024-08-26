@@ -75,7 +75,15 @@ exports.userSchemaFields = {
             type: mongoose_1.default.Schema.Types.ObjectId,
             ref: 'Player'
         }
-    ]
+    ],
+    totalRecharge: {
+        type: Number,
+        default: 0
+    },
+    totalRedeem: {
+        type: Number,
+        default: 0
+    }
 };
 const userSchema = new mongoose_1.Schema(exports.userSchemaFields, {
     collection: 'users',

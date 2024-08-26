@@ -126,31 +126,74 @@ class SubordinateController {
     getAllSubordinates(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { type } = req.query;
-                if (!SubordinateController.roles.includes(type)) {
-                    throw (0, http_errors_1.default)(400, "Invalid role type");
-                }
+                const { type, search } = req.query;
                 const _req = req;
                 const { userId } = _req.user;
                 const admin = yield userModel_1.default.findById(userId);
                 if (!admin)
                     throw (0, http_errors_1.default)(401, "You are Not Authorized");
-                //GETTING USERS BASED ON QUERY
-                let subordinates;
+                let pipeline = [];
                 if (type === "all") {
-                    const user = yield userModel_1.default.find();
-                    const player = yield playerModel_1.default.find();
-                    subordinates = [...user, ...player];
-                }
-                else if (type === "player")
-                    subordinates = yield playerModel_1.default.find();
-                else
-                    subordinates = yield userModel_1.default.find({
-                        role: type
+                    pipeline.push({
+                        $unionWith: {
+                            coll: 'players',
+                            pipeline: [
+                                {
+                                    $project: {
+                                        _id: 1,
+                                        username: 1,
+                                        role: { $literal: "player" },
+                                        status: 1,
+                                        credits: 1,
+                                        createdAt: 1
+                                    }
+                                }
+                            ]
+                        }
                     });
-                res.status(200).json(subordinates);
+                }
+                else if (type === "player") {
+                    pipeline.push({
+                        $lookup: {
+                            from: 'players',
+                            pipeline: [
+                                {
+                                    $project: {
+                                        _id: 1,
+                                        username: 1,
+                                        role: { $literal: "player" },
+                                        status: 1,
+                                        credits: 1,
+                                        createdAt: 1
+                                    }
+                                }
+                            ],
+                            as: 'players'
+                        }
+                    }, {
+                        $unwind: '$players'
+                    }, {
+                        $replaceRoot: { newRoot: '$players' }
+                    });
+                }
+                else {
+                    pipeline.push({
+                        $match: { role: type }
+                    });
+                }
+                if (search) {
+                    pipeline.push({
+                        $match: {
+                            username: { $regex: new RegExp(search, 'i') },
+                        }
+                    });
+                }
+                // Perform aggregation
+                const results = yield userModel_1.default.aggregate(pipeline);
+                res.status(200).json(results);
             }
             catch (error) {
+                console.log(error);
                 next(error);
             }
         });
@@ -227,7 +270,7 @@ class SubordinateController {
             var _a;
             try {
                 const { superior } = req.params;
-                const { type } = req.query;
+                const { type, search } = req.query;
                 const _req = req;
                 const { userId } = _req.user;
                 let requestingUser = yield userModel_1.default.findById(userId);
@@ -286,6 +329,9 @@ class SubordinateController {
                     ? [
                         ...superiorUser.subordinates, ...superiorUser.players
                     ] : superiorUser.role === "agent" ? superiorUser.players : superiorUser.subordinates;
+                if (search) {
+                    subordinates = subordinates.filter((subordinate) => subordinate.username === search);
+                }
                 return res.status(200).json(subordinates);
             }
             catch (error) {

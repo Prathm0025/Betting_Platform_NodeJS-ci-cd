@@ -16,6 +16,8 @@ const config_1 = require("../config/config");
 const lru_cache_1 = require("lru-cache");
 const axios_1 = __importDefault(require("axios"));
 const storeServices_1 = __importDefault(require("./storeServices"));
+const socket_1 = require("../socket/socket");
+const server_1 = require("../server");
 class Store {
     constructor() {
         this.sportsCache = new lru_cache_1.LRUCache({
@@ -170,6 +172,39 @@ class Store {
                 throw new Error("Failed to fetch category sports");
             }
         });
+    }
+    updateLiveData() {
+        return __awaiter(this, void 0, void 0, function* () {
+            console.log("i will update the live data");
+            const currentActive = this.removeInactiveRooms();
+            if (currentActive.size <= 0) {
+                console.log("no active rooms to update");
+                return;
+            }
+            for (const sport of currentActive) {
+                console.log("sending req again");
+                const { live_games, upcoming_games } = yield this.getOdds(sport);
+                server_1.io.to(sport).emit("data", {
+                    type: "ODDS",
+                    data: {
+                        live_games,
+                        upcoming_games,
+                    },
+                });
+                console.log(`Data broadcasted to room: ${sport}`);
+            }
+        });
+    }
+    removeInactiveRooms() {
+        const rooms = server_1.io.sockets.adapter.rooms;
+        const currentRooms = new Set(rooms.keys());
+        socket_1.activeRooms.forEach((room) => {
+            if (!currentRooms.has(room)) {
+                socket_1.activeRooms.delete(room);
+                console.log(`Removed inactive room: ${room}`);
+            }
+        });
+        return socket_1.activeRooms;
     }
 }
 exports.default = new Store();

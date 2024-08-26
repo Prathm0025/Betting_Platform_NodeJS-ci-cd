@@ -1,4 +1,27 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -15,7 +38,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importDefault(require("mongoose"));
 const storeController_1 = __importDefault(require("../store/storeController"));
 const PriorityQueue_1 = require("../utils/PriorityQueue");
-const betModel_1 = __importDefault(require("./betModel"));
+const betModel_1 = __importStar(require("./betModel"));
 class BetServices {
     constructor() {
         this.priorityQueue = new PriorityQueue_1.PriorityQueue();
@@ -27,7 +50,7 @@ class BetServices {
     // retrieve and remove the highest priority bet from the queue
     processNextBet() {
         if (this.priorityQueue.isEmpty()) {
-            console.log('No bets in the priority queue.');
+            console.log("No bets in the priority queue.");
             return;
         }
         const nextBet = this.priorityQueue.dequeue();
@@ -37,9 +60,9 @@ class BetServices {
     addBetToQueueAtCommenceTime(betId) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const bet = yield betModel_1.default.findById(betId);
+                const bet = yield betModel_1.BetDetail.findById(betId);
                 if (!bet) {
-                    console.log('Bet not found.');
+                    console.log("Bet not found.");
                     return;
                 }
                 const priority = this.calculatePriority(bet);
@@ -47,20 +70,20 @@ class BetServices {
                 console.log("Bet added to processing queue : ", bet);
             }
             catch (error) {
-                console.error('Error adding bet to queue:', error.message);
+                console.error("Error adding bet to queue:", error.message);
             }
         });
     }
-    // calculate the priority of a bet
-    calculatePriority(bet) {
-        const timeUntilCommence = new Date(bet.commence_time).getTime() - new Date().getTime();
+    // Calculate the priority of a bet detail
+    calculatePriority(betDetail) {
+        const timeUntilCommence = new Date(betDetail.commence_time).getTime() - new Date().getTime();
         return timeUntilCommence;
     }
-    // fetch odds for all bets in the queue 
+    // fetch odds for all bets in the queue
     fetchOddsForQueueBets() {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.priorityQueue.isEmpty()) {
-                console.log('No bets in the priority queue.');
+                console.log("No bets in the priority queue.");
                 return;
             }
             const sports = new Set();
@@ -71,7 +94,10 @@ class BetServices {
                 const bet = this.priorityQueue.dequeue();
                 if (bet) {
                     sports.add(bet.sport_key);
-                    itemsToReenqueue.push({ item: bet, priority: this.calculatePriority(bet) });
+                    itemsToReenqueue.push({
+                        item: bet,
+                        priority: this.calculatePriority(bet),
+                    });
                 }
             }
             // Re-enqueue all the bets
@@ -82,7 +108,9 @@ class BetServices {
             for (const sport of sports) {
                 const { live_games, upcoming_games, completed_games } = yield storeController_1.default.getOdds(sport);
                 completed_games.forEach((game) => __awaiter(this, void 0, void 0, function* () {
-                    const bet = this.priorityQueue.getItems().find((b) => b.item.event_id === game.id);
+                    const bet = this.priorityQueue
+                        .getItems()
+                        .find((b) => b.item.event_id === game.id);
                     if (bet) {
                         yield this.processCompletedBet(bet.item._id.toString(), game);
                     }
@@ -90,34 +118,57 @@ class BetServices {
             }
         });
     }
-    processCompletedBet(betId, gameData) {
+    processCompletedBet(betDetailId, gameData) {
         return __awaiter(this, void 0, void 0, function* () {
             const session = yield mongoose_1.default.startSession();
             session.startTransaction();
             try {
-                const bet = yield betModel_1.default.findById(betId).session(session);
-                if (!bet) {
-                    console.log('Bet not found.');
+                const betDetail = yield betModel_1.BetDetail.findById(betDetailId).session(session);
+                if (!betDetail) {
+                    console.log("Bet not found.");
                     yield session.abortTransaction();
                     session.endSession();
                     return;
                 }
-                const winner = this.determineWinner(bet.home_team.name, bet.away_team.name, gameData.scores);
-                let winningAmount = null;
-                if (winner === bet.bet_on) {
-                    bet.status = 'won';
-                    winningAmount = bet.possibleWinningAmount; // Set the winning amount if the bet is successful
-                    console.log(`Bet ${betId} won!`);
+                const bet = yield betModel_1.default.findById(betDetail.key).session(session);
+                if (!bet) {
+                    console.log("Parent bet not found.");
+                    yield session.abortTransaction();
+                    session.endSession();
+                    return;
+                }
+                const winner = this.determineWinner(betDetail.home_team.name, betDetail.away_team.name, gameData.scores);
+                let won = false;
+                if (winner === betDetail.bet_on) {
+                    betDetail.status = "won";
+                    won = true;
+                    console.log(`BetDetail ${betDetailId} won!`);
                 }
                 else {
-                    bet.status = 'lost';
-                    console.log(`Bet ${betId} lost.`);
+                    betDetail.status = "lost";
+                    console.log(`BetDetail ${betDetailId} lost.`);
                 }
-                yield bet.save({ session });
+                yield betDetail.save({ session });
+                // check if all BetDetails are processed
+                const allBetDetails = yield betModel_1.BetDetail.find({ key: bet._id }).session(session);
+                const allProcessed = allBetDetails.every((detail) => detail.status !== "pending");
+                if (allProcessed) {
+                    // Determine the overall outcome of the Bet based on the BetDetails
+                    const betWon = allBetDetails.every((detail) => detail.status === "won");
+                    bet.status = betWon ? "won" : "lost";
+                    yield bet.save({ session });
+                    if (betWon) {
+                        // The whole bet has won, award the possible winning amount
+                        console.log(`Bet ${bet._id} won! Awarding amount: ${bet.possibleWinningAmount}`);
+                    }
+                    else {
+                        console.log(`Bet ${bet._id} lost.`);
+                    }
+                }
                 yield session.commitTransaction();
             }
             catch (error) {
-                console.error('Error processing completed bet:', error.message);
+                console.error("Error processing completed bet:", error.message);
                 yield session.abortTransaction();
             }
             finally {
@@ -127,13 +178,13 @@ class BetServices {
     }
     determineWinner(homeTeam, awayTeam, scores) {
         var _a, _b;
-        const homeScore = parseInt(((_a = scores.find(s => s.name === homeTeam)) === null || _a === void 0 ? void 0 : _a.score) || '0');
-        const awayScore = parseInt(((_b = scores.find(s => s.name === awayTeam)) === null || _b === void 0 ? void 0 : _b.score) || '0');
+        const homeScore = parseInt(((_a = scores.find((s) => s.name === homeTeam)) === null || _a === void 0 ? void 0 : _a.score) || "0");
+        const awayScore = parseInt(((_b = scores.find((s) => s.name === awayTeam)) === null || _b === void 0 ? void 0 : _b.score) || "0");
         if (homeScore > awayScore) {
-            return 'home_team';
+            return "home_team";
         }
         else if (awayScore > homeScore) {
-            return 'away_team';
+            return "away_team";
         }
         else {
             return null; // Tie or error

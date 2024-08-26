@@ -58,7 +58,7 @@ const socketController = (io) => {
             }
         }
         else {
-            const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits, io);
+            const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits);
             exports.users.set(username, newUser);
             console.log(`Player ${username} entered the platform.`);
         }
