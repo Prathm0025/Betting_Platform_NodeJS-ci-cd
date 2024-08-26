@@ -132,11 +132,14 @@ class UserController {
 
   //GET SUMMARY(e.g. recent transactions and bets) FOR AGENT AND ADMIN DASHBOARD
   
-  async getSummary(req: Request, res: Response): Promise<void> {
+  async getSummary(req: Request, res: Response, next:NextFunction): Promise<void> {
     try {
       const { id } = req.params;
       const { period } = req.query;
       const user = await User.findById(id);
+      if(!user){
+        throw createHttpError(404, "User Not Found")
+      }
       const today = new Date();
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const startOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
@@ -170,7 +173,7 @@ class UserController {
       res.status(200).json(periodSummary);
     } catch (err) {
       console.error(err);
-      res.status(500).send('Server error');
+      next(err)
     }
   }
   
