@@ -36,6 +36,7 @@
     "mongodb": "^6.8.0",
     "mongoose": "^8.5.1",
     "node-cron": "^3.0.3",
+    "p-limit": "^6.1.0",
     "socket.io": "^4.7.5",
     "svg-captcha": "^1.4.0",
     "uuid": "^10.0.0",
