@@ -188,6 +188,16 @@ class SubordinateController {
                         }
                     });
                 }
+                pipeline.push({
+                    $group: {
+                        _id: '$_id',
+                        username: { $first: '$username' },
+                        role: { $first: '$role' },
+                        status: { $first: '$status' },
+                        credits: { $first: '$credits' },
+                        createdAt: { $first: '$createdAt' }
+                    }
+                });
                 // Perform aggregation
                 const results = yield userModel_1.default.aggregate(pipeline);
                 res.status(200).json(results);
