@@ -300,13 +300,10 @@ class BetController {
                 else {
                     throw (0, http_errors_1.default)(400, "User Id or Username not provided");
                 }
-                const playerBets = yield betModel_1.default.find({
-                    player: playerDoc._id,
-                })
+                const playerBets = yield betModel_1.default.find(Object.assign(Object.assign({ player: playerDoc._id }, (status === "combo" || status === "all" ? {} : { status })), (status === "combo" && { betType: "combo" })))
                     .populate("player", "username _id")
                     .populate({
                     path: "data",
-                    match: status !== "all" ? { status } : {},
                     populate: {
                         path: "key",
                         select: "event_id sport_title commence_time status",
@@ -336,35 +333,46 @@ class BetController {
                 if (!bet) {
                     throw (0, http_errors_1.default)(404, "Bet not found");
                 }
+                if (bet.status !== "pending") {
+                    throw (0, http_errors_1.default)(400, "Only bets with pending status can be redeemed!");
+                }
                 const allBets = bet.data;
-                if (bet.betType === "single") {
-                    const betDetails = yield betModel_1.BetDetail.findById(allBets);
+                const betDetailsArray = yield Promise.all(allBets.map((id) => betModel_1.BetDetail.findById(id)));
+                let totalOldOdds = 1;
+                let totalNewOdds = 1;
+                const betAmount = bet.amount;
+                for (const betDetails of betDetailsArray) {
+                    if (!betDetails)
+                        continue;
+                    if (betDetails.status !== "pending") {
+                        throw (0, http_errors_1.default)(400, "Only bets with pending status can be redeemed!");
+                    }
                     const selectedTeam = betDetails.bet_on === "home_team"
                         ? betDetails.home_team.name
                         : betDetails.away_team.name;
                     const oldOdds = betDetails.bet_on === "home_team"
                         ? betDetails.home_team.odds
                         : betDetails.away_team.odds;
-                    const betAmount = bet.amount;
                     const currentData = yield storeController_1.default.getEventOdds(betDetails.sport_key, betDetails.event_id, betDetails.market, "us", betDetails.oddsFormat, "iso");
                     const currentOddsData = currentData.bookmakers.find((item) => item.key === betDetails.selected);
+                    totalOldOdds *= oldOdds;
                     const newOdds = currentOddsData.markets[0].outcomes.find((item) => item.name === selectedTeam).price;
-                    const newAmount = betAmount * ((newOdds - 1) / (oldOdds - 1));
-                    player.credits += newAmount;
-                    yield player.save();
+                    totalNewOdds *= newOdds;
                     betDetails.status = "redeem";
                     yield betDetails.save();
-                    bet.status = "redeem";
-                    yield bet.save();
-                    const playerSocket = socket_1.users.get(player.username);
-                    if (playerSocket) {
-                        playerSocket.sendData({ type: "CREDITS", credits: player.credits });
-                    }
-                    res.status(200).json({ message: "Bet Redeemed Successfully" });
                 }
-                else if (bet.betType === "combo") {
-                    res.status(400).json({ message: "Not handled yet" });
+                console.log("OLD", totalOldOdds, "NEW", totalNewOdds);
+                const amount = (totalNewOdds / totalOldOdds) * betAmount;
+                console.log("amount", amount);
+                player.credits += amount;
+                yield player.save();
+                bet.status = "redeem";
+                yield bet.save();
+                const playerSocket = socket_1.users.get(player.username);
+                if (playerSocket) {
+                    playerSocket.sendData({ type: "CREDITS", credits: player.credits });
                 }
+                res.status(200).json({ message: "Bet Redeemed Successfully" });
             }
             catch (error) {
                 next(error);
