@@ -124,8 +124,7 @@ class Store {
       const scoresResponse = await this.getScores(sport, "1", "iso");
 
       // Get the current time for filtering live games
-      const now = new Date().toISOString();
-
+      const now = new Date()
       // Process the data
       const processedData = oddsResponse.map((game: any) => {
         // Select one bookmaker (e.g., the first one)
@@ -149,23 +148,39 @@ class Store {
           selected: bookmaker.key,
         };
       });
+      
 
-      // Separate live games and upcoming games
-      const liveGames = processedData.filter(
-        (game: any) => game.commence_time <= now && !game.completed
-      );
-      const upcomingGames = processedData.filter(
-        (game: any) => game.commence_time > now
-      );
-      const completedGames = processedData.filter(
-        (game: any) => game.completed
-      );
 
-      // Return the formatted data
+// Get the current time for filtering live games
+const startOfToday = new Date(now.setHours(0, 0, 0, 0)).toISOString();
+const endOfToday = new Date(now.setHours(23, 59, 59, 999)).toISOString();// Separate live games, today's upcoming games, and future upcoming games
+const liveGames = processedData.filter(
+  (game: any) => game.commence_time <= now.toISOString() && !game.completed
+);
+const todaysUpcomingGames = processedData.filter(
+  (game: any) =>
+    game.commence_time > now.toISOString() &&
+    game.commence_time >= startOfToday &&
+    game.commence_time <= endOfToday &&
+    !game.completed
+);
+const futureUpcomingGames = processedData.filter(
+  (game: any) => game.commence_time > endOfToday && !game.completed
+);
+const completedGames = processedData.filter((game: any) => game.completed);
+   
+      console.log(processedData, "dsdd");
+      
+
+     
+      // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
+      console.log(futureUpcomingGames);
+      
       return {
         live_games: liveGames,
-        upcoming_games: upcomingGames,
-        completed_games: completedGames,
+        todays_upcoming_games: todaysUpcomingGames,
+        future_upcoming_games: futureUpcomingGames,
+        completed_games: completedGames || [],
       };
     } catch (error) {
       console.log(error.message);
@@ -266,16 +281,14 @@ class Store {
     }
   }
 
-  public async updateLiveData() {
+  public async updateLiveData(livedata:any) {
     console.log("i will update the live data");
-    const currentActive = this.removeInactiveRooms();
-    if (currentActive.size <= 0) {
-      console.log("no active rooms to update");
-      return;
-    }
+    const currentActive = Array.from(activeRooms)
+    console.log(currentActive, "cdcdc");
+    
     for (const sport of currentActive) {
       console.log("sending req again");
-      const { live_games, upcoming_games } = await this.getOdds(sport);
+      const { live_games, upcoming_games } =livedata;
       io.to(sport).emit("data", {
         type: "ODDS",
         data: {
@@ -298,6 +311,8 @@ class Store {
         console.log(`Removed inactive room: ${room}`);
       }
     });
+    console.log(activeRooms, 'rooms active');
+    
     return activeRooms;
   }
 }

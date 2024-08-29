@@ -76,6 +76,22 @@ class BetController {
         throw new Error("Insufficient credits");
       }
 
+    // Check if the player already has a pending bet on the same team
+
+     // Check if the player already has a pending bet on the same team
+     for (const betDetailData of betDetails) {
+      const existingBetDetail = await BetDetail.findOne({
+        event_id:betDetailData.event_id,
+        bet_on: betDetailData.bet_on,
+        status: "pending",
+      }).session(session);
+
+      if (existingBetDetail) {
+
+        throw new Error(`You already have a pending bet on ${betDetailData.bet_on}.`);
+      
+      }
+    }
       // Deduct the bet amount from the player's credits
       player.credits -= amount;
       await player.save({ session });
@@ -345,10 +361,14 @@ class BetController {
 
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
+    console.log("mai reddem krne aaya tha");
+    
     try {
       const _req = req as AuthRequest;
       const { userId } = _req.user;
       const { betId } = req.params;
+      console.log(betId, "ye bheja");
+      
       const player = await PlayerModel.findById({ _id: userId });
 
       if (!player) {
@@ -436,6 +456,8 @@ class BetController {
 
       res.status(200).json({ message: "Bet Redeemed Successfully" });
     } catch (error) {
+      console.log(error, "HAGGA");
+      
       next(error);
     }
   }

@@ -31,3 +31,12 @@ export interface IBet extends Document {
   retryCount: number;
   betType: "single" | "combo";
 }
+
+export interface Bet {
+  id: string;
+  category: string;
+}
+
+export interface WorkerPoolOptions {
+  workerCount: number;
+}
