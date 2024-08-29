@@ -165,7 +165,7 @@ class Store {
       return {
         live_games: liveGames,
         upcoming_games: upcomingGames,
-        completed_games: completedGames,
+        completed_games: completedGames||[],
       };
     } catch (error) {
       console.log(error.message);
@@ -266,16 +266,14 @@ class Store {
     }
   }
 
-  public async updateLiveData() {
+  public async updateLiveData(livedata:any) {
     console.log("i will update the live data");
-    const currentActive = this.removeInactiveRooms();
-    if (currentActive.size <= 0) {
-      console.log("no active rooms to update");
-      return;
-    }
+    const currentActive = Array.from(activeRooms)
+    console.log(currentActive, "cdcdc");
+    
     for (const sport of currentActive) {
       console.log("sending req again");
-      const { live_games, upcoming_games } = await this.getOdds(sport);
+      const { live_games, upcoming_games } =livedata;
       io.to(sport).emit("data", {
         type: "ODDS",
         data: {
@@ -298,6 +296,8 @@ class Store {
         console.log(`Removed inactive room: ${room}`);
       }
     });
+    console.log(activeRooms, 'rooms active');
+    
     return activeRooms;
   }
 }

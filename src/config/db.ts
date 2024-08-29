@@ -1,9 +1,35 @@
 import mongoose from "mongoose";
 import { config } from "./config";
 import Agenda, { Job } from "agenda";
+import path from "path";
+import { Worker } from "worker_threads";
 import betServices from "../bets/betServices";
+import {  activeRooms } from "../socket/socket";
 
 let agenda: Agenda;
+
+const workerFilePath = path.resolve(__dirname, "../bets/betWorkerScheduler.js");
+const startWorker = (queueData: any[], activeRooms:any) => {
+  console.log(activeRooms, 'fesaz');
+  
+  const worker = new Worker(workerFilePath, {
+    workerData: { queueData , activeRooms},
+  });
+
+  worker.on("message", (message) => {
+    console.log("Worker message:", message);
+  });
+
+  worker.on("error", (error) => {
+    console.error("Worker error:", error);
+  });
+
+  worker.on("exit", (code) => {
+    if (code !== 0) {
+      console.error(`Worker stopped with exit code ${code}`);
+    }
+  });
+};
 
 const connectDB = async () => {
   try {
@@ -17,33 +43,31 @@ const connectDB = async () => {
 
     await mongoose.connect(config.databaseUrl as string);
 
-    // Initialize Agenda
     agenda = new Agenda({
       db: { address: config.databaseUrl as string, collection: "jobs" },
     });
 
-    // Define a sample job
     agenda.define("add bet to queue", async (job: Job) => {
       const { betDetailId } = job.attrs.data;
       await betServices.addBetToQueueAtCommenceTime(betDetailId);
       console.log(`Bet ${betDetailId} is added to processing queue`);
     });
 
-    agenda.define("fetch odds for queue bets", async () => {
-      await betServices.fetchOddsForQueueBets();
-    });
-
-    // // Start Agenda
     await agenda.start();
 
-    // Schedule the recurring job
-    await agenda.every("30 seconds", "fetch odds for queue bets");
+    setInterval(async () => {
+      const queueData = betServices.getPriorityQueueData();
+      const active = activeRooms;
+      console.log(active, activeRooms, "hagga");
+      
+      startWorker(queueData, active);
+    }, 30000);
 
-    console.log("Agenda started");
   } catch (err) {
     console.error("Failed to connect to database.", err);
     process.exit(1);
   }
 };
+
 export { agenda };
 export default connectDB;
