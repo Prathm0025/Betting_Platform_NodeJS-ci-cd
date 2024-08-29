@@ -6,7 +6,7 @@ import { activeRooms } from "../socket/socket";
 
 async function processBets(sportKeys, bets) {
   console.log("Starting bet processing...");
-  console.log("Bets:", bets);
+  console.log("Bets:", bets.length);
   // sportKeys.push(...Array.from(activeRooms));
   console.log(sportKeys, "worker sport key");
   
@@ -26,7 +26,7 @@ async function processBets(sportKeys, bets) {
 
       // console.log("Live games:", live_games);
    
-      // console.log("Upcoming games:", upcoming_games);
+      console.log("Upcoming games:", upcoming_games);
       
       for (const game of completed_games) {
         const bet = bets.find((b) => b.event_id === game.id);

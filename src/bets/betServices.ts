@@ -21,6 +21,8 @@ class BetServices {
   }
 
   public getPriorityQueueData(): IBetDetail[] {
+    console.log(this.priorityQueue.size(), "size");
+    
     return this.priorityQueue.getItems().map((item) => item.item);
   }
 
@@ -72,6 +74,7 @@ class BetServices {
     
     const sports = new Set<string>();
     console.log(activeRooms, "cgdfgdf");
+console.log(queueData.length, "jdj");
        
    
   
@@ -86,7 +89,7 @@ class BetServices {
     // Define chunk size
     const chunkSize = Math.ceil(queueData.length / sportKeysArray.length);
     const betChunks = chunkArray(queueData, chunkSize);
-
+   
     // Chunk the bets
     const workerFilePath = path.resolve(
       __dirname,
