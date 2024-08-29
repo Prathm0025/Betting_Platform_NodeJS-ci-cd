@@ -267,10 +267,13 @@ export default class Player {
   }
 
   public joinRoom(room: string) {
+
     if (this.currentRoom) {
       this.socket.leave(this.currentRoom);
     }
     activeRooms.add(room);
+    console.log(activeRooms, "active");
+    
     this.socket.join(room);
     this.currentRoom = room;
   }
