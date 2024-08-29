@@ -220,6 +220,7 @@ class Player {
             this.socket.leave(this.currentRoom);
         }
         socket_1.activeRooms.add(room);
+        console.log(socket_1.activeRooms, "active");
         this.socket.join(room);
         this.currentRoom = room;
     }
