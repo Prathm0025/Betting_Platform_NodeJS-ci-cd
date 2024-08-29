@@ -1,27 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -35,19 +12,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const mongoose_1 = __importDefault(require("mongoose"));
-const storeController_1 = __importDefault(require("../store/storeController"));
+// betServices.ts
 const PriorityQueue_1 = require("../utils/PriorityQueue");
-const betModel_1 = __importStar(require("./betModel"));
+const betModel_1 = require("./betModel");
+const worker_threads_1 = require("worker_threads");
+const path_1 = __importDefault(require("path"));
 class BetServices {
     constructor() {
         this.priorityQueue = new PriorityQueue_1.PriorityQueue();
     }
-    // add a bet to the priority queue
+    // Add a bet to the priority queue
     addBetToQueue(bet, priority) {
+        console.log("ADDING TO QUEUE");
         this.priorityQueue.enqueue(bet, priority);
     }
-    // retrieve and remove the highest priority bet from the queue
+    getPriorityQueueData() {
+        console.log(this.priorityQueue.size(), "size");
+        return this.priorityQueue.getItems().map((item) => item.item);
+    }
+    // Retrieve and remove the highest priority bet from the queue
     processNextBet() {
         if (this.priorityQueue.isEmpty()) {
             console.log("No bets in the priority queue.");
@@ -56,7 +39,7 @@ class BetServices {
         const nextBet = this.priorityQueue.dequeue();
         console.log(`Processing bet with ID ${nextBet}`);
     }
-    // handle adding a bet to the queue (this will be called by the scheduled job)
+    // Handle adding a bet to the queue (this will be called by the scheduled job)
     addBetToQueueAtCommenceTime(betId) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -79,116 +62,67 @@ class BetServices {
         const timeUntilCommence = new Date(betDetail.commence_time).getTime() - new Date().getTime();
         return timeUntilCommence;
     }
-    // fetch odds for all bets in the queue
-    fetchOddsForQueueBets() {
+    // Fetch odds for all bets in the queue
+    processOddsForQueueBets(queueData, activeRooms) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.priorityQueue.isEmpty()) {
-                console.log("No bets in the priority queue.");
-                return;
-            }
+            // if (this.priorityQueue.isEmpty()) {
+            //   console.log("No bets in the priority queue.");
+            //   return;
+            // }
+            // console.log("Bets in the queue:", this.priorityQueue.getItems());
+            // Process the bets
+            // console.log(queueData, "queue");
+            console.log("mai yaha hu yaha hu yaha");
             const sports = new Set();
-            const queueSize = this.priorityQueue.size();
-            const itemsToReenqueue = [];
-            // collect all the sports from bets in the Queue;
-            for (let i = 0; i < queueSize; i++) {
-                const bet = this.priorityQueue.dequeue();
-                if (bet) {
-                    sports.add(bet.sport_key);
-                    itemsToReenqueue.push({
-                        item: bet,
-                        priority: this.calculatePriority(bet),
+            console.log(activeRooms, "cgdfgdf");
+            console.log(queueData.length, "jdj");
+            // const bets = this.priorityQueue.getItems().map((item) => item.item);
+            queueData.forEach((bet) => sports.add(bet._doc.sport_key));
+            // console.log(sports, "SPORTS");
+            const sportKeysArray = Array.from(sports);
+            sportKeysArray.push(...Array.from(activeRooms));
+            // Define chunk size
+            const chunkSize = Math.ceil(queueData.length / sportKeysArray.length);
+            const betChunks = chunkArray(queueData, chunkSize);
+            // Chunk the bets
+            const workerFilePath = path_1.default.resolve(__dirname, "../bets/betWorker.js");
+            // Create a promise to track the workers
+            const workerPromises = sportKeysArray.map((chunk) => {
+                return new Promise((resolve, reject) => {
+                    console.log("promise");
+                    const worker = new worker_threads_1.Worker(workerFilePath, {
+                        workerData: { sportKeys: sportKeysArray, bets: chunk },
                     });
-                }
-            }
-            // Re-enqueue all the bets
-            for (const { item, priority } of itemsToReenqueue) {
-                this.priorityQueue.enqueue(item, priority);
-            }
-            // Fetch odds for each sport
-            for (const sport of sports) {
-                const { live_games, upcoming_games, completed_games } = yield storeController_1.default.getOdds(sport);
-                completed_games.forEach((game) => __awaiter(this, void 0, void 0, function* () {
-                    const bet = this.priorityQueue
-                        .getItems()
-                        .find((b) => b.item.event_id === game.id);
-                    if (bet) {
-                        yield this.processCompletedBet(bet.item._id.toString(), game);
-                    }
-                }));
-            }
-        });
-    }
-    processCompletedBet(betDetailId, gameData) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const session = yield mongoose_1.default.startSession();
-            session.startTransaction();
+                    worker.on("message", () => {
+                        resolve(); // Resolve when the worker completes its task
+                    });
+                    worker.on("error", (error) => {
+                        reject(error); // Reject if the worker encounters an error
+                    });
+                    worker.on("exit", (code) => {
+                        if (code !== 0) {
+                            reject(new Error(`Worker stopped with exit code ${code}`));
+                        }
+                    });
+                });
+            });
+            // Wait for all workers to complete
             try {
-                const betDetail = yield betModel_1.BetDetail.findById(betDetailId).session(session);
-                if (!betDetail) {
-                    console.log("Bet not found.");
-                    yield session.abortTransaction();
-                    session.endSession();
-                    return;
-                }
-                const bet = yield betModel_1.default.findById(betDetail.key).session(session);
-                if (!bet) {
-                    console.log("Parent bet not found.");
-                    yield session.abortTransaction();
-                    session.endSession();
-                    return;
-                }
-                const winner = this.determineWinner(betDetail.home_team.name, betDetail.away_team.name, gameData.scores);
-                let won = false;
-                if (winner === betDetail.bet_on) {
-                    betDetail.status = "won";
-                    won = true;
-                    console.log(`BetDetail ${betDetailId} won!`);
-                }
-                else {
-                    betDetail.status = "lost";
-                    console.log(`BetDetail ${betDetailId} lost.`);
-                }
-                yield betDetail.save({ session });
-                // check if all BetDetails are processed
-                const allBetDetails = yield betModel_1.BetDetail.find({ key: bet._id }).session(session);
-                const allProcessed = allBetDetails.every((detail) => detail.status !== "pending");
-                if (allProcessed) {
-                    // Determine the overall outcome of the Bet based on the BetDetails
-                    const betWon = allBetDetails.every((detail) => detail.status === "won");
-                    bet.status = betWon ? "won" : "lost";
-                    yield bet.save({ session });
-                    if (betWon) {
-                        // The whole bet has won, award the possible winning amount
-                        console.log(`Bet ${bet._id} won! Awarding amount: ${bet.possibleWinningAmount}`);
-                    }
-                    else {
-                        console.log(`Bet ${bet._id} lost.`);
-                    }
-                }
-                yield session.commitTransaction();
+                yield Promise.all(workerPromises);
+                console.log("All workers completed processing.");
             }
             catch (error) {
-                console.error("Error processing completed bet:", error.message);
-                yield session.abortTransaction();
-            }
-            finally {
-                session.endSession();
+                console.error("Error during worker processing:", error);
             }
         });
     }
-    determineWinner(homeTeam, awayTeam, scores) {
-        var _a, _b;
-        const homeScore = parseInt(((_a = scores.find((s) => s.name === homeTeam)) === null || _a === void 0 ? void 0 : _a.score) || "0");
-        const awayScore = parseInt(((_b = scores.find((s) => s.name === awayTeam)) === null || _b === void 0 ? void 0 : _b.score) || "0");
-        if (homeScore > awayScore) {
-            return "home_team";
-        }
-        else if (awayScore > homeScore) {
-            return "away_team";
-        }
-        else {
-            return null; // Tie or error
-        }
+}
+// Helper function to chunk arrays
+function chunkArray(array, chunkSize) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+        chunks.push(array.slice(i, i + chunkSize));
     }
+    return chunks;
 }
 exports.default = new BetServices();
