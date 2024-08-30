@@ -9,8 +9,9 @@ const _config = {
   adminApiKey: process.env.ADMIN_API_KEY,
   oddsApi: {
     url: process.env.ODDS_API_URL,
-    key: process.env.ODDS_API_KEY
-  }
+    key: process.env.ODDS_API_KEY,
+  },
+  betCommission: process.env.BET_COMMISSION,
 };
 
 export const config = Object.freeze(_config);

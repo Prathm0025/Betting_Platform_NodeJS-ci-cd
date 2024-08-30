@@ -457,38 +457,47 @@ class TransactionController {
     try {
       const { player } = req.params;
       const { type } = req.query;
-
-      let players:any;
-      if (type==="id") {
-        players = await Player.findById(player);
-        if (!player) throw createHttpError(404, "Player Not Found");
-      } else if (type==="username") {
-        players = await Player.findOne({ username:player });
-        if (!player) throw createHttpError(404, "Player Not Found with the provided username");
+  
+      let playerData: any;
+  
+      if (type === 'id') {
+        playerData = await Player.findById(player);
+        if (!playerData) throw createHttpError(404, 'Player Not Found');
+      } else if (type === 'username') {
+        playerData = await Player.findOne({ username: player });
+        if (!playerData) throw createHttpError(404, 'Player Not Found with the provided username');
       } else {
-        throw createHttpError(400, "Player Id or Username not provided");
+        throw createHttpError(400, 'Invalid type provided. Use "id" or "username".');
       }
-
-      const playerTransactions = await Transaction.find({ receiver: players._id })
+  
+      const playerTransactions = await Transaction.find({ receiver: playerData._id })
         .select('+senderModel +receiverModel')
         .populate({
           path: 'sender',
-          select: '-password',
+          select: 'username',
         })
         .populate({
           path: 'receiver',
-          select: '-password',
+          select: 'username',
         });
-
-
-      res.status(200).json( playerTransactions );
-
+  
+      // Map transactions to the desired format
+      const formattedTransactions = playerTransactions.map((transaction:any) => ({
+        _id: transaction._id,
+        type: transaction.type,
+        amount: transaction.amount,
+        date: transaction.date, 
+        sender: transaction.sender.username,
+        receiver: transaction.receiver.username,
+      }));
+  
+      res.status(200).json(formattedTransactions);
+  
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-
 }
 
 export default new TransactionController();
