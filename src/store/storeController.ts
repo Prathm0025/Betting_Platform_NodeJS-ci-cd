@@ -5,7 +5,7 @@ import StoreService from "./storeServices";
 import { activeRooms } from "../socket/socket";
 import { Server } from "socket.io";
 import { io } from "../server";
-
+import { Worker } from "worker_threads";
 class Store {
   private sportsCache: LRUCache<string, any>;
   private scoresCache: LRUCache<string, any>;
@@ -148,34 +148,32 @@ class Store {
           selected: bookmaker.key,
         };
       });
-      
 
 
-// Get the current time for filtering live games
-const startOfToday = new Date(now.setHours(0, 0, 0, 0)).toISOString();
-const endOfToday = new Date(now.setHours(23, 59, 59, 999)).toISOString();// Separate live games, today's upcoming games, and future upcoming games
-const liveGames = processedData.filter(
-  (game: any) => game.commence_time <= now.toISOString() && !game.completed
-);
-const todaysUpcomingGames = processedData.filter(
-  (game: any) =>
-    game.commence_time > now.toISOString() &&
-    game.commence_time >= startOfToday &&
-    game.commence_time <= endOfToday &&
-    !game.completed
-);
-const futureUpcomingGames = processedData.filter(
-  (game: any) => game.commence_time > endOfToday && !game.completed
-);
-const completedGames = processedData.filter((game: any) => game.completed);
-   
-      console.log(processedData, "dsdd");
-      
 
-     
+      // Get the current time for filtering live games
+      const startOfToday = new Date(now.setHours(0, 0, 0, 0)).toISOString();
+      const endOfToday = new Date(now.setHours(23, 59, 59, 999)).toISOString();// Separate live games, today's upcoming games, and future upcoming games
+      const liveGames = processedData.filter(
+        (game: any) => game.commence_time <= now.toISOString() && !game.completed
+      );
+      const todaysUpcomingGames = processedData.filter(
+        (game: any) =>
+          game.commence_time > now.toISOString() &&
+          game.commence_time >= startOfToday &&
+          game.commence_time <= endOfToday &&
+          !game.completed
+      );
+      const futureUpcomingGames = processedData.filter(
+        (game: any) => game.commence_time > endOfToday && !game.completed
+      );
+      const completedGames = processedData.filter((game: any) => game.completed);
+
+
+
+
       // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
-      console.log(futureUpcomingGames);
-      
+
       return {
         live_games: liveGames,
         todays_upcoming_games: todaysUpcomingGames,
@@ -218,9 +216,8 @@ const completedGames = processedData.filter((game: any) => game.completed);
       oddsFormat,
       dateFormat
     );
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
-      dateFormat || "iso"
-    }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
+      }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },
@@ -281,21 +278,23 @@ const completedGames = processedData.filter((game: any) => game.completed);
     }
   }
 
-  public async updateLiveData(livedata:any) {
+  public async updateLiveData(livedata: any) {
     console.log("i will update the live data");
-    const currentActive = Array.from(activeRooms)
+
+    const currentActive = this.removeInactiveRooms()
     console.log(currentActive, "cdcdc");
-    
+
     for (const sport of currentActive) {
-      console.log("sending req again");
-      const { live_games, upcoming_games } =livedata;
+
+      const { live_games, future_upcoming_games } = livedata;
       io.to(sport).emit("data", {
         type: "ODDS",
         data: {
           live_games,
-          upcoming_games,
+          future_upcoming_games,
         },
       });
+
       console.log(`Data broadcasted to room: ${sport}`);
     }
   }
@@ -312,7 +311,7 @@ const completedGames = processedData.filter((game: any) => game.completed);
       }
     });
     console.log(activeRooms, 'rooms active');
-    
+
     return activeRooms;
   }
 }

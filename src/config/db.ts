@@ -4,21 +4,32 @@ import Agenda, { Job } from "agenda";
 import path from "path";
 import { Worker } from "worker_threads";
 import betServices from "../bets/betServices";
-import {  activeRooms } from "../socket/socket";
+import { activeRooms } from "../socket/socket";
+import storeController from "../store/storeController";
 
 let agenda: Agenda;
 
 const workerFilePath = path.resolve(__dirname, "../bets/betWorkerScheduler.js");
-const startWorker = (queueData: any[], activeRooms:any) => {
-  console.log(activeRooms, 'fesaz');
-  
+const startWorker = (queueData: any[], activeRooms: any) => {
+
   const worker = new Worker(workerFilePath, {
-    workerData: { queueData , activeRooms},
+    workerData: { queueData, activeRooms },
   });
 
   worker.on("message", (message) => {
     console.log("Worker message:", message);
   });
+  worker.on("message", (message) => {
+    console.log("Worker message:", message);
+
+    if (message.type === 'updateLiveData') {
+      const { livedata, activeRooms } = message;
+
+      storeController.updateLiveData(livedata);
+
+    }
+  });
+
 
   worker.on("error", (error) => {
     console.error("Worker error:", error);
@@ -58,8 +69,6 @@ const connectDB = async () => {
     setInterval(async () => {
       const queueData = betServices.getPriorityQueueData();
       const active = activeRooms;
-      console.log(active, activeRooms, "hagga");
-      
       startWorker(queueData, active);
     }, 30000);
 
