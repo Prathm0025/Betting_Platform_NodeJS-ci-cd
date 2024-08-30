@@ -12,6 +12,7 @@ import Player from "../players/playerSocket";
 import Store from "../store/storeController";
 import { users } from "../socket/socket";
 import User from "../users/userModel";
+import { config } from "../config/config";
 
 class BetController {
   constructor() {
@@ -75,23 +76,36 @@ class BetController {
       if (player.credits < amount) {
         throw new Error("Insufficient credits");
       }
-
-    // Check if the player already has a pending bet on the same team
-
-     // Check if the player already has a pending bet on the same team
-     for (const betDetailData of betDetails) {
-      const existingBetDetail = await BetDetail.findOne({
-        event_id:betDetailData.event_id,
-        bet_on: betDetailData.bet_on,
-        status: "pending",
-      }).session(session);
-
-      if (existingBetDetail) {
-
-        throw new Error(`You already have a pending bet on ${betDetailData.bet_on}.`);
-      
+      if (amount === 0) {
+        throw new Error("Betting amount can't be zero");
       }
-    }
+
+      // Check if the player already has a pending bet on the same team
+      for (const betDetailData of betDetails) {
+        const existingBetDetail = await BetDetail.findOne({
+          event_id: betDetailData.event_id,
+          bet_on: betDetailData.bet_on,
+          status: "pending",
+        }).session(session);
+
+        if (existingBetDetail) {
+          const bet = await Bet.findById(existingBetDetail.key).session(
+            session
+          );
+          if (!bet) {
+            throw new Error("Something went wrong");
+          }
+
+          const betPlayer = await PlayerModel.findById(bet.player).session(
+            session
+          );
+
+          if (betPlayer._id === player._id)
+            throw new Error(
+              `You already have a pending bet on ${betDetailData.bet_on}.`
+            );
+        }
+      }
       // Deduct the bet amount from the player's credits
       player.credits -= amount;
       await player.save({ session });
@@ -142,6 +156,21 @@ class BetController {
         betType,
       });
       await bet.save({ session });
+
+      const playerBets = await Bet.find({
+        player: player._id,
+      })
+        .session(session)
+        .populate("player", "username _id")
+        .populate({
+          path: "data",
+          populate: {
+            path: "key",
+            select: "event_id sport_title commence_time status",
+          },
+        });
+
+      playerSocket.sendData({ type: "MYBETS", bets: playerBets });
 
       // Commit the transaction
       await session.commitTransaction();
@@ -362,13 +391,13 @@ class BetController {
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
     console.log("mai reddem krne aaya tha");
-    
+
     try {
       const _req = req as AuthRequest;
       const { userId } = _req.user;
       const { betId } = req.params;
       console.log(betId, "ye bheja");
-      
+
       const player = await PlayerModel.findById({ _id: userId });
 
       if (!player) {
@@ -441,9 +470,11 @@ class BetController {
       console.log("OLD", totalOldOdds, "NEW", totalNewOdds);
 
       const amount = (totalNewOdds / totalOldOdds) * betAmount;
-      console.log("amount", amount);
+      const finalPayout =
+        amount - (parseInt(config.betCommission) / 100) * amount;
 
-      player.credits += amount;
+      player.credits += finalPayout;
+
       await player.save();
 
       bet.status = "redeem";
@@ -457,7 +488,7 @@ class BetController {
       res.status(200).json({ message: "Bet Redeemed Successfully" });
     } catch (error) {
       console.log(error, "HAGGA");
-      
+
       next(error);
     }
   }
