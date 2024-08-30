@@ -43,6 +43,7 @@ const playerModel_1 = __importDefault(require("../players/playerModel"));
 const storeController_1 = __importDefault(require("../store/storeController"));
 const socket_1 = require("../socket/socket");
 const userModel_1 = __importDefault(require("../users/userModel"));
+const config_1 = require("../config/config");
 class BetController {
     constructor() {
         if (!db_1.agenda) {
@@ -83,7 +84,9 @@ class BetController {
                 if (player.credits < amount) {
                     throw new Error("Insufficient credits");
                 }
-                // Check if the player already has a pending bet on the same team
+                if (amount === 0) {
+                    throw new Error("Betting amount can't be zero");
+                }
                 // Check if the player already has a pending bet on the same team
                 for (const betDetailData of betDetails) {
                     const existingBetDetail = yield betModel_1.BetDetail.findOne({
@@ -92,7 +95,13 @@ class BetController {
                         status: "pending",
                     }).session(session);
                     if (existingBetDetail) {
-                        throw new Error(`You already have a pending bet on ${betDetailData.bet_on}.`);
+                        const bet = yield betModel_1.default.findById(existingBetDetail.key).session(session);
+                        if (!bet) {
+                            throw new Error("Something went wrong");
+                        }
+                        const betPlayer = yield playerModel_1.default.findById(bet.player).session(session);
+                        if (betPlayer._id === player._id)
+                            throw new Error(`You already have a pending bet on ${betDetailData.bet_on}.`);
                     }
                 }
                 // Deduct the bet amount from the player's credits
@@ -131,6 +140,19 @@ class BetController {
                     betType,
                 });
                 yield bet.save({ session });
+                const playerBets = yield betModel_1.default.find({
+                    player: player._id,
+                })
+                    .session(session)
+                    .populate("player", "username _id")
+                    .populate({
+                    path: "data",
+                    populate: {
+                        path: "key",
+                        select: "event_id sport_title commence_time status",
+                    },
+                });
+                playerSocket.sendData({ type: "MYBETS", bets: playerBets });
                 // Commit the transaction
                 yield session.commitTransaction();
                 session.endSession();
@@ -332,7 +354,6 @@ class BetController {
     //REDEEM PLAYER BET
     redeemPlayerBet(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("mai reddem krne aaya tha");
             try {
                 const _req = req;
                 const { userId } = _req.user;
@@ -377,8 +398,8 @@ class BetController {
                 }
                 console.log("OLD", totalOldOdds, "NEW", totalNewOdds);
                 const amount = (totalNewOdds / totalOldOdds) * betAmount;
-                console.log("amount", amount);
-                player.credits += amount;
+                const finalPayout = amount - (parseInt(config_1.config.betCommission) / 100) * amount;
+                player.credits += finalPayout;
                 yield player.save();
                 bet.status = "redeem";
                 yield bet.save();
@@ -389,7 +410,6 @@ class BetController {
                 res.status(200).json({ message: "Bet Redeemed Successfully" });
             }
             catch (error) {
-                console.log(error, "HAGGA");
                 next(error);
             }
         });

@@ -428,31 +428,40 @@ class TransactionController {
             try {
                 const { player } = req.params;
                 const { type } = req.query;
-                let players;
-                if (type === "id") {
-                    players = yield playerModel_1.default.findById(player);
-                    if (!player)
-                        throw (0, http_errors_1.default)(404, "Player Not Found");
+                let playerData;
+                if (type === 'id') {
+                    playerData = yield playerModel_1.default.findById(player);
+                    if (!playerData)
+                        throw (0, http_errors_1.default)(404, 'Player Not Found');
                 }
-                else if (type === "username") {
-                    players = yield playerModel_1.default.findOne({ username: player });
-                    if (!player)
-                        throw (0, http_errors_1.default)(404, "Player Not Found with the provided username");
+                else if (type === 'username') {
+                    playerData = yield playerModel_1.default.findOne({ username: player });
+                    if (!playerData)
+                        throw (0, http_errors_1.default)(404, 'Player Not Found with the provided username');
                 }
                 else {
-                    throw (0, http_errors_1.default)(400, "Player Id or Username not provided");
+                    throw (0, http_errors_1.default)(400, 'Invalid type provided. Use "id" or "username".');
                 }
-                const playerTransactions = yield transactionModel_1.default.find({ receiver: players._id })
+                const playerTransactions = yield transactionModel_1.default.find({ receiver: playerData._id })
                     .select('+senderModel +receiverModel')
                     .populate({
                     path: 'sender',
-                    select: '-password',
+                    select: 'username',
                 })
                     .populate({
                     path: 'receiver',
-                    select: '-password',
+                    select: 'username',
                 });
-                res.status(200).json(playerTransactions);
+                // Map transactions to the desired format
+                const formattedTransactions = playerTransactions.map((transaction) => ({
+                    _id: transaction._id,
+                    type: transaction.type,
+                    amount: transaction.amount,
+                    date: transaction.date,
+                    sender: transaction.sender.username,
+                    receiver: transaction.receiver.username,
+                }));
+                res.status(200).json(formattedTransactions);
             }
             catch (error) {
                 console.log(error);
