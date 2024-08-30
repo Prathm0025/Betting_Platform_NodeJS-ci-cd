@@ -1,4 +1,3 @@
-// betServices.ts
 import { PriorityQueue } from "../utils/PriorityQueue";
 import Bet, { BetDetail } from "./betModel";
 import { IBet, IBetDetail } from "./betsType";

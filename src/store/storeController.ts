@@ -150,20 +150,27 @@ class Store {
       });
 
 
-
+    console.log(processedData, "pd");
+    
       // Get the current time for filtering live games
-      const startOfToday = new Date(now.setHours(0, 0, 0, 0)).toISOString();
-      const endOfToday = new Date(now.setHours(23, 59, 59, 999)).toISOString();// Separate live games, today's upcoming games, and future upcoming games
-      const liveGames = processedData.filter(
-        (game: any) => game.commence_time <= now.toISOString() && !game.completed
-      );
+      const startOfToday = new Date(now.setHours(0, 0, 0, 0)).toLocaleString();
+      const endOfToday = new Date(now.setHours(23, 59, 59, 999)).toLocaleString();// Separate live games, today's upcoming games, and future upcoming games
+      const liveGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time).toLocaleString();
+        return (commenceTime <= new Date(now).toLocaleString()) && !game.completed;
+      });
+
+      console.log(liveGames, "live");
+
       const todaysUpcomingGames = processedData.filter(
         (game: any) =>
-          game.commence_time > now.toISOString() &&
-          game.commence_time >= startOfToday &&
-          game.commence_time <= endOfToday &&
+          new Date(game.commence_time).toLocaleString()  > new Date(now).toLocaleString() &&
+          new Date(game.commence_time).toLocaleString()  >= startOfToday &&
+          new Date(game.commence_time).toLocaleString()  <= endOfToday &&
           !game.completed
       );
+      console.log(todaysUpcomingGames, "upcoming");
+      
       const futureUpcomingGames = processedData.filter(
         (game: any) => game.commence_time > endOfToday && !game.completed
       );

@@ -69,6 +69,8 @@ const connectDB = async () => {
     setInterval(async () => {
       const queueData = betServices.getPriorityQueueData();
       const active = activeRooms;
+      console.log(active, "fix this");
+      
       startWorker(queueData, active);
     }, 30000);
 
