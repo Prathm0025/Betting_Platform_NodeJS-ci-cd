@@ -72,7 +72,7 @@ const connectDB = async () => {
       console.log(active, "fix this");
       
       startWorker(queueData, active);
-    }, 30000);
+    }, 120000);
 
   } catch (err) {
     console.error("Failed to connect to database.", err);

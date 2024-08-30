@@ -155,7 +155,7 @@ class Store {
       });
 
 
-    console.log(processedData, "pd");
+    // console.log(processedData, "pd");
     
       // Get the current time for filtering live games
      // Filter live games
@@ -164,7 +164,7 @@ class Store {
       return commenceTime <= now && !game.completed;
     });
 
-    console.log(liveGames, "liveGames");
+    // console.log(liveGames, "liveGames");
 
     // Filter today's upcoming games
     const todaysUpcomingGames = processedData.filter((game: any) => {
@@ -177,7 +177,7 @@ class Store {
       );
     });
 
-    console.log(todaysUpcomingGames, "todaysUpcomingGames");
+    // console.log(todaysUpcomingGames, "todaysUpcomingGames");
 
     // Filter future upcoming games
     const futureUpcomingGames = processedData.filter((game: any) => {
@@ -185,7 +185,7 @@ class Store {
       return commenceTime > endOfToday && !game.completed;
     });
 
-    console.log(futureUpcomingGames, "futureUpcomingGames");
+    // console.log(futureUpcomingGames, "futureUpcomingGames");
 
       const completedGames = processedData.filter((game: any) => game.completed);
 
