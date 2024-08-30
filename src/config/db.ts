@@ -71,7 +71,7 @@ const connectDB = async () => {
       const active = activeRooms;
       console.log(active, "fix this");
       
-      startWorker(queueData, active);
+      // startWorker(queueData, active);
     }, 30000);
 
   } catch (err) {
