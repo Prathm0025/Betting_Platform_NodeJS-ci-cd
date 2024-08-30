@@ -21,8 +21,12 @@ async function processBets(sportKeys, bets) {
       }
 
       const { completed_games, live_games, upcoming_games } = oddsData;
-      Store.updateLiveData(oddsData);
-      // console.log("Completed games:", completed_games);
+      
+      parentPort.postMessage({
+        type: 'updateLiveData',
+        livedata: oddsData,
+        activeRooms: sportKeys
+      });     
 
       // console.log("Live games:", live_games);
    
