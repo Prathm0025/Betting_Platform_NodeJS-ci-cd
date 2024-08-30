@@ -182,7 +182,10 @@ export default class Player {
       "bet",
       async (
         message: { action: string; payload: any },
-        callback: (response: { status: string; message: string }) => void
+        callback: (response: {
+          status: string;
+          message: string;
+        }) => void
       ) => {
         try {
           const { action, payload } = message;
@@ -203,15 +206,10 @@ export default class Player {
                         bet.amount,
                         payload.betType
                       );
-                      console.log("BET RECEIVED AND PROCESSED: ", bet);
-
-                      if (betRes) {
-                        // Send success acknowledgment to the client after all bets are processed
-                        callback({
-                          status: "success",
-                          message: "Bet placed successfully.",
-                        });
-                      }
+                      callback({
+                        status: "success",
+                        message: "Bet placed successfully.",
+                      });
                     } catch (error) {
                       console.error("Error adding bet: ", error);
                       // Send failure acknowledgment to the client for this particular bet
@@ -267,13 +265,12 @@ export default class Player {
   }
 
   public joinRoom(room: string) {
-
     if (this.currentRoom) {
       this.socket.leave(this.currentRoom);
     }
     activeRooms.add(room);
     console.log(activeRooms, "active");
-    
+
     this.socket.join(room);
     this.currentRoom = room;
   }
