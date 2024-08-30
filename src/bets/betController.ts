@@ -487,8 +487,6 @@ class BetController {
 
       res.status(200).json({ message: "Bet Redeemed Successfully" });
     } catch (error) {
-      console.log(error, "HAGGA");
-
       next(error);
     }
   }

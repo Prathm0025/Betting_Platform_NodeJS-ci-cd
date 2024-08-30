@@ -1,8 +1,7 @@
-// betServices.ts
 import { PriorityQueue } from "../utils/PriorityQueue";
 import Bet, { BetDetail } from "./betModel";
 import { IBet, IBetDetail } from "./betsType";
-import { Worker } from "worker_threads";
+import { parentPort, Worker } from "worker_threads";
 import path from "path";
 import { activeRooms } from "../socket/socket";
 import { agenda } from "../config/db";
@@ -22,7 +21,7 @@ class BetServices {
 
   public getPriorityQueueData(): IBetDetail[] {
     console.log(this.priorityQueue.size(), "size");
-    
+
     return this.priorityQueue.getItems().map((item) => item.item);
   }
 
@@ -62,7 +61,7 @@ class BetServices {
   }
 
   // Fetch odds for all bets in the queue
-  public async processOddsForQueueBets(queueData: any, activeRooms:any) {
+  public async processOddsForQueueBets(queueData: any, activeRooms: any) {
     // if (this.priorityQueue.isEmpty()) {
     //   console.log("No bets in the priority queue.");
     //   return;
@@ -70,47 +69,51 @@ class BetServices {
     // console.log("Bets in the queue:", this.priorityQueue.getItems());
     // Process the bets
     // console.log(queueData, "queue");
-    console.log("mai yaha hu yaha hu yaha");
-    
+
     const sports = new Set<string>();
-    console.log(activeRooms, "cgdfgdf");
-console.log(queueData.length, "jdj");
-       
-   
-  
     // const bets = this.priorityQueue.getItems().map((item) => item.item);
     queueData.forEach((bet) => sports.add(bet._doc.sport_key));
-    
+
     // console.log(sports, "SPORTS");
-    
+
     const sportKeysArray = Array.from(sports);
-   sportKeysArray.push(...Array.from(activeRooms as string));
+    sportKeysArray.push(...Array.from(activeRooms as string));
 
     // Define chunk size
     const chunkSize = Math.ceil(queueData.length / sportKeysArray.length);
     const betChunks = chunkArray(queueData, chunkSize);
-   
+
     // Chunk the bets
     const workerFilePath = path.resolve(
       __dirname,
       "../bets/betWorker.js"
     );
-    
+
     // Create a promise to track the workers
     const workerPromises = sportKeysArray.map((chunk) => {
       return new Promise<void>((resolve, reject) => {
-        console.log("promise");
-        
         const worker = new Worker(workerFilePath, {
           workerData: { sportKeys: sportKeysArray, bets: chunk },
         });
 
         worker.on("message", () => {
-          resolve(); // Resolve when the worker completes its task
+          resolve();
         });
+        worker.on("message", (message) => {
 
+          if (message.type === 'updateLiveData') {
+
+            parentPort.postMessage({
+              type: 'updateLiveData',
+              livedata: message.livedata,
+              activeRooms: message.activeRooms
+            });
+
+
+          }
+        })
         worker.on("error", (error) => {
-          reject(error); // Reject if the worker encounters an error
+          reject(error);
         });
 
         worker.on("exit", (code) => {
@@ -121,7 +124,6 @@ console.log(queueData.length, "jdj");
       });
     });
 
-    // Wait for all workers to complete
     try {
       await Promise.all(workerPromises);
       console.log("All workers completed processing.");
