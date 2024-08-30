@@ -340,6 +340,8 @@ class BetController {
 
       const playerBets = await Bet.find({
         player: playerDoc._id,
+        ...(status === "combo" || status === "all" ? {} : { status }),
+        ...(status === "combo" && { betType: "combo" }),
       })
         .populate("player", "username _id")
         .populate({
@@ -349,7 +351,6 @@ class BetController {
             select: "event_id sport_title commence_time status",
           },
         });
-
 
       res.status(200).json(playerBets);
     } catch (error) {
