@@ -390,8 +390,6 @@ class BetController {
 
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
-    console.log("mai reddem krne aaya tha");
-
     try {
       const _req = req as AuthRequest;
       const { userId } = _req.user;

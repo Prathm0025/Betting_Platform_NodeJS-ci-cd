@@ -1,6 +1,6 @@
 import express from "express";
 import betController from "./betController";
-import { checkUser, verifyRole } from "../utils/middleware";
+import { checkBetCommision, checkUser, verifyRole } from "../utils/middleware";
 
 const betRoutes = express.Router();
 
@@ -11,6 +11,6 @@ betRoutes.get("/:agentId", betController.getAgentBets);
 // betRoutes.get("/all/:adminId",verifyRole(["admin"]), betController.getAdminAgentBets)
 
 betRoutes.get("/:player/bets", betController.getBetForPlayer);
-betRoutes.put("/:betId", betController.redeemPlayerBet);
+betRoutes.put("/:betId", checkBetCommision, betController.redeemPlayerBet);
 
 export default betRoutes;

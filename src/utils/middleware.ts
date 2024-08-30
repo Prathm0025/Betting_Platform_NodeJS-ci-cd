@@ -9,7 +9,7 @@ import User from "../users/userModel";
 const API_KEY = config.adminApiKey;
 
 export function checkUser(req: Request, res: Response, next: NextFunction) {
-  
+
   const cookie = req.headers.cookie
     ?.split("; ")
     .find((row) => row.startsWith("userToken="))
@@ -43,7 +43,7 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
             role: decoded!.role,
           };
           console.log(_req.user);
-          
+
           next();
         }
       }
@@ -78,14 +78,14 @@ export const loginRateLimiter = rateLimit({
 });
 
 export function verifyRole(requiredRoles: string[]) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const _req = req as AuthRequest;
-    
-    const {userId, role:userRole} = _req.user;
+
+    const { userId, role: userRole } = _req.user;
     //checking only in User collection 
     //no need to veify role for players
     const userExists = await User.exists({ _id: userId });
-    if(!userExists){
+    if (!userExists) {
       return next(createHttpError(403, "Forbidden: Not A User"));
     }
     if (!userRole || !requiredRoles.includes(userRole)) {
@@ -93,4 +93,15 @@ export function verifyRole(requiredRoles: string[]) {
     }
     next();
   };
+}
+
+
+export function checkBetCommision(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (config.betCommission) {
+      next()
+    }
+  } catch (error) {
+    next(createHttpError(401, "Internal Server Error"));
+  }
 }
