@@ -89,6 +89,10 @@ class Store {
                 const scoresResponse = yield this.getScores(sport, "1", "iso");
                 // Get the current time for filtering live games
                 const now = new Date();
+                const startOfToday = new Date(now);
+                startOfToday.setHours(0, 0, 0, 0);
+                const endOfToday = new Date(now);
+                endOfToday.setHours(23, 59, 59, 999);
                 // Process the data
                 const processedData = oddsResponse.map((game) => {
                     // Select one bookmaker (e.g., the first one)
@@ -108,19 +112,31 @@ class Store {
                         selected: bookmaker.key,
                     };
                 });
+                // console.log(processedData, "pd");
                 // Get the current time for filtering live games
-                const startOfToday = new Date(now.setHours(0, 0, 0, 0)).toISOString();
-                const endOfToday = new Date(now.setHours(23, 59, 59, 999)).toISOString(); // Separate live games, today's upcoming games, and future upcoming games
-                const liveGames = processedData.filter((game) => game.commence_time <= now.toISOString() && !game.completed);
-                const todaysUpcomingGames = processedData.filter((game) => game.commence_time > now.toISOString() &&
-                    game.commence_time >= startOfToday &&
-                    game.commence_time <= endOfToday &&
-                    !game.completed);
-                const futureUpcomingGames = processedData.filter((game) => game.commence_time > endOfToday && !game.completed);
+                // Filter live games
+                const liveGames = processedData.filter((game) => {
+                    const commenceTime = new Date(game.commence_time);
+                    return commenceTime <= now && !game.completed;
+                });
+                // console.log(liveGames, "liveGames");
+                // Filter today's upcoming games
+                const todaysUpcomingGames = processedData.filter((game) => {
+                    const commenceTime = new Date(game.commence_time);
+                    return (commenceTime > now &&
+                        commenceTime >= startOfToday &&
+                        commenceTime <= endOfToday &&
+                        !game.completed);
+                });
+                // console.log(todaysUpcomingGames, "todaysUpcomingGames");
+                // Filter future upcoming games
+                const futureUpcomingGames = processedData.filter((game) => {
+                    const commenceTime = new Date(game.commence_time);
+                    return commenceTime > endOfToday && !game.completed;
+                });
+                // console.log(futureUpcomingGames, "futureUpcomingGames");
                 const completedGames = processedData.filter((game) => game.completed);
-                console.log(processedData, "dsdd");
                 // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
-                console.log(futureUpcomingGames);
                 return {
                     live_games: liveGames,
                     todays_upcoming_games: todaysUpcomingGames,
@@ -185,16 +201,15 @@ class Store {
     updateLiveData(livedata) {
         return __awaiter(this, void 0, void 0, function* () {
             console.log("i will update the live data");
-            const currentActive = Array.from(socket_1.activeRooms);
+            const currentActive = this.removeInactiveRooms();
             console.log(currentActive, "cdcdc");
             for (const sport of currentActive) {
-                console.log("sending req again");
-                const { live_games, upcoming_games } = livedata;
+                const { live_games, future_upcoming_games } = livedata;
                 server_1.io.to(sport).emit("data", {
                     type: "ODDS",
                     data: {
                         live_games,
-                        upcoming_games,
+                        future_upcoming_games,
                     },
                 });
                 console.log(`Data broadcasted to room: ${sport}`);

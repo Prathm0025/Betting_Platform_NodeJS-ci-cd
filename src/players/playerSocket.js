@@ -158,14 +158,10 @@ class Player {
                                 for (const bet of payload.data) {
                                     try {
                                         const betRes = yield betController_1.default.placeBet(this, [bet], bet.amount, payload.betType);
-                                        console.log("BET RECEIVED AND PROCESSED: ", bet);
-                                        if (betRes) {
-                                            // Send success acknowledgment to the client after all bets are processed
-                                            callback({
-                                                status: "success",
-                                                message: "Bet placed successfully.",
-                                            });
-                                        }
+                                        callback({
+                                            status: "success",
+                                            message: "Bet placed successfully.",
+                                        });
                                     }
                                     catch (error) {
                                         console.error("Error adding bet: ", error);

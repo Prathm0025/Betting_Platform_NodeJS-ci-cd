@@ -20,15 +20,22 @@ const path_1 = __importDefault(require("path"));
 const worker_threads_1 = require("worker_threads");
 const betServices_1 = __importDefault(require("../bets/betServices"));
 const socket_1 = require("../socket/socket");
+const storeController_1 = __importDefault(require("../store/storeController"));
 let agenda;
 const workerFilePath = path_1.default.resolve(__dirname, "../bets/betWorkerScheduler.js");
 const startWorker = (queueData, activeRooms) => {
-    console.log(activeRooms, 'fesaz');
     const worker = new worker_threads_1.Worker(workerFilePath, {
         workerData: { queueData, activeRooms },
     });
     worker.on("message", (message) => {
         console.log("Worker message:", message);
+    });
+    worker.on("message", (message) => {
+        console.log("Worker message:", message);
+        if (message.type === 'updateLiveData') {
+            const { livedata, activeRooms } = message;
+            storeController_1.default.updateLiveData(livedata);
+        }
     });
     worker.on("error", (error) => {
         console.error("Worker error:", error);
@@ -60,9 +67,9 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
         setInterval(() => __awaiter(void 0, void 0, void 0, function* () {
             const queueData = betServices_1.default.getPriorityQueueData();
             const active = socket_1.activeRooms;
-            console.log(active, socket_1.activeRooms, "hagga");
+            console.log(active, "fix this");
             startWorker(queueData, active);
-        }), 30000);
+        }), 120000);
     }
     catch (err) {
         console.error("Failed to connect to database.", err);

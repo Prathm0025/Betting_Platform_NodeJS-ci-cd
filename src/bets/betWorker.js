@@ -54,8 +54,11 @@ function processBets(sportKeys, bets) {
                     continue;
                 }
                 const { completed_games, live_games, upcoming_games } = oddsData;
-                storeController_1.default.updateLiveData(oddsData);
-                // console.log("Completed games:", completed_games);
+                worker_threads_1.parentPort.postMessage({
+                    type: 'updateLiveData',
+                    livedata: oddsData,
+                    activeRooms: sportKeys
+                });
                 // console.log("Live games:", live_games);
                 console.log("Upcoming games:", upcoming_games);
                 for (const game of completed_games) {

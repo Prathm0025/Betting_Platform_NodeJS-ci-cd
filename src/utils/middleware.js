@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.loginRateLimiter = exports.verifyApiKey = void 0;
 exports.checkUser = checkUser;
 exports.verifyRole = verifyRole;
+exports.checkBetCommision = checkBetCommision;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const http_errors_1 = __importDefault(require("http-errors"));
@@ -89,4 +90,14 @@ function verifyRole(requiredRoles) {
         }
         next();
     });
+}
+function checkBetCommision(req, res, next) {
+    try {
+        if (config_1.config.betCommission) {
+            next();
+        }
+    }
+    catch (error) {
+        next((0, http_errors_1.default)(401, "Internal Server Error"));
+    }
 }
