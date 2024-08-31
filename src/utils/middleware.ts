@@ -105,3 +105,24 @@ export function checkBetCommision(req: Request, res: Response, next: NextFunctio
     next(createHttpError(401, "Internal Server Error"));
   }
 }
+
+//Check Status Player is Active or inActive
+export function checkStatus(req: Request, res: Response, next: NextFunction) {
+  const cookie = req.headers.cookie
+      ?.split("; ")
+      .find((row) => row.startsWith("userToken="))
+          ?.split("=")[1];
+
+  if (!cookie) {
+      return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+      const decoded = jwt.verify(cookie, process.env.JWT_SECRET);
+      console.log(decoded);
+      next();
+  } catch (error) {
+      console.error('Invalid token:', error);
+      return res.status(403).json({ error: 'Forbidden' });
+  }
+}
