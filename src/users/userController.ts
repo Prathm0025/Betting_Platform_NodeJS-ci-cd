@@ -122,8 +122,11 @@ class UserController {
       await User.findById(userId).select("username role status credits") ||
       (await Player.findById({ _id: userId }).select("username role status credits"));
       if (!user) throw createHttpError(404, "User not found");
-      
-      res.status(200).json(user);
+      if (user?.status==='active') {
+        res.status(200).json(user);
+      } else {
+        res.status(400).json({status:false,credits:null,message:'you are blocked !'})
+      }
     } catch (err) {
       next(err);
     }
