@@ -12,20 +12,24 @@ export default class Player {
   private credits: number;
   public socket: Socket;
   public currentRoom: string;
+  private io: Server; // Add io instance here
 
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
     username: string,
-    credits: number
+    credits: number,
+    io: Server // Initialize io instance in constructor
   ) {
     this.socket = socket;
     this.userId = userId;
     this.username = username;
     this.credits = credits;
+    this.io = io; // Assign io instance
     this.initializeHandlers();
     this.betHandler();
   }
+
   public updateSocket(socket: Socket) {
     this.socket = socket;
     this.initializeHandlers();
@@ -146,7 +150,6 @@ export default class Player {
             );
             this.sendData({ type: "ODDS", data: oddsData });
             this.joinRoom(res.payload.sport);
-
             break;
 
           case "EVENT_ODDS":
@@ -254,7 +257,15 @@ export default class Player {
   public joinRoom(room: string) {
     if (this.currentRoom) {
       this.socket.leave(this.currentRoom);
+      const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
+      console.log(clients, "clients");
+      
+      if (!clients || clients.size === 0) {
+        activeRooms.delete(this.currentRoom);
+        console.log(`Room ${this.currentRoom} removed from activeRooms.`);
+      }
     }
+
     activeRooms.add(room);
     console.log(activeRooms, "active");
 

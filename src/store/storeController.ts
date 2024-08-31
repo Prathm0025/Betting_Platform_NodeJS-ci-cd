@@ -6,6 +6,7 @@ import { activeRooms } from "../socket/socket";
 import { Server } from "socket.io";
 import { io } from "../server";
 import { Worker } from "worker_threads";
+
 class Store {
   private sportsCache: LRUCache<string, any>;
   private scoresCache: LRUCache<string, any>;
@@ -107,7 +108,7 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-      console.log("CACHE KEY : ", cacheKey);
+      // console.log("CACHE KEY : ", cacheKey);
 
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
@@ -154,8 +155,6 @@ class Store {
         };
       });
 
-      // console.log(processedData, "pd");
-
       // Get the current time for filtering live games
       // Filter live games
       const liveGames = processedData.filter((game: any) => {
@@ -184,13 +183,12 @@ class Store {
         return commenceTime > endOfToday && !game.completed;
       });
 
-      // console.log(futureUpcomingGames, "futureUpcomingGames");
+      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
 
+   
       const completedGames = processedData.filter(
         (game: any) => game.completed
       );
-
-      // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
 
       return {
         live_games: liveGames,
@@ -298,30 +296,32 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    console.log("i will update the live data");
-
-    const currentActive = this.removeInactiveRooms();
-    console.log(currentActive, "cdcdc");
+    const currentActive = this.removeInactiveRooms()
 
     for (const sport of currentActive) {
-      const { live_games, todays_upcoming_games, future_upcoming_games } =
-        livedata;
-      io.to(sport).emit("data", {
-        type: "ODDS",
-        data: {
-          live_games,
-          todays_upcoming_games,
-          future_upcoming_games,
-        },
-      });
+      const liveGamesForSport = livedata.live_games.filter((game: any) => game.sport_key === sport);
+      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game: any) => game.sport_key === sport);
+      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game: any) => game.sport_key === sport);
 
-      console.log(`Data broadcasted to room: ${sport}`);
+      // Check if there's any data for the current sport before emitting
+      if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
+        io.to(sport).emit("data", {
+          type: "ODDS",
+          data: {
+            live_games: liveGamesForSport,
+            todays_upcoming_games: todaysUpcomingGamesForSport,
+            future_upcoming_games: futureUpcomingGamesForSport,
+          },
+        });
+        console.log(`Data broadcasted to room: ${sport}`);
+      } else {
+        console.log(`No relevant data available for sport: ${sport}`);
+      }
     }
   }
 
   public removeInactiveRooms() {
     const rooms = io.sockets.adapter.rooms;
-
     const currentRooms = new Set(rooms.keys());
 
     activeRooms.forEach((room) => {
@@ -331,7 +331,6 @@ class Store {
       }
     });
     console.log(activeRooms, "rooms active");
-
     return activeRooms;
   }
 }

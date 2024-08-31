@@ -61,6 +61,8 @@ class BetServices {
 
   // Fetch odds for all bets in the queue
   public async processOddsForQueueBets(queueData: any, activeRooms: any) {
+    console.log(activeRooms,  "active rooms");
+    
     const MAX_WORKER_COUNT = 8; // Limit the number of workers to 8
     const sports = new Set<string>();
   
@@ -77,12 +79,15 @@ class BetServices {
   
     const workerFilePath = path.resolve(__dirname, "../bets/betWorker.js");
   
-    const workerPromises = sportKeysChunks.map((chunk) => {
+    const workerPromises = sportKeysChunks?.map((chunk) => {
       return new Promise<void>((resolve, reject) => {
+        console.log("promise");
+        
         const betsForChunk = queueData.filter(bet => chunk.includes(bet._doc.sport_key));
+  console.log(betsForChunk, "bet chunk");
   
         const worker = new Worker(workerFilePath, {
-          workerData: { sportKeys:chunk , bets: betsForChunk },
+          workerData: { sportKeys:Array.from(chunk) , bets: betsForChunk },
         });
   
         worker.on("message", (message) => {
@@ -98,6 +103,7 @@ class BetServices {
         });
   
         worker.on("error", (error) => {
+          
           reject(error);
         });
   
@@ -110,9 +116,10 @@ class BetServices {
     });
   
     try {
+      
       await Promise.all(workerPromises);
       console.log("All workers completed processing.");
-    } catch (error) {
+    } catch (error) {      
       console.error("Error during worker processing:", error);
     }
   }
