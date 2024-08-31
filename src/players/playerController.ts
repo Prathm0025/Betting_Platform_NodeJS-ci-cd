@@ -52,11 +52,11 @@ class PlayerController {
 
       role === "admin"
         ? creator.subordinates.push(
-            newUser._id as unknown as mongoose.Schema.Types.ObjectId
-          )
+          newUser._id as unknown as mongoose.Schema.Types.ObjectId
+        )
         : creator.players.push(
-            newUser._id as unknown as mongoose.Schema.Types.ObjectId
-          );
+          newUser._id as unknown as mongoose.Schema.Types.ObjectId
+        );
       await creator.save();
 
       res
@@ -173,16 +173,17 @@ class PlayerController {
       if (!updatedPlayer) {
         throw createHttpError(404, "Player not found");
       }
+
+      const playerSocket = users.get(updatedPlayer?.username);
+      if (playerSocket) {
+        playerSocket.sendMessage({ type: "STATUS", payload: updatedPlayer.status === "active" ? true : false, message: "" });
+      }
       res.status(200).json({
         message: "Player updated successfully",
         player: updatedPlayer,
       });
-      if (updatedPlayer?.status==='inactive') {
-        const playerSocket = users.get(updatedPlayer?.username);
-        if (playerSocket) {
-          playerSocket.sendData({ type: "CREDITS", credits:null});
-        }
-      }      
+
+
     } catch (error) {
       next(error);
     }

@@ -13,7 +13,7 @@ import Transaction from "../transactions/transactionModel";
 import Bet from "../bets/betModel";
 import { IUser } from "./userType";
 
-const captchaStore: Record<string, string> = {}; 
+const captchaStore: Record<string, string> = {};
 
 class UserController {
   static saltRounds: Number = 10;
@@ -30,11 +30,11 @@ class UserController {
     try {
       const captcha = svgCaptcha.create();
       console.log(captcha.text);
-      const captchaId = uuidv4(); 
+      const captchaId = uuidv4();
       captchaStore[captchaId] = captcha.text;
 
       const captchaToken = jwt.sign({ captchaId }, config.jwtSecret, {
-        expiresIn: "5m", 
+        expiresIn: "5m",
       });
 
       res.status(200).json({ captcha: captcha.data, token: captchaToken });
@@ -50,12 +50,12 @@ class UserController {
       const { username, password, captchaToken, captcha } = req.body;
       const sanitizedUsername = sanitizeInput(username);
       console.log(sanitizedUsername, "username");
-      
+
       const sanitizedPassword = sanitizeInput(password);
       const sanitizedcaptachaToken = sanitizeInput(captchaToken);
       const sanitizedCaptcha = sanitizeInput(captcha);
-      
-      if (!sanitizedUsername || !sanitizedPassword|| !sanitizedcaptachaToken || !sanitizedCaptcha) {
+
+      if (!sanitizedUsername || !sanitizedPassword || !sanitizedcaptachaToken || !sanitizedCaptcha) {
         throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
       }
       const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
@@ -65,19 +65,19 @@ class UserController {
         throw createHttpError(400, "Invalid CAPTCHA");
       }
 
-      
+
       delete captchaStore[decoded.captchaId];
 
       const user =
-        (await User.findOne({ username:sanitizedUsername })) ||
-        (await Player.findOne({ username:sanitizedUsername }));
+        (await User.findOne({ username: sanitizedUsername })) ||
+        (await Player.findOne({ username: sanitizedUsername }));
 
       if (!user) {
         throw createHttpError(401, "User not found");
       }
 
-      const userStatus = user.status==="inactive"
-      if(userStatus){
+      const userStatus = user.status === "inactive"
+      if (userStatus) {
         throw createHttpError(403, "You are Blocked!")
       }
 
@@ -90,7 +90,7 @@ class UserController {
       await user.save();
 
       const token = jwt.sign(
-        { userId: user._id, username: user.username, role: user.role, credits:user.credits },
+        { userId: user._id, username: user.username, role: user.role, credits: user.credits },
         config.jwtSecret,
         { expiresIn: "24h" }
       );
@@ -117,29 +117,33 @@ class UserController {
     try {
       const _req = req as AuthRequest;
       const { userId } = _req.user;
+
       if (!userId) throw createHttpError(400, "Invalid Request, Missing User");
+
       const user =
-      await User.findById(userId).select("username role status credits") ||
-      (await Player.findById({ _id: userId }).select("username role status credits"));
+        await User.findById(userId).select("username role status credits") ||
+        (await Player.findById({ _id: userId }).select("username role status credits"));
+
       if (!user) throw createHttpError(404, "User not found");
-      if (user?.status==='active') {
-        res.status(200).json(user);
-      } else {
-        res.status(400).json({status:false,credits:null,message:'you are blocked !'})
+
+      if (user.status === "inactive") {
+        throw createHttpError(400, "You are blocked")
       }
+
+      res.status(200).json(user)
     } catch (err) {
       next(err);
     }
   }
 
   //GET SUMMARY(e.g. recent transactions and bets) FOR AGENT AND ADMIN DASHBOARD
-  
-  async getSummary(req: Request, res: Response, next:NextFunction): Promise<void> {
+
+  async getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
       const { period } = req.query;
       const user = await User.findById(id);
-      if(!user){
+      if (!user) {
         throw createHttpError(404, "User Not Found")
       }
       const today = new Date();
@@ -147,13 +151,13 @@ class UserController {
       const startOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
       const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(startOfDay.getDate() + 1);
+      endOfDay.setDate(startOfDay.getDate() + 1);
       const limitBets = parseInt(req.query.limitBets as string) || 4;
       const limitTransactions = parseInt(req.query.limitTransactions as string) || 10;
-  
+
       let periodStart: Date;
       let periodEnd: Date;
-      
+
       switch (period) {
         case 'week':
           periodStart = startOfWeek;
@@ -169,17 +173,17 @@ class UserController {
           periodEnd = endOfDay;
           break;
       }
-  
+
       const periodSummary = await this.getPeriodSummary(periodStart, periodEnd, limitBets, limitTransactions, user);
-  
+
       res.status(200).json(periodSummary);
     } catch (err) {
       console.error(err);
       next(err)
     }
   }
-  
-  
+
+
   private async getPeriodSummary(
     startPeriod: Date,
     endPeriod: Date,
@@ -200,32 +204,32 @@ class UserController {
       this.getSubordinateCounts(startPeriod, endPeriod, user),
       this.getTotalRecharged(startPeriod, endPeriod, user),
       this.getTotalRedeemed(startPeriod, endPeriod, user),
-      (user.role === 'agent'|| user.role === 'admin') ? this.getPlayerCounts(startPeriod, endPeriod, user) : undefined,
+      (user.role === 'agent' || user.role === 'admin') ? this.getPlayerCounts(startPeriod, endPeriod, user) : undefined,
     ]);
-  
+
     const result: any = {
       lastTransactions,
-      transactionTotals: transactionTotals[0]||{},
-      subordinateCounts: subordinateCounts[0]||{},
-      totalRecharged: totalRecharged[0]||{},
-      totalRedeemed: totalRedeemed[0]||{},
+      transactionTotals: transactionTotals[0] || {},
+      subordinateCounts: subordinateCounts[0] || {},
+      totalRecharged: totalRecharged[0] || {},
+      totalRedeemed: totalRedeemed[0] || {},
     };
-  
-    if (user.role === 'agent' || user.role==='admin') {
+
+    if (user.role === 'agent' || user.role === 'admin') {
       const lastBets = await this.getLastBets(limitBets, user);
       result.lastBets = lastBets;
       result.betTotals = await this.getBetTotals(startPeriod, endPeriod, user);
-      result.playerCounts = playerCounts[0]||0;
+      result.playerCounts = playerCounts[0] || 0;
     }
-  
+
     return result;
   }
-  
+
   private async getLastBets(limit: number, user) {
-    const query = user.role === 'admin' 
-      ? {} 
+    const query = user.role === 'admin'
+      ? {}
       : { player: { $in: user.players } };
-   
+
     return Bet.find(query)
       .sort({ date: -1 })
       .limit(limit)
@@ -239,20 +243,20 @@ class UserController {
       })
       .exec();
   }
-  
-  
+
+
   private async getLastTransactions(limit: number, user) {
     const query: any = {};
     let userId = user._id;
     if (user.role !== 'admin') {
       query.$or = [
-        {sender:userId},
-        {receiver:userId},
+        { sender: userId },
+        { receiver: userId },
         { sender: { $in: user.subordinates } },
         { receiver: { $in: user.subordinates } }
       ];
     }
-  
+
     return Transaction.find(query)
       .sort({ date: -1 })
       .limit(limit)
@@ -261,16 +265,16 @@ class UserController {
       .populate('receiver', 'username')
       .exec();
   }
-  
+
   private async getBetTotals(startPeriod: Date, endPeriod: Date, user) {
     const matchCriteria: any = {
       updatedAt: { $gte: startPeriod, $lt: endPeriod },
     };
-  
-    if (user.role === 'agent' ) {
+
+    if (user.role === 'agent') {
       matchCriteria.player = { $in: user.players };
     }
-  
+
     return Bet.aggregate([
       { $match: matchCriteria },
       {
@@ -282,23 +286,23 @@ class UserController {
       },
     ]).exec();
   }
-  
+
   private async getTransactionTotals(startPeriod: Date, endPeriod: Date, user) {
     const matchCriteria: any = {
       date: { $gte: startPeriod, $lte: endPeriod },
     };
-  console.log(startPeriod, endPeriod);
-  let userId = user._id;
+    console.log(startPeriod, endPeriod);
+    let userId = user._id;
     if (user.role !== 'admin') {
       matchCriteria.$or = [
         { sender: { $in: user.subordinates } },
         { receiver: { $in: user.subordinates } },
-        {sender:userId},
+        { sender: userId },
         { receiver: userId },
 
       ];
     }
-  
+
     return Transaction.aggregate([
       { $match: matchCriteria },
       {
@@ -310,17 +314,17 @@ class UserController {
       },
     ]).exec();
   }
-  
+
   private async getSubordinateCounts(startPeriod: Date, endPeriod: Date, user) {
     const matchCriteria: any = {
       createdAt: { $gte: startPeriod, $lt: endPeriod },
       role: { $in: ['distributor', 'subdistributor', 'agent'] },
     };
-  
+
     if (user.role !== 'admin') {
       matchCriteria.createdBy = user._id;
     }
-  
+
     return User.aggregate([
       { $match: matchCriteria },
       {
@@ -331,7 +335,7 @@ class UserController {
       },
     ]).exec();
   }
-  
+
   private async getTotalRecharged(startPeriod: Date, endPeriod: Date, user) {
     return Transaction.aggregate([
       { $match: { type: 'recharge', date: { $gte: startPeriod, $lt: endPeriod } } },
@@ -343,7 +347,7 @@ class UserController {
       },
     ]).exec();
   }
-  
+
   private async getTotalRedeemed(startPeriod: Date, endPeriod: Date, user) {
     return Transaction.aggregate([
       { $match: { type: 'redeem', date: { $gte: startPeriod, $lt: endPeriod } } },
@@ -355,16 +359,16 @@ class UserController {
       },
     ]).exec();
   }
-  
+
   private async getPlayerCounts(startPeriod: Date, endPeriod: Date, user) {
     const matchCriteria: any = {
       createdAt: { $gte: startPeriod, $lt: endPeriod },
     };
-  
+
     if (user.role === 'agent') {
       matchCriteria.createdBy = user._id;
     }
-  
+
     return Player.aggregate([
       { $match: matchCriteria },
       {
@@ -375,8 +379,8 @@ class UserController {
       },
     ]).exec();
   }
-  
-}  
+
+}
 
 
 export default new UserController();
