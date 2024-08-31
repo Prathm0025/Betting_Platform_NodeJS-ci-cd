@@ -79,7 +79,7 @@ class Store {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const cacheKey = `odds_${sport}_h2h_us`;
-                console.log("CACHE KEY : ", cacheKey);
+                // console.log("CACHE KEY : ", cacheKey);
                 // Fetch data from the API
                 const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds`, {
                     markets: "h2h", // Default to 'h2h' if not provided
@@ -112,7 +112,6 @@ class Store {
                         selected: bookmaker.key,
                     };
                 });
-                // console.log(processedData, "pd");
                 // Get the current time for filtering live games
                 // Filter live games
                 const liveGames = processedData.filter((game) => {
@@ -134,9 +133,8 @@ class Store {
                     const commenceTime = new Date(game.commence_time);
                     return commenceTime > endOfToday && !game.completed;
                 });
-                // console.log(futureUpcomingGames, "futureUpcomingGames");
+                // console.log(todaysUpcomingGames, "todaysUpcomingGames");
                 const completedGames = processedData.filter((game) => game.completed);
-                // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
                 return {
                     live_games: liveGames,
                     todays_upcoming_games: todaysUpcomingGames,
@@ -200,19 +198,26 @@ class Store {
     }
     updateLiveData(livedata) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("i will update the live data");
             const currentActive = this.removeInactiveRooms();
-            console.log(currentActive, "cdcdc");
             for (const sport of currentActive) {
-                const { live_games, future_upcoming_games } = livedata;
-                server_1.io.to(sport).emit("data", {
-                    type: "ODDS",
-                    data: {
-                        live_games,
-                        future_upcoming_games,
-                    },
-                });
-                console.log(`Data broadcasted to room: ${sport}`);
+                const liveGamesForSport = livedata.live_games.filter((game) => game.sport_key === sport);
+                const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game) => game.sport_key === sport);
+                const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game) => game.sport_key === sport);
+                // Check if there's any data for the current sport before emitting
+                if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
+                    server_1.io.to(sport).emit("data", {
+                        type: "ODDS",
+                        data: {
+                            live_games: liveGamesForSport,
+                            todays_upcoming_games: todaysUpcomingGamesForSport,
+                            future_upcoming_games: futureUpcomingGamesForSport,
+                        },
+                    });
+                    console.log(`Data broadcasted to room: ${sport}`);
+                }
+                else {
+                    console.log(`No relevant data available for sport: ${sport}`);
+                }
             }
         });
     }
@@ -225,7 +230,7 @@ class Store {
                 console.log(`Removed inactive room: ${room}`);
             }
         });
-        console.log(socket_1.activeRooms, 'rooms active');
+        console.log(socket_1.activeRooms, "rooms active");
         return socket_1.activeRooms;
     }
 }

@@ -17,11 +17,13 @@ const betController_1 = __importDefault(require("../bets/betController"));
 const storeController_1 = __importDefault(require("../store/storeController"));
 const socket_1 = require("../socket/socket");
 class Player {
-    constructor(socket, userId, username, credits) {
+    constructor(socket, userId, username, credits, io // Initialize io instance in constructor
+    ) {
         this.socket = socket;
         this.userId = userId;
         this.username = username;
         this.credits = credits;
+        this.io = io; // Assign io instance
         this.initializeHandlers();
         this.betHandler();
     }
@@ -158,10 +160,6 @@ class Player {
                                 for (const bet of payload.data) {
                                     try {
                                         const betRes = yield betController_1.default.placeBet(this, [bet], bet.amount, payload.betType);
-                                        callback({
-                                            status: "success",
-                                            message: "Bet placed successfully.",
-                                        });
                                     }
                                     catch (error) {
                                         console.error("Error adding bet: ", error);
@@ -178,12 +176,6 @@ class Player {
                                 // Handle single bet case (fallback if payload is not an array)
                                 const betRes = yield betController_1.default.placeBet(this, payload.data, payload.amount, payload.betType);
                                 console.log("BET RECEIVED AND PROCESSED: ", payload);
-                                if (betRes) {
-                                    callback({
-                                        status: "success",
-                                        message: "Bet placed successfully.",
-                                    });
-                                }
                             }
                         }
                         catch (error) {
@@ -214,6 +206,12 @@ class Player {
     joinRoom(room) {
         if (this.currentRoom) {
             this.socket.leave(this.currentRoom);
+            const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
+            console.log(clients, "clients");
+            if (!clients || clients.size === 0) {
+                socket_1.activeRooms.delete(this.currentRoom);
+                console.log(`Room ${this.currentRoom} removed from activeRooms.`);
+            }
         }
         socket_1.activeRooms.add(room);
         console.log(socket_1.activeRooms, "active");

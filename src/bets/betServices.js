@@ -64,6 +64,7 @@ class BetServices {
     // Fetch odds for all bets in the queue
     processOddsForQueueBets(queueData, activeRooms) {
         return __awaiter(this, void 0, void 0, function* () {
+            console.log(activeRooms, "active rooms");
             const MAX_WORKER_COUNT = 8; // Limit the number of workers to 8
             const sports = new Set();
             queueData.forEach((bet) => sports.add(bet._doc.sport_key));
@@ -74,11 +75,13 @@ class BetServices {
             const chunkSize = Math.ceil(sportKeysArray.length / workerCount);
             const sportKeysChunks = chunkArray(sportKeysArray, chunkSize);
             const workerFilePath = path_1.default.resolve(__dirname, "../bets/betWorker.js");
-            const workerPromises = sportKeysChunks.map((chunk) => {
+            const workerPromises = sportKeysChunks === null || sportKeysChunks === void 0 ? void 0 : sportKeysChunks.map((chunk) => {
                 return new Promise((resolve, reject) => {
+                    console.log("promise");
                     const betsForChunk = queueData.filter(bet => chunk.includes(bet._doc.sport_key));
+                    console.log(betsForChunk, "bet chunk");
                     const worker = new worker_threads_1.Worker(workerFilePath, {
-                        workerData: { sportKeys: chunk, bets: betsForChunk },
+                        workerData: { sportKeys: Array.from(chunk), bets: betsForChunk },
                     });
                     worker.on("message", (message) => {
                         if (message.type === 'updateLiveData') {
