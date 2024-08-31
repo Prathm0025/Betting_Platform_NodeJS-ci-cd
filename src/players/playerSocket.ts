@@ -182,10 +182,7 @@ export default class Player {
       "bet",
       async (
         message: { action: string; payload: any },
-        callback: (response: {
-          status: string;
-          message: string;
-        }) => void
+        callback: (response: { status: string; message: string }) => void
       ) => {
         try {
           const { action, payload } = message;
@@ -206,10 +203,6 @@ export default class Player {
                         bet.amount,
                         payload.betType
                       );
-                      callback({
-                        status: "success",
-                        message: "Bet placed successfully.",
-                      });
                     } catch (error) {
                       console.error("Error adding bet: ", error);
                       // Send failure acknowledgment to the client for this particular bet
@@ -229,12 +222,6 @@ export default class Player {
                     payload.betType
                   );
                   console.log("BET RECEIVED AND PROCESSED: ", payload);
-                  if (betRes) {
-                    callback({
-                      status: "success",
-                      message: "Bet placed successfully.",
-                    });
-                  }
                 }
               } catch (error) {
                 console.error("Error processing bet array: ", error);

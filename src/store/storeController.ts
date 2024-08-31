@@ -127,7 +127,7 @@ class Store {
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
-      
+
       const endOfToday = new Date(now);
       endOfToday.setHours(23, 59, 59, 999);
       // Process the data
@@ -154,43 +154,41 @@ class Store {
         };
       });
 
+      // console.log(processedData, "pd");
 
-    // console.log(processedData, "pd");
-    
       // Get the current time for filtering live games
-     // Filter live games
-     const liveGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return commenceTime <= now && !game.completed;
-    });
+      // Filter live games
+      const liveGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return commenceTime <= now && !game.completed;
+      });
 
-    // console.log(liveGames, "liveGames");
+      // console.log(liveGames, "liveGames");
 
-    // Filter today's upcoming games
-    const todaysUpcomingGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return (
-        commenceTime > now &&
-        commenceTime >= startOfToday &&
-        commenceTime <= endOfToday &&
-        !game.completed
+      // Filter today's upcoming games
+      const todaysUpcomingGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return (
+          commenceTime > now &&
+          commenceTime >= startOfToday &&
+          commenceTime <= endOfToday &&
+          !game.completed
+        );
+      });
+
+      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
+
+      // Filter future upcoming games
+      const futureUpcomingGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return commenceTime > endOfToday && !game.completed;
+      });
+
+      // console.log(futureUpcomingGames, "futureUpcomingGames");
+
+      const completedGames = processedData.filter(
+        (game: any) => game.completed
       );
-    });
-
-    // console.log(todaysUpcomingGames, "todaysUpcomingGames");
-
-    // Filter future upcoming games
-    const futureUpcomingGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return commenceTime > endOfToday && !game.completed;
-    });
-
-    // console.log(futureUpcomingGames, "futureUpcomingGames");
-
-      const completedGames = processedData.filter((game: any) => game.completed);
-
-
-
 
       // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
 
@@ -236,8 +234,9 @@ class Store {
       oddsFormat,
       dateFormat
     );
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
-      }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
+      dateFormat || "iso"
+    }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },
@@ -301,16 +300,17 @@ class Store {
   public async updateLiveData(livedata: any) {
     console.log("i will update the live data");
 
-    const currentActive = this.removeInactiveRooms()
+    const currentActive = this.removeInactiveRooms();
     console.log(currentActive, "cdcdc");
 
     for (const sport of currentActive) {
-
-      const { live_games, future_upcoming_games } = livedata;
+      const { live_games, todays_upcoming_games, future_upcoming_games } =
+        livedata;
       io.to(sport).emit("data", {
         type: "ODDS",
         data: {
           live_games,
+          todays_upcoming_games,
           future_upcoming_games,
         },
       });
@@ -330,7 +330,7 @@ class Store {
         console.log(`Removed inactive room: ${room}`);
       }
     });
-    console.log(activeRooms, 'rooms active');
+    console.log(activeRooms, "rooms active");
 
     return activeRooms;
   }
