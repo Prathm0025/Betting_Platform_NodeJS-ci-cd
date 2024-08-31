@@ -4,54 +4,35 @@ import axios from "axios";
 import StoreService from "./storeServices";
 import { activeRooms } from "../socket/socket";
 import { Server } from "socket.io";
-import { io } from "../server";
+import { io, redisClient } from "../server";
 import { Worker } from "worker_threads";
+import { promisify } from "util";
+
 class Store {
   private sportsCache: LRUCache<string, any>;
   private scoresCache: LRUCache<string, any>;
   private oddsCache: LRUCache<string, any>;
   private eventsCache: LRUCache<string, any>;
   private eventOddsCache: LRUCache<string, any>;
+  
   private storeService: StoreService;
+  private redisGetAsync;
+  private redisSetAsync;
 
   constructor() {
-    this.sportsCache = new LRUCache<string, any>({
-      max: 100,
-      ttl: 12 * 60 * 60 * 1000, // 12 hours
-    });
-
-    this.scoresCache = new LRUCache<string, any>({
-      max: 100,
-      ttl: 30 * 1000, // 30 seconds
-    });
-
-    this.oddsCache = new LRUCache<string, any>({
-      max: 100,
-      ttl: 30 * 1000, // 30 seconds
-    });
-
-    this.eventsCache = new LRUCache<string, any>({
-      max: 100,
-      ttl: 30 * 1000, // 30 seconds
-    });
-
-    this.eventOddsCache = new LRUCache<string, any>({
-      max: 100,
-      ttl: 30 * 1000, // 30 seconds
-    });
+    // Ensure the Redis client is ready before promisifying methods
+    if (redisClient && redisClient.isOpen) {
+      this.redisGetAsync = promisify(redisClient.get).bind(redisClient);
+      this.redisSetAsync = promisify(redisClient.set).bind(redisClient);
+    }
 
     this.storeService = new StoreService();
   }
 
-  private async fetchFromApi(
-    url: string,
-    params: any,
-    cache: LRUCache<string, any>,
-    cacheKey: string
-  ): Promise<any> {
-    const cachedData = cache.get(cacheKey);
+  private async fetchFromApi(url: string, params: any, cache: LRUCache<string, any>, cacheKey: string): Promise<any> {
+    const cachedData = await this.redisGetAsync(cacheKey)
     if (cachedData) {
-      return cachedData;
+      return JSON.parse(cachedData);
     }
 
     try {
@@ -127,7 +108,7 @@ class Store {
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
-      
+
       const endOfToday = new Date(now);
       endOfToday.setHours(23, 59, 59, 999);
       // Process the data
@@ -155,37 +136,37 @@ class Store {
       });
 
 
-    // console.log(processedData, "pd");
-    
+      // console.log(processedData, "pd");
+
       // Get the current time for filtering live games
-     // Filter live games
-     const liveGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return commenceTime <= now && !game.completed;
-    });
+      // Filter live games
+      const liveGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return commenceTime <= now && !game.completed;
+      });
 
-    // console.log(liveGames, "liveGames");
+      // console.log(liveGames, "liveGames");
 
-    // Filter today's upcoming games
-    const todaysUpcomingGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return (
-        commenceTime > now &&
-        commenceTime >= startOfToday &&
-        commenceTime <= endOfToday &&
-        !game.completed
-      );
-    });
+      // Filter today's upcoming games
+      const todaysUpcomingGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return (
+          commenceTime > now &&
+          commenceTime >= startOfToday &&
+          commenceTime <= endOfToday &&
+          !game.completed
+        );
+      });
 
-    // console.log(todaysUpcomingGames, "todaysUpcomingGames");
+      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
 
-    // Filter future upcoming games
-    const futureUpcomingGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return commenceTime > endOfToday && !game.completed;
-    });
+      // Filter future upcoming games
+      const futureUpcomingGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return commenceTime > endOfToday && !game.completed;
+      });
 
-    // console.log(futureUpcomingGames, "futureUpcomingGames");
+      // console.log(futureUpcomingGames, "futureUpcomingGames");
 
       const completedGames = processedData.filter((game: any) => game.completed);
 
