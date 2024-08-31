@@ -16,6 +16,7 @@ exports.loginRateLimiter = exports.verifyApiKey = void 0;
 exports.checkUser = checkUser;
 exports.verifyRole = verifyRole;
 exports.checkBetCommision = checkBetCommision;
+exports.checkStatus = checkStatus;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const http_errors_1 = __importDefault(require("http-errors"));
@@ -99,5 +100,22 @@ function checkBetCommision(req, res, next) {
     }
     catch (error) {
         next((0, http_errors_1.default)(401, "Internal Server Error"));
+    }
+}
+//Check Status Player is Active or inActive
+function checkStatus(req, res, next) {
+    var _a, _b;
+    const cookie = (_b = (_a = req.headers.cookie) === null || _a === void 0 ? void 0 : _a.split("; ").find((row) => row.startsWith("userToken="))) === null || _b === void 0 ? void 0 : _b.split("=")[1];
+    if (!cookie) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const decoded = jsonwebtoken_1.default.verify(cookie, process.env.JWT_SECRET);
+        console.log(decoded);
+        next();
+    }
+    catch (error) {
+        console.error('Invalid token:', error);
+        return res.status(403).json({ error: 'Forbidden' });
     }
 }

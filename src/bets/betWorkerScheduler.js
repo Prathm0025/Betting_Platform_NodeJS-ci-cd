@@ -14,12 +14,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const worker_threads_1 = require("worker_threads");
 const betServices_1 = __importDefault(require("./betServices")); // Adjust as needed
-const { queueData, activeRooms } = worker_threads_1.workerData;
-console.log(activeRooms, "cdsc");
+const { queueData, activeRoomsData } = worker_threads_1.workerData;
 (() => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log("Worker processing queue data...");
-        yield betServices_1.default.processOddsForQueueBets(queueData, activeRooms);
+        yield betServices_1.default.processOddsForQueueBets(queueData, activeRoomsData);
         worker_threads_1.parentPort === null || worker_threads_1.parentPort === void 0 ? void 0 : worker_threads_1.parentPort.postMessage("Odds fetched successfully");
     }
     catch (error) {

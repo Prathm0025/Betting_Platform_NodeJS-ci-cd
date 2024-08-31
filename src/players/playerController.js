@@ -18,6 +18,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const playerModel_1 = __importDefault(require("../players/playerModel"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const userModel_1 = __importDefault(require("../users/userModel"));
+const socket_1 = require("../socket/socket");
 class PlayerController {
     //CREATE A PLAYER
     createPlayer(req, res, next) {
@@ -140,6 +141,10 @@ class PlayerController {
                 });
                 if (!updatedPlayer) {
                     throw (0, http_errors_1.default)(404, "Player not found");
+                }
+                const playerSocket = socket_1.users.get(updatedPlayer === null || updatedPlayer === void 0 ? void 0 : updatedPlayer.username);
+                if (playerSocket) {
+                    playerSocket.sendMessage({ type: "STATUS", payload: updatedPlayer.status === "active" ? true : false, message: "" });
                 }
                 res.status(200).json({
                     message: "Player updated successfully",

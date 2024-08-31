@@ -58,10 +58,24 @@ const socketController = (io) => {
             }
         }
         else {
-            const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits);
+            const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits, io);
             exports.users.set(username, newUser);
             console.log(`Player ${username} entered the platform.`);
         }
+        socket.on("disconnect", () => {
+            const player = exports.users.get(username);
+            if (player) {
+                const room = player.currentRoom;
+                player.currentRoom = "";
+                exports.users.delete(username);
+                console.log(`Player ${username} left the platform.`);
+                const clients = io.sockets.adapter.rooms.get(room);
+                if (!clients || clients.size === 0) {
+                    exports.activeRooms.delete(room);
+                    console.log(`Room ${room} removed from activeRooms.`);
+                }
+            }
+        });
     }));
 };
 exports.default = socketController;

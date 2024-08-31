@@ -47,7 +47,7 @@ function processBets(sportKeys, bets) {
         console.log(sportKeys, "worker sport key");
         try {
             for (const sport of sportKeys) {
-                console.log("Processing sport:", sport);
+                // console.log("Processing sport:", sport);
                 const oddsData = yield storeController_1.default.getOdds(sport);
                 if (!oddsData || !oddsData.completed_games) {
                     // console.error(`No data or completed games found for sport: ${sport}`);
