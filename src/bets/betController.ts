@@ -157,6 +157,7 @@ class BetController {
       });
       await bet.save({ session });
 
+      //send myBets to user for disabling
       const playerBets = await Bet.find({
         player: player._id,
       })
@@ -171,6 +172,21 @@ class BetController {
         });
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
+
+      let responseMessage;
+      if (betType === "single") {
+        responseMessage = `Single bet on ${
+          betDetails[0].bet_on === "home_team"
+            ? betDetails[0].home_team.name
+            : betDetails[0].away_team.name
+        } placed successfully!`;
+      } else {
+        responseMessage = "Combo bet placed sccessfully!";
+      }
+      playerSocket.sendMessage({
+        type: "BET",
+        data: responseMessage,
+      });
 
       // Commit the transaction
       await session.commitTransaction();
