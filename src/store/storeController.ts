@@ -6,6 +6,7 @@ import { activeRooms } from "../socket/socket";
 import { Server } from "socket.io";
 import { io } from "../server";
 import { Worker } from "worker_threads";
+
 class Store {
   private sportsCache: LRUCache<string, any>;
   private scoresCache: LRUCache<string, any>;
@@ -154,9 +155,6 @@ class Store {
         };
       });
 
-
-      // console.log(processedData, "pd");
-
       // Get the current time for filtering live games
       // Filter live games
       const liveGames = processedData.filter((game: any) => {
@@ -185,14 +183,12 @@ class Store {
         return commenceTime > endOfToday && !game.completed;
       });
 
-      // console.log(futureUpcomingGames, "futureUpcomingGames");
+      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
 
-      const completedGames = processedData.filter((game: any) => game.completed);
-
-
-
-
-      // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
+   
+      const completedGames = processedData.filter(
+        (game: any) => game.completed
+      );
 
       return {
         live_games: liveGames,
@@ -236,8 +232,9 @@ class Store {
       oddsFormat,
       dateFormat
     );
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
-      }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
+      dateFormat || "iso"
+    }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },
@@ -320,7 +317,6 @@ class Store {
       } else {
         console.log(`No relevant data available for sport: ${sport}`);
       }
-
     }
   }
 
@@ -334,6 +330,7 @@ class Store {
         console.log(`Removed inactive room: ${room}`);
       }
     });
+    console.log(activeRooms, "rooms active");
     return activeRooms;
   }
 }
