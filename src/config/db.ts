@@ -66,7 +66,7 @@ const connectDB = async () => {
       console.log(activeRoomsData, activeRooms);
      
       startWorker(queueData, activeRoomsData);
-    }, 120000);
+    }, 30000);
 
   } catch (err) {
     console.error("Failed to connect to database.", err);

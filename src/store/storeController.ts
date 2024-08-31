@@ -127,7 +127,7 @@ class Store {
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
-      
+
       const endOfToday = new Date(now);
       endOfToday.setHours(23, 59, 59, 999);
       // Process the data
@@ -155,37 +155,37 @@ class Store {
       });
 
 
-    // console.log(processedData, "pd");
-    
+      // console.log(processedData, "pd");
+
       // Get the current time for filtering live games
-     // Filter live games
-     const liveGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return commenceTime <= now && !game.completed;
-    });
+      // Filter live games
+      const liveGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return commenceTime <= now && !game.completed;
+      });
 
-    // console.log(liveGames, "liveGames");
+      // console.log(liveGames, "liveGames");
 
-    // Filter today's upcoming games
-    const todaysUpcomingGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return (
-        commenceTime > now &&
-        commenceTime >= startOfToday &&
-        commenceTime <= endOfToday &&
-        !game.completed
-      );
-    });
+      // Filter today's upcoming games
+      const todaysUpcomingGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return (
+          commenceTime > now &&
+          commenceTime >= startOfToday &&
+          commenceTime <= endOfToday &&
+          !game.completed
+        );
+      });
 
-    // console.log(todaysUpcomingGames, "todaysUpcomingGames");
+      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
 
-    // Filter future upcoming games
-    const futureUpcomingGames = processedData.filter((game: any) => {
-      const commenceTime = new Date(game.commence_time);
-      return commenceTime > endOfToday && !game.completed;
-    });
+      // Filter future upcoming games
+      const futureUpcomingGames = processedData.filter((game: any) => {
+        const commenceTime = new Date(game.commence_time);
+        return commenceTime > endOfToday && !game.completed;
+      });
 
-    // console.log(futureUpcomingGames, "futureUpcomingGames");
+      // console.log(futureUpcomingGames, "futureUpcomingGames");
 
       const completedGames = processedData.filter((game: any) => game.completed);
 
@@ -299,29 +299,33 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    // console.log("i will update the live data");
-
     const currentActive = this.removeInactiveRooms()
 
     for (const sport of currentActive) {
+      const liveGamesForSport = livedata.live_games.filter((game: any) => game.sport_key === sport);
+      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game: any) => game.sport_key === sport);
+      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game: any) => game.sport_key === sport);
 
-      const { live_games, todays_upcoming_games, future_upcoming_games } = livedata;
-      io.to(sport).emit("data", {
-        type: "ODDS",
-        data: {
-          live_games,
-          todays_upcoming_games,
-          future_upcoming_games,
-        },
-      });
+      // Check if there's any data for the current sport before emitting
+      if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
+        io.to(sport).emit("data", {
+          type: "ODDS",
+          data: {
+            live_games: liveGamesForSport,
+            todays_upcoming_games: todaysUpcomingGamesForSport,
+            future_upcoming_games: futureUpcomingGamesForSport,
+          },
+        });
+        console.log(`Data broadcasted to room: ${sport}`);
+      } else {
+        console.log(`No relevant data available for sport: ${sport}`);
+      }
 
-      console.log(`Data broadcasted to room: ${sport}`);
     }
   }
 
   public removeInactiveRooms() {
     const rooms = io.sockets.adapter.rooms;
-
     const currentRooms = new Set(rooms.keys());
 
     activeRooms.forEach((room) => {
@@ -330,8 +334,6 @@ class Store {
         console.log(`Removed inactive room: ${room}`);
       }
     });
-    console.log(activeRooms, 'rooms active');
-
     return activeRooms;
   }
 }
