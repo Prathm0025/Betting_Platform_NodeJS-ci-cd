@@ -2,7 +2,6 @@ import { parentPort, workerData } from "worker_threads";
 import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "./betModel";
-import { activeRooms } from "../socket/socket";
 
 async function processBets(sportKeys, bets) {
   console.log("Starting bet processing...");
@@ -12,7 +11,7 @@ async function processBets(sportKeys, bets) {
   
   try {
     for (const sport of sportKeys) {
-      console.log("Processing sport:", sport);
+      // console.log("Processing sport:", sport);
       const oddsData = await Store.getOdds(sport);
      
       if (!oddsData || !oddsData.completed_games) {

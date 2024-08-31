@@ -107,7 +107,7 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-      console.log("CACHE KEY : ", cacheKey);
+      // console.log("CACHE KEY : ", cacheKey);
 
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
@@ -299,18 +299,18 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    console.log("i will update the live data");
+    // console.log("i will update the live data");
 
     const currentActive = this.removeInactiveRooms()
-    console.log(currentActive, "cdcdc");
 
     for (const sport of currentActive) {
 
-      const { live_games, future_upcoming_games } = livedata;
+      const { live_games, todays_upcoming_games, future_upcoming_games } = livedata;
       io.to(sport).emit("data", {
         type: "ODDS",
         data: {
           live_games,
+          todays_upcoming_games,
           future_upcoming_games,
         },
       });
