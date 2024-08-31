@@ -12,20 +12,24 @@ export default class Player {
   private credits: number;
   public socket: Socket;
   public currentRoom: string;
+  private io: Server; // Add io instance here
 
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
     username: string,
-    credits: number
+    credits: number,
+    io: Server // Initialize io instance in constructor
   ) {
     this.socket = socket;
     this.userId = userId;
     this.username = username;
     this.credits = credits;
+    this.io = io; // Assign io instance
     this.initializeHandlers();
     this.betHandler();
   }
+
   public updateSocket(socket: Socket) {
     this.socket = socket;
     this.initializeHandlers();
@@ -146,7 +150,6 @@ export default class Player {
             );
             this.sendData({ type: "ODDS", data: oddsData });
             this.joinRoom(res.payload.sport);
-
             break;
 
           case "EVENT_ODDS":
@@ -182,10 +185,7 @@ export default class Player {
       "bet",
       async (
         message: { action: string; payload: any },
-        callback: (response: {
-          status: string;
-          message: string;
-        }) => void
+        callback: (response: { status: string; message: string }) => void
       ) => {
         try {
           const { action, payload } = message;
@@ -206,10 +206,6 @@ export default class Player {
                         bet.amount,
                         payload.betType
                       );
-                      callback({
-                        status: "success",
-                        message: "Bet placed successfully.",
-                      });
                     } catch (error) {
                       console.error("Error adding bet: ", error);
                       // Send failure acknowledgment to the client for this particular bet
@@ -229,12 +225,6 @@ export default class Player {
                     payload.betType
                   );
                   console.log("BET RECEIVED AND PROCESSED: ", payload);
-                  if (betRes) {
-                    callback({
-                      status: "success",
-                      message: "Bet placed successfully.",
-                    });
-                  }
                 }
               } catch (error) {
                 console.error("Error processing bet array: ", error);
@@ -267,7 +257,15 @@ export default class Player {
   public joinRoom(room: string) {
     if (this.currentRoom) {
       this.socket.leave(this.currentRoom);
+      const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
+      console.log(clients, "clients");
+      
+      if (!clients || clients.size === 0) {
+        activeRooms.delete(this.currentRoom);
+        console.log(`Room ${this.currentRoom} removed from activeRooms.`);
+      }
     }
+
     activeRooms.add(room);
     console.log(activeRooms, "active");
 
