@@ -114,7 +114,7 @@ class Store {
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
         {
-          markets: "h2h", // Default to 'h2h' if not provided
+          // markets: "h2h", // Default to 'h2h' if not provided
           regions: "us", // Default to 'us' if not provided
           oddsFormat: "decimal",
         },
@@ -133,26 +133,25 @@ class Store {
       endOfToday.setHours(23, 59, 59, 999);
       // Process the data
       const processedData = oddsResponse.map((game: any) => {
-        // Select one bookmaker (e.g., the first one)
 
         const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
         );
-
-        return {
-          id: game.id,
-          sport_key: game.sport_key,
-          sport_title: game.sport_title,
-          commence_time: game.commence_time,
-          home_team: game.home_team,
-          away_team: game.away_team,
-          markets: bookmaker?.markets || [],
-          scores: matchedScore?.scores || [],
-          completed: matchedScore?.completed,
-          last_update: matchedScore?.last_update,
-          selected: bookmaker.key,
-        };
+          if (bookmaker === undefined) {return {};}
+          return {
+            id: game?.id,
+            sport_key: game?.sport_key,
+            sport_title: game?.sport_title,
+            commence_time: game?.commence_time,
+            home_team: game?.home_team,
+            away_team: game?.away_team,
+            markets: bookmaker?.markets || [],
+            scores: matchedScore?.scores || [],
+            completed: matchedScore?.completed,
+            last_update: matchedScore?.last_update,
+            selected: bookmaker?.key,
+          };
       });
 
       // Get the current time for filtering live games
