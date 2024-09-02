@@ -5,7 +5,8 @@ class StoreService {
 
   }
   public selectBookmaker(bookmakers: Bookmaker[]): Bookmaker | null {
-    let bestBookmaker: Bookmaker | null = null;
+    
+    let bestBookmaker: Bookmaker;
     let highestMargin = -Infinity;
 
     bookmakers.forEach((bookmaker: Bookmaker) => {
@@ -29,6 +30,7 @@ class StoreService {
     });
 
     return bestBookmaker;
+
   }
 
 }
