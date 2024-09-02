@@ -1,37 +1,43 @@
 import { config } from "../config/config";
-import { LRUCache } from "lru-cache";
 import axios from "axios";
 import StoreService from "./storeServices";
 import { activeRooms } from "../socket/socket";
-import { Server } from "socket.io";
-import { io, redisClient } from "../server";
-import { Worker } from "worker_threads";
+import { io } from "../server";
 import { promisify } from "util";
+import { redisClient } from "../../src/redisclient";
 
 class Store {
-  private sportsCache: LRUCache<string, any>;
-  private scoresCache: LRUCache<string, any>;
-  private oddsCache: LRUCache<string, any>;
-  private eventsCache: LRUCache<string, any>;
-  private eventOddsCache: LRUCache<string, any>;
-  
   private storeService: StoreService;
   private redisGetAsync;
   private redisSetAsync;
 
   constructor() {
-    // Ensure the Redis client is ready before promisifying methods
-    if (redisClient && redisClient.isOpen) {
-      this.redisGetAsync = promisify(redisClient.get).bind(redisClient);
-      this.redisSetAsync = promisify(redisClient.set).bind(redisClient);
-    }
-
     this.storeService = new StoreService();
+    this.initializeRedis();
   }
 
-  private async fetchFromApi(url: string, params: any, cache: LRUCache<string, any>, cacheKey: string): Promise<any> {
-    const cachedData = await this.redisGetAsync(cacheKey)
+  private async initializeRedis() {
+    try {
+     
+  
+      this.redisGetAsync = redisClient.get.bind(redisClient);
+      this.redisSetAsync = redisClient.set.bind(redisClient);
+      
+      console.log("Redis client connected");
+    } catch (error) {
+      console.error("Redis client connection error:", error);
+      this.redisGetAsync = async () => null;
+      this.redisSetAsync = async () => null;
+    }
+  }
+
+
+  private async fetchFromApi(url: string, params: any, cacheKey: string): Promise<any> {
+    // Check if the data is already in the Redis cache
+    const cachedData = await this.redisGetAsync(cacheKey);
     if (cachedData) {
+      // console.log(JSON.parse(cachedData), "cached");
+      
       return JSON.parse(cachedData);
     }
 
@@ -39,17 +45,15 @@ class Store {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
       });
-
+      console.log("API CALL");
+      
       // Log the quota-related headers
-      const requestsRemaining = response.headers["x-requests-remaining"];
-      const requestsUsed = response.headers["x-requests-used"];
-      const requestsLast = response.headers["x-requests-last"];
+      // const requestsRemaining = response.headers["x-requests-remaining"];
+      // const requestsUsed = response.headers["x-requests-used"];
+      // const requestsLast = response.headers["x-requests-last"];
 
-      console.log(`Requests Remaining: ${requestsRemaining}`);
-      console.log(`Requests Used: ${requestsUsed}`);
-      console.log(`Requests Last: ${requestsLast}`);
-
-      cache.set(cacheKey, response.data);
+      // Cache the data in Redis
+      await this.redisSetAsync(cacheKey, JSON.stringify(response.data), "EX", 3600); // Cache for 1 hour
       return response.data;
     } catch (error) {
       throw new Error(error.message || "Error Fetching Data");
@@ -57,12 +61,7 @@ class Store {
   }
 
   public getSports(): Promise<any> {
-    return this.fetchFromApi(
-      `${config.oddsApi.url}/sports`,
-      {},
-      this.sportsCache,
-      "sportsList"
-    );
+    return this.fetchFromApi(`${config.oddsApi.url}/sports`, {}, "sportsList");
   }
 
   public getScores(
@@ -74,7 +73,6 @@ class Store {
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/scores`,
       { daysFrom, dateFormat },
-      this.scoresCache,
       cacheKey
     );
   }
@@ -88,7 +86,6 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-      // console.log("CACHE KEY : ", cacheKey);
 
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
@@ -98,23 +95,18 @@ class Store {
           regions: "us", // Default to 'us' if not provided
           oddsFormat: "decimal",
         },
-        this.oddsCache,
         cacheKey
       );
 
       const scoresResponse = await this.getScores(sport, "1", "iso");
 
-      // Get the current time for filtering live games
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
-
       const endOfToday = new Date(now);
       endOfToday.setHours(23, 59, 59, 999);
-      // Process the data
-      const processedData = oddsResponse.map((game: any) => {
-        // Select one bookmaker (e.g., the first one)
 
+      const processedData = oddsResponse.map((game: any) => {
         const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
@@ -135,19 +127,11 @@ class Store {
         };
       });
 
-
-      // console.log(processedData, "pd");
-
-      // Get the current time for filtering live games
-      // Filter live games
       const liveGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return commenceTime <= now && !game.completed;
       });
 
-      // console.log(liveGames, "liveGames");
-
-      // Filter today's upcoming games
       const todaysUpcomingGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return (
@@ -158,22 +142,12 @@ class Store {
         );
       });
 
-      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
-
-      // Filter future upcoming games
       const futureUpcomingGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return commenceTime > endOfToday && !game.completed;
       });
 
-      // console.log(futureUpcomingGames, "futureUpcomingGames");
-
       const completedGames = processedData.filter((game: any) => game.completed);
-
-
-
-
-      // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
 
       return {
         live_games: liveGames,
@@ -191,11 +165,9 @@ class Store {
 
   public getEvents(sport: string, dateFormat?: string): Promise<any> {
     const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
-
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events`,
       { dateFormat },
-      this.eventsCache,
       cacheKey
     );
   }
@@ -208,35 +180,19 @@ class Store {
     oddsFormat?: string | undefined,
     dateFormat?: string | undefined
   ): Promise<any> {
-    console.log(
-      "in event odds",
-      sport,
-      eventId,
-      markets,
-      regions,
-      oddsFormat,
-      dateFormat
-    );
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
       }_${oddsFormat || "decimal"}`;
     return this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat, oddsFormat },
-      this.eventOddsCache,
       cacheKey
     );
   }
 
   public async getCategories(): Promise<string[]> {
     try {
-      const sportsData = await this.fetchFromApi(
-        `${config.oddsApi.url}/sports`,
-        {},
-        this.sportsCache,
-        "sportsList"
-      );
+      const sportsData = await this.getSports();
 
-      // Ensure sportsData is treated as an array of objects with known structure
       const categories = (
         sportsData as Array<{ group: string; active: boolean }>
       ).reduce<string[]>((acc, sport) => {
@@ -255,19 +211,12 @@ class Store {
 
   public async getCategorySports(category: string): Promise<any> {
     try {
-      const sportsData = await this.fetchFromApi(
-        `${config.oddsApi.url}/sports`,
-        {},
-        this.sportsCache,
-        "sportsList"
-      );
+      const sportsData = await this.getSports();
 
       if (category.toLowerCase() === "all") {
-        // If the category is "all", return all sports
         return sportsData.filter((sport: any) => sport.active);
       }
 
-      // Otherwise, filter by the specified category
       const categorySports = sportsData.filter(
         (sport: any) => sport.group === category && sport.active
       );
@@ -280,12 +229,9 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    // console.log("i will update the live data");
-
-    const currentActive = this.removeInactiveRooms()
+    const currentActive = this.removeInactiveRooms();
 
     for (const sport of currentActive) {
-
       const { live_games, todays_upcoming_games, future_upcoming_games } = livedata;
       io.to(sport).emit("data", {
         type: "ODDS",
@@ -311,7 +257,7 @@ class Store {
         console.log(`Removed inactive room: ${room}`);
       }
     });
-    console.log(activeRooms, 'rooms active');
+    console.log(activeRooms, "rooms active");
 
     return activeRooms;
   }
