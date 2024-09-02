@@ -87,6 +87,13 @@ class BetController {
                 if (amount === 0) {
                     throw new Error("Betting amount can't be zero");
                 }
+                if (betType === "combo") {
+                    const eventIds = betDetails.map((bet) => bet.event_id);
+                    const uniqueEventIds = new Set(eventIds);
+                    if (eventIds.length !== uniqueEventIds.size) {
+                        throw new Error("Invalid combo!");
+                    }
+                }
                 // Check if the player already has a pending bet on the same team
                 for (const betDetailData of betDetails) {
                     const existingBetDetail = yield betModel_1.BetDetail.findOne({
