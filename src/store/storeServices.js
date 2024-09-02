@@ -4,7 +4,7 @@ class StoreService {
     constructor() {
     }
     selectBookmaker(bookmakers) {
-        let bestBookmaker = null;
+        let bestBookmaker;
         let highestMargin = -Infinity;
         bookmakers.forEach((bookmaker) => {
             bookmaker.markets.forEach((market) => {

@@ -82,7 +82,7 @@ class Store {
                 // console.log("CACHE KEY : ", cacheKey);
                 // Fetch data from the API
                 const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds`, {
-                    markets: "h2h", // Default to 'h2h' if not provided
+                    // markets: "h2h", // Default to 'h2h' if not provided
                     regions: "us", // Default to 'us' if not provided
                     oddsFormat: "decimal",
                 }, this.oddsCache, cacheKey);
@@ -95,21 +95,23 @@ class Store {
                 endOfToday.setHours(23, 59, 59, 999);
                 // Process the data
                 const processedData = oddsResponse.map((game) => {
-                    // Select one bookmaker (e.g., the first one)
                     const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
                     const matchedScore = scoresResponse.find((score) => score.id === game.id);
+                    if (bookmaker === undefined) {
+                        return {};
+                    }
                     return {
-                        id: game.id,
-                        sport_key: game.sport_key,
-                        sport_title: game.sport_title,
-                        commence_time: game.commence_time,
-                        home_team: game.home_team,
-                        away_team: game.away_team,
+                        id: game === null || game === void 0 ? void 0 : game.id,
+                        sport_key: game === null || game === void 0 ? void 0 : game.sport_key,
+                        sport_title: game === null || game === void 0 ? void 0 : game.sport_title,
+                        commence_time: game === null || game === void 0 ? void 0 : game.commence_time,
+                        home_team: game === null || game === void 0 ? void 0 : game.home_team,
+                        away_team: game === null || game === void 0 ? void 0 : game.away_team,
                         markets: (bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.markets) || [],
                         scores: (matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.scores) || [],
                         completed: matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.completed,
                         last_update: matchedScore === null || matchedScore === void 0 ? void 0 : matchedScore.last_update,
-                        selected: bookmaker.key,
+                        selected: bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.key,
                     };
                 });
                 // Get the current time for filtering live games
