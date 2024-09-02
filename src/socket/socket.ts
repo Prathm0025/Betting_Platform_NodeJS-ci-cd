@@ -53,12 +53,31 @@ const socketController = (io: Server) => {
         socket,
         decoded.userId,
         username,
-        decoded.credits
+        decoded.credits,
+        io
       );
       users.set(username, newUser);
       console.log(`Player ${username} entered the platform.`);
     }
+
+    socket.on("disconnect", () => {
+      const player = users.get(username);
+      if (player) {
+        const room = player.currentRoom;
+        player.currentRoom = ""; 
+        users.delete(username); 
+        console.log(`Player ${username} left the platform.`);
+  
+        const clients = io.sockets.adapter.rooms.get(room);
+        if (!clients || clients.size === 0) {
+          activeRooms.delete(room); 
+          console.log(`Room ${room} removed from activeRooms.`);
+        }
+      }
+    });
   });
+
+  
 };
 
 export default socketController;
