@@ -53,7 +53,7 @@ class Store {
       // const requestsLast = response.headers["x-requests-last"];
 
       // Cache the data in Redis
-      await this.redisSetAsync(cacheKey, JSON.stringify(response.data), "EX", 3600); // Cache for 1 hour
+      await this.redisSetAsync(cacheKey, JSON.stringify(response.data), 'EX', 43200); // Cache for 12 hours
       return response.data;
     } catch (error) {
       throw new Error(error.message || "Error Fetching Data");
@@ -91,7 +91,7 @@ class Store {
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
         {
-          markets: "h2h", // Default to 'h2h' if not provided
+          // markets: "h2h", // Default to 'h2h' if not provided
           regions: "us", // Default to 'us' if not provided
           oddsFormat: "decimal",
         },
@@ -103,6 +103,7 @@ class Store {
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
+
       const endOfToday = new Date(now);
       endOfToday.setHours(23, 59, 59, 999);
 
@@ -111,19 +112,19 @@ class Store {
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
         );
-
+        if (bookmaker === undefined) {return {};}
         return {
-          id: game.id,
-          sport_key: game.sport_key,
-          sport_title: game.sport_title,
-          commence_time: game.commence_time,
-          home_team: game.home_team,
-          away_team: game.away_team,
+          id: game?.id,
+          sport_key: game?.sport_key,
+          sport_title: game?.sport_title,
+          commence_time: game?.commence_time,
+          home_team: game?.home_team,
+          away_team: game?.away_team,
           markets: bookmaker?.markets || [],
           scores: matchedScore?.scores || [],
           completed: matchedScore?.completed,
           last_update: matchedScore?.last_update,
-          selected: bookmaker.key,
+          selected: bookmaker?.key,
         };
       });
 
@@ -229,23 +230,29 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    const currentActive = this.removeInactiveRooms();
+    const currentActive = this.removeInactiveRooms()
 
     for (const sport of currentActive) {
-      const { live_games, todays_upcoming_games, future_upcoming_games } = livedata;
-      io.to(sport).emit("data", {
-        type: "ODDS",
-        data: {
-          live_games,
-          todays_upcoming_games,
-          future_upcoming_games,
-        },
-      });
+      const liveGamesForSport = livedata.live_games.filter((game: any) => game.sport_key === sport);
+      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game: any) => game.sport_key === sport);
+      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game: any) => game.sport_key === sport);
 
-      console.log(`Data broadcasted to room: ${sport}`);
+      // Check if there's any data for the current sport before emitting
+      if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
+        io.to(sport).emit("data", {
+          type: "ODDS",
+          data: {
+            live_games: liveGamesForSport,
+            todays_upcoming_games: todaysUpcomingGamesForSport,
+            future_upcoming_games: futureUpcomingGamesForSport,
+          },
+        });
+        console.log(`Data broadcasted to room: ${sport}`);
+      } else {
+        console.log(`No relevant data available for sport: ${sport}`);
+      }
     }
   }
-
   public removeInactiveRooms() {
     const rooms = io.sockets.adapter.rooms;
 
