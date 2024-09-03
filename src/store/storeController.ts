@@ -6,7 +6,6 @@ import { activeRooms } from "../socket/socket";
 import { Server } from "socket.io";
 import { io } from "../server";
 import { Worker } from "worker_threads";
-
 class Store {
   private sportsCache: LRUCache<string, any>;
   private scoresCache: LRUCache<string, any>;
@@ -108,13 +107,13 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-      // console.log("CACHE KEY : ", cacheKey);
+      console.log("CACHE KEY : ", cacheKey);
 
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
         {
-          // markets: "h2h", // Default to 'h2h' if not provided
+          markets: "h2h", // Default to 'h2h' if not provided
           regions: "us", // Default to 'us' if not provided
           oddsFormat: "decimal",
         },
@@ -133,26 +132,29 @@ class Store {
       endOfToday.setHours(23, 59, 59, 999);
       // Process the data
       const processedData = oddsResponse.map((game: any) => {
+        // Select one bookmaker (e.g., the first one)
 
         const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
         );
-          if (bookmaker === undefined) {return {};}
-          return {
-            id: game?.id,
-            sport_key: game?.sport_key,
-            sport_title: game?.sport_title,
-            commence_time: game?.commence_time,
-            home_team: game?.home_team,
-            away_team: game?.away_team,
-            markets: bookmaker?.markets || [],
-            scores: matchedScore?.scores || [],
-            completed: matchedScore?.completed,
-            last_update: matchedScore?.last_update,
-            selected: bookmaker?.key,
-          };
+
+        return {
+          id: game.id,
+          sport_key: game.sport_key,
+          sport_title: game.sport_title,
+          commence_time: game.commence_time,
+          home_team: game.home_team,
+          away_team: game.away_team,
+          markets: bookmaker?.markets || [],
+          scores: matchedScore?.scores || [],
+          completed: matchedScore?.completed,
+          last_update: matchedScore?.last_update,
+          selected: bookmaker.key,
+        };
       });
+
+      // console.log(processedData, "pd");
 
       // Get the current time for filtering live games
       // Filter live games
@@ -182,12 +184,13 @@ class Store {
         return commenceTime > endOfToday && !game.completed;
       });
 
-      // console.log(todaysUpcomingGames, "todaysUpcomingGames");
+      // console.log(futureUpcomingGames, "futureUpcomingGames");
 
-   
       const completedGames = processedData.filter(
         (game: any) => game.completed
       );
+
+      // console.log(liveGames, todaysUpcomingGames, futureUpcomingGames, completedGames);
 
       return {
         live_games: liveGames,
@@ -242,7 +245,12 @@ class Store {
     );
   }
 
-  public async getCategories(): Promise<string[]> {
+  public async getCategories(): Promise<
+    {
+      group: string;
+      items: any;
+    }[]
+  > {
     try {
       const sportsData = await this.fetchFromApi(
         `${config.oddsApi.url}/sports`,
@@ -250,16 +258,32 @@ class Store {
         this.sportsCache,
         "sportsList"
       );
+      const groupedData = {};
+      sportsData.forEach((item) => {
+        const { group, title, key } = item;
 
-      // Ensure sportsData is treated as an array of objects with known structure
-      const categories = (
-        sportsData as Array<{ group: string; active: boolean }>
-      ).reduce<string[]>((acc, sport) => {
-        if (sport.active && !acc.includes(sport.group)) {
-          acc.push(sport.group);
+        if (!groupedData[group]) {
+          groupedData[group] = [];
         }
-        return acc;
-      }, []);
+
+        groupedData[group].push({ title, key });
+      });
+
+      const categories = Object.keys(groupedData).map((group) => ({
+        group,
+        items: groupedData[group],
+      }));
+
+      console.log("SPORTS DATa", categories);
+
+      // const categories = (
+      //   sportsData as Array<{ group: string; active: boolean }>
+      // ).reduce<string[]>((acc, sport) => {
+      //   if (sport.active && !acc.includes(sport.group)) {
+      //     acc.push(sport.group);
+      //   }
+      //   return acc;
+      // }, []);
 
       return categories;
     } catch (error) {
@@ -295,32 +319,30 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    const currentActive = this.removeInactiveRooms()
+    console.log("i will update the live data");
+
+    const currentActive = this.removeInactiveRooms();
+    console.log(currentActive, "cdcdc");
 
     for (const sport of currentActive) {
-      const liveGamesForSport = livedata.live_games.filter((game: any) => game.sport_key === sport);
-      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game: any) => game.sport_key === sport);
-      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game: any) => game.sport_key === sport);
+      const { live_games, todays_upcoming_games, future_upcoming_games } =
+        livedata;
+      io.to(sport).emit("data", {
+        type: "ODDS",
+        data: {
+          live_games,
+          todays_upcoming_games,
+          future_upcoming_games,
+        },
+      });
 
-      // Check if there's any data for the current sport before emitting
-      if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
-        io.to(sport).emit("data", {
-          type: "ODDS",
-          data: {
-            live_games: liveGamesForSport,
-            todays_upcoming_games: todaysUpcomingGamesForSport,
-            future_upcoming_games: futureUpcomingGamesForSport,
-          },
-        });
-        console.log(`Data broadcasted to room: ${sport}`);
-      } else {
-        console.log(`No relevant data available for sport: ${sport}`);
-      }
+      console.log(`Data broadcasted to room: ${sport}`);
     }
   }
 
   public removeInactiveRooms() {
     const rooms = io.sockets.adapter.rooms;
+
     const currentRooms = new Set(rooms.keys());
 
     activeRooms.forEach((room) => {
@@ -330,6 +352,7 @@ class Store {
       }
     });
     console.log(activeRooms, "rooms active");
+
     return activeRooms;
   }
 }
