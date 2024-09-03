@@ -13,6 +13,7 @@ import Store from "../store/storeController";
 import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
+import { scheduleBets } from "../config/scheduler";
 
 class BetController {
   constructor() {
@@ -80,6 +81,13 @@ class BetController {
         throw new Error("Betting amount can't be zero");
       }
 
+      if (betType === "combo") {
+        const eventIds = betDetails.map((bet) => bet.event_id);
+        const uniqueEventIds = new Set(eventIds);
+        if (eventIds.length !== uniqueEventIds.size) {
+          throw new Error("Invalid combo!");
+        }
+      }
       // Check if the player already has a pending bet on the same team
       for (const betDetailData of betDetails) {
         const existingBetDetail = await BetDetail.findOne({
@@ -157,6 +165,7 @@ class BetController {
       });
       await bet.save({ session });
 
+      //send myBets to user for disabling
       const playerBets = await Bet.find({
         player: player._id,
       })
@@ -171,6 +180,21 @@ class BetController {
         });
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
+
+      let responseMessage;
+      if (betType === "single") {
+        responseMessage = `Single bet on ${
+          betDetails[0].bet_on === "home_team"
+            ? betDetails[0].home_team.name
+            : betDetails[0].away_team.name
+        } placed successfully!`;
+      } else {
+        responseMessage = "Combo bet placed sccessfully!";
+      }
+      playerSocket.sendMessage({
+        type: "BET",
+        data: responseMessage,
+      });
 
       // Commit the transaction
       await session.commitTransaction();
@@ -193,20 +217,19 @@ class BetController {
     const commence_time = new Date(betDetail.commence_time);
     const delay = commence_time.getTime() - Date.now();
 
-    const job = await agenda.schedule(
-      new Date(Date.now() + delay),
-      "add bet to queue",
-      { betDetailId: betDetail._id.toString() }
-    );
-
-    if (!job) {
-      throw new Error(
-        `Failed to schedule bet detail ${betDetail._id.toString()}`
-      );
+    if (delay < 0) {
+      throw new Error(`Commence time for bet detail ${betDetail._id.toString()} is in the past.`);
     }
+  
+    try {
+      await scheduleBets('addBetToQueue', commence_time, { betId: betDetail._id.toString() });
+      
     console.log(
       `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
     );
+    } catch (error) {
+      console.error(`Failed to schedule bet detail ${betDetail._id.toString()}:`, error);
+    }
   }
 
   private calculatePossibleWinning(data: any) {
