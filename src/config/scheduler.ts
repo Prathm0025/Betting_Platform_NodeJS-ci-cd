@@ -40,7 +40,9 @@ worker.on('exit', (code) => {
 
 // Function to schedule a task
 async function scheduleBets(taskName: string, runAt: Date, data: any) {
-  const timestamp = runAt.getTime();
+console.log("cancelleed");
+
+  const timestamp = runAt.getTime()/1000;
   await redisClient.zadd('scheduledBets', timestamp.toString(), JSON.stringify({ taskName, data }));
 }
 
