@@ -258,7 +258,9 @@ class Store {
         this.sportsCache,
         "sportsList"
       );
-      const groupedData = {};
+      const groupedData: { [key: string]: any[] } = {};
+      groupedData["All"] = [];
+
       sportsData.forEach((item) => {
         const { group, title, key } = item;
 
@@ -267,23 +269,13 @@ class Store {
         }
 
         groupedData[group].push({ title, key });
+        groupedData["All"].push({ title, key });
       });
 
       const categories = Object.keys(groupedData).map((group) => ({
         group,
         items: groupedData[group],
       }));
-
-      console.log("SPORTS DATa", categories);
-
-      // const categories = (
-      //   sportsData as Array<{ group: string; active: boolean }>
-      // ).reduce<string[]>((acc, sport) => {
-      //   if (sport.active && !acc.includes(sport.group)) {
-      //     acc.push(sport.group);
-      //   }
-      //   return acc;
-      // }, []);
 
       return categories;
     } catch (error) {
