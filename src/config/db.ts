@@ -6,34 +6,44 @@ import { Worker } from "worker_threads";
 import betServices from "../bets/betServices";
 import storeController from "../store/storeController";
 import { activeRooms } from "../socket/socket";
+// import Scheduler from "./scheduler";
+import { redisClient } from "../redisclient";
+// import scheduler from "./scheduler";
 
 let agenda: Agenda;
 
-const workerFilePath = path.resolve(__dirname, "../bets/betWorkerScheduler.js");
+const workerFilePath = path.resolve(__dirname, "../bets/schedulerBetWorker.js");
+const redisOptions = {
+  host: 'localhost',
+  port: 6379,
+};
 
 const startWorker = (queueData: any[], activeRoomsData: string[]) => {
   const worker = new Worker(workerFilePath, {
-    workerData: { queueData, activeRoomsData },
+    workerData: {redisOptions }
   });
 
-  worker.on("message", (message) => {
-    console.log("Worker message:", message);
-
-    if (message.type === 'updateLiveData') {
-      const { livedata } = message;
-      storeController.updateLiveData(livedata);
+  worker.on('message', async ({ taskName, data }: { taskName: string, data: any }) => {
+    switch (taskName) {
+      case 'addBetToQueue':
+        await betServices.addBetToQueueAtCommenceTime(data.betId);
+        break;
+      // Handle other tasks if needed
+      default:
+        console.log(`No task found for ${taskName}`);
     }
   });
-
-  worker.on("error", (error) => {
-    console.error("Worker error:", error);
+  
+  // Error handling
+  worker.on('error', (error) => {
+    console.error('Worker encountered an error:', error);
   });
-
-  worker.on("exit", (code) => {
+  
+  // Cleanup on exit
+  worker.on('exit', (code) => {
     if (code !== 0) {
       console.error(`Worker stopped with exit code ${code}`);
-    }
-  });
+    }});
 };
 
 const connectDB = async () => {
@@ -60,13 +70,13 @@ const connectDB = async () => {
 
     await agenda.start();
 
-    setInterval(async () => {
-      const queueData = betServices.getPriorityQueueData();
+    // scheduler.start();
+
+      // const queueData = betServices.getPriorityQueueData();
       const activeRoomsData = Array.from(activeRooms);
       console.log(activeRoomsData, activeRooms);
      
-      startWorker(queueData, activeRoomsData);
-    }, 120000);
+      startWorker([], activeRoomsData);
 
   } catch (err) {
     console.error("Failed to connect to database.", err);
