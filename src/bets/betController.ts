@@ -417,7 +417,6 @@ class BetController {
       const _req = req as AuthRequest;
       const { userId } = _req.user;
       const { betId } = req.params;
-      console.log(betId, "ye bheja");
 
       const player = await PlayerModel.findById({ _id: userId });
 
@@ -437,7 +436,7 @@ class BetController {
         );
       }
 
-      const allBets = bet.data;
+      const allBets = bet?.data;
 
       const betDetailsArray = await Promise.all(
         allBets.map((id) => BetDetail.findById(id))
@@ -466,6 +465,7 @@ class BetController {
             ? betDetails.home_team.odds
             : betDetails.away_team.odds;
 
+        console.log("MARKET", betDetails.market);
         const currentData = await Store.getEventOdds(
           betDetails.sport_key,
           betDetails.event_id,
@@ -474,7 +474,7 @@ class BetController {
           betDetails.oddsFormat,
           "iso"
         );
-
+        console.log("CURRET DATA0", currentData);
         const currentOddsData = currentData.bookmakers.find(
           (item) => item.key === betDetails.selected
         );

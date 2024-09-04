@@ -161,7 +161,6 @@ export default class Player {
               res.payload.oddsFormat,
               res.payload.dateFormat
             );
-
             this.sendData({ type: "GET event odds", data: eventOddsData });
             break;
 

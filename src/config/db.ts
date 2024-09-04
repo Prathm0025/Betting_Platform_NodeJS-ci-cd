@@ -19,7 +19,7 @@ const startWorker = (queueData: any[], activeRoomsData: string[]) => {
   worker.on("message", (message) => {
     console.log("Worker message:", message);
 
-    if (message.type === 'updateLiveData') {
+    if (message.type === "updateLiveData") {
       const { livedata } = message;
       storeController.updateLiveData(livedata);
     }
@@ -60,14 +60,13 @@ const connectDB = async () => {
 
     await agenda.start();
 
-    setInterval(async () => {
-      const queueData = betServices.getPriorityQueueData();
-      const activeRoomsData = Array.from(activeRooms);
-      console.log(activeRoomsData, activeRooms);
-     
-      startWorker(queueData, activeRoomsData);
-    }, 30000);
+    // setInterval(async () => {
+    //   const queueData = betServices.getPriorityQueueData();
+    //   const activeRoomsData = Array.from(activeRooms);
+    //   console.log(activeRoomsData, activeRooms);
 
+    //   startWorker(queueData, activeRoomsData);
+    // }, 30000);
   } catch (err) {
     console.error("Failed to connect to database.", err);
     process.exit(1);

@@ -51,7 +51,10 @@ class Store {
   ): Promise<any> {
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
+      console.log("CACHED DATA", cachedData);
       return cachedData;
+    } else {
+      console.log("not cached");
     }
     try {
       const response = await axios.get(url, {
@@ -59,15 +62,16 @@ class Store {
       });
 
       // Log the quota-related headers
-      const requestsRemaining = response.headers["x-requests-remaining"];
-      const requestsUsed = response.headers["x-requests-used"];
-      const requestsLast = response.headers["x-requests-last"];
+      // const requestsRemaining = response.headers["x-requests-remaining"];
+      // const requestsUsed = response.headers["x-requests-used"];
+      // const requestsLast = response.headers["x-requests-last"];
 
-      console.log(`Requests Remaining: ${requestsRemaining}`);
-      console.log(`Requests Used: ${requestsUsed}`);
-      console.log(`Requests Last: ${requestsLast}`);
+      // console.log(`Requests Remaining: ${requestsRemaining}`);
+      // console.log(`Requests Used: ${requestsUsed}`);
+      // console.log(`Requests Last: ${requestsLast}`);
 
       cache.set(cacheKey, response.data);
+
       return response.data;
     } catch (error) {
       console.log("EVENT ODDS ERROR", error);
@@ -107,7 +111,6 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-      console.log("CACHE KEY : ", cacheKey);
 
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
@@ -228,26 +231,27 @@ class Store {
     dateFormat?: string | undefined
   ): Promise<any> {
     const categoriesData = await this.getCategories();
-
     const has_outrights = categoriesData
-      ?.flatMap((item) => item.events)
-      .find((event) => event.key === sport).has_outrights;
+      ?.flatMap((item) => item?.events)
+      ?.find((event) => event?.key === sport)?.has_outrights;
 
     markets = has_outrights ? "outright" : "h2h,spreads,totals";
 
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
       dateFormat || "iso"
     }_${oddsFormat || "decimal"}`;
+
     const data = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
       { regions, markets, dateFormat: "iso", oddsFormat: "decimal" },
       this.eventOddsCache,
       cacheKey
     );
+    const { bookmakers, ...restOfData } = data;
 
-    const bookmakers = this.storeService.selectBookmaker(data.bookmakers);
-    data.bookmakers = bookmakers.markets;
-    return data;
+    const selectBookmakers = this.storeService.selectBookmaker(bookmakers);
+
+    return { ...data, markets: selectBookmakers.markets };
   }
 
   public async getCategories(): Promise<
