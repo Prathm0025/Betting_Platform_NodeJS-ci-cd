@@ -5,7 +5,6 @@ import connectDB from "./src/config/db";
 const startServer = async () => {
   // await redisClient.connect();
 
-  console.log("Connected to Redis");
 
   await connectDB();
 
