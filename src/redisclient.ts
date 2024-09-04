@@ -10,6 +10,7 @@ const redisClient = new Redis({
 // Log errors from Redis
 redisClient.on('error', (err) => {
   console.error('Redis error:', err);
+  process.exit(1); 
 });
 
 // Ensure that Redis is connected before proceeding

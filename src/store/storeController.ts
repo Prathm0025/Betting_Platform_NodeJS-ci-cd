@@ -23,7 +23,6 @@ class Store {
       this.redisGetAsync = redisClient.get.bind(redisClient);
       this.redisSetAsync = redisClient.set.bind(redisClient);
       
-      console.log("Redis client connected");
     } catch (error) {
       console.error("Redis client connection error:", error);
       this.redisGetAsync = async () => null;
