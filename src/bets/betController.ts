@@ -1,6 +1,4 @@
-import Agenda, { Job } from "agenda";
 import Bet, { BetDetail } from "./betModel";
-import { agenda } from "../config/db";
 import { IBet, IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
@@ -16,36 +14,9 @@ import { config } from "../config/config";
 import { scheduleBets } from "../config/scheduler";
 
 class BetController {
-  constructor() {
-    if (!agenda) {
-      console.error(
-        "Agenda is not initialized. Make sure the database is connected and agenda is initialized before using BetController."
-      );
-      return;
-    }
 
-    this.initializeAgenda();
-  }
 
-  private initializeAgenda() {
-    agenda.define("lock bet", async (job: Job) => {
-      await this.lockBet(job.attrs.data.betId);
-    });
-
-    agenda.define("process outcome", async (job: Job) => {
-      await this.processOutcomeQueue(
-        job.attrs.data.betId,
-        job.attrs.data.result
-      );
-    });
-
-    agenda.define("retry bet", async (job: Job) => {
-      await this.processRetryQueue(job.attrs.data.betId);
-    });
-
-    agenda.start();
-  }
-
+  
   public async placeBet(
     playerRef: Player,
     betDetails: IBetDetail[],
@@ -275,7 +246,6 @@ class BetController {
       }
     } catch (error) {
       await session.abortTransaction();
-      agenda.schedule("in 5 minutes", "retry bet", { betId });
     } finally {
       session.endSession();
     }
@@ -289,7 +259,6 @@ class BetController {
         bet.status = result;
         await bet.save();
       } catch (error) {
-        agenda.schedule("in 5 minutes", "retry bet", { betId });
       }
     }
   }
@@ -307,13 +276,11 @@ class BetController {
         }
         await bet.save();
       } catch (error) {
-        agenda.schedule("in 5 minutes", "retry bet", { betId });
       }
     }
   }
 
   public async settleBet(betId: string, result: "success" | "fail") {
-    agenda.now("process outcome", { betId, result });
   }
 
   //GET BETS OF PLAYERS UNDER AN AGENT

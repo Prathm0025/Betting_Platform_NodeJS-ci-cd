@@ -21,7 +21,6 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "agenda": "^5.0.0",
     "axios": "^1.7.3",
     "bcrypt": "^5.1.1",
     "bull": "^4.16.0",

@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import Agenda, { Job } from "agenda";
 import path from "path";
 import { Worker } from "worker_threads";
 import betServices from "../bets/betServices";
@@ -10,7 +9,6 @@ import { activeRooms } from "../socket/socket";
 import { redisClient } from "../redisclient";
 // import scheduler from "./scheduler";
 
-let agenda: Agenda;
 
 const workerFilePath = path.resolve(__dirname, "../bets/schedulerBetWorker.js");
 const redisOptions = {
@@ -18,7 +16,7 @@ const redisOptions = {
   port: 6379,
 };
 
-const startWorker = (queueData: any[], activeRoomsData: string[]) => {
+const startWorker = () => {
   const worker = new Worker(workerFilePath, {
     workerData: {redisOptions }
   });
@@ -58,17 +56,7 @@ const connectDB = async () => {
 
     await mongoose.connect(config.databaseUrl as string);
 
-    agenda = new Agenda({
-      db: { address: config.databaseUrl as string, collection: "jobs" },
-    });
-
-    agenda.define("add bet to queue", async (job: Job) => {
-      const { betDetailId } = job.attrs.data;
-      await betServices.addBetToQueueAtCommenceTime(betDetailId);
-      console.log(`Bet ${betDetailId} is added to processing queue`);
-    });
-
-    await agenda.start();
+    
 
     // scheduler.start();
 
@@ -76,7 +64,9 @@ const connectDB = async () => {
       const activeRoomsData = Array.from(activeRooms);
       console.log(activeRoomsData, activeRooms);
      
-      startWorker([], activeRoomsData);
+      startWorker(
+        
+      );
 
   } catch (err) {
     console.error("Failed to connect to database.", err);
@@ -84,5 +74,4 @@ const connectDB = async () => {
   }
 };
 
-export { agenda };
 export default connectDB;
