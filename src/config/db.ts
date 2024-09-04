@@ -27,17 +27,18 @@ const startWorker = () => {
         console.log(`No task found for ${taskName}`);
     }
   });
-  
+
   // Error handling
   worker.on('error', (error) => {
     console.error('Worker encountered an error:', error);
   });
-  
+
   // Cleanup on exit
   worker.on('exit', (code) => {
     if (code !== 0) {
       console.error(`Worker stopped with exit code ${code}`);
-    }});
+    }
+  });
 };
 
 const connectDB = async () => {
@@ -52,17 +53,15 @@ const connectDB = async () => {
 
     await mongoose.connect(config.databaseUrl as string);
 
-    
-
     // scheduler.start();
 
-      // const queueData = betServices.getPriorityQueueData();
-      const activeRoomsData = Array.from(activeRooms);
-      console.log(activeRoomsData, activeRooms);
-     
-      startWorker(
-        
-      );
+    // const queueData = betServices.getPriorityQueueData();
+    const activeRoomsData = Array.from(activeRooms);
+    console.log(activeRoomsData, activeRooms);
+
+    startWorker(
+
+    );
 
   } catch (err) {
     console.error("Failed to connect to database.", err);

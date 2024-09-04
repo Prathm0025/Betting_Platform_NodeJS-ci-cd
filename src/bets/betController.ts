@@ -16,7 +16,7 @@ import { scheduleBets } from "../config/scheduler";
 class BetController {
 
 
-  
+
   public async placeBet(
     playerRef: Player,
     betDetails: IBetDetail[],
@@ -154,11 +154,10 @@ class BetController {
 
       let responseMessage;
       if (betType === "single") {
-        responseMessage = `Single bet on ${
-          betDetails[0].bet_on === "home_team"
-            ? betDetails[0].home_team.name
-            : betDetails[0].away_team.name
-        } placed successfully!`;
+        responseMessage = `Single bet on ${betDetails[0].bet_on === "home_team"
+          ? betDetails[0].home_team.name
+          : betDetails[0].away_team.name
+          } placed successfully!`;
       } else {
         responseMessage = "Combo bet placed sccessfully!";
       }
@@ -191,13 +190,13 @@ class BetController {
     if (delay < 0) {
       throw new Error(`Commence time for bet detail ${betDetail._id.toString()} is in the past.`);
     }
-  
+
     try {
-      await scheduleBets('addBetToQueue', commence_time, { betId: betDetail._id.toString() });
-      
-    console.log(
-      `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
-    );
+      await scheduleBets('addBetToQueue', commence_time, { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) });
+
+      console.log(
+        `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
+      );
     } catch (error) {
       console.error(`Failed to schedule bet detail ${betDetail._id.toString()}:`, error);
     }
