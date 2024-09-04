@@ -156,13 +156,12 @@ export default class Player {
             const eventOddsData = await Store.getEventOdds(
               res.payload.sport,
               res.payload.eventId,
-              res.payload.has_outrights,
               res.payload.markets,
               res.payload.regions,
               res.payload.oddsFormat,
               res.payload.dateFormat
             );
-            console.log("ODDS DATA", eventOddsData);
+
             this.sendData({ type: "GET event odds", data: eventOddsData });
             break;
 

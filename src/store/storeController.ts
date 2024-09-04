@@ -222,27 +222,19 @@ class Store {
   public async getEventOdds(
     sport: string,
     eventId: string,
-    has_outrights: boolean,
     markets?: string | undefined,
     regions?: string | undefined,
     oddsFormat?: string | undefined,
     dateFormat?: string | undefined
   ): Promise<any> {
-    console.log(
-      "in event odds",
-      sport,
-      eventId,
-      markets,
-      regions,
-      oddsFormat,
-      dateFormat,
-      has_outrights
-    );
-    if (has_outrights) {
-      markets = "outright";
-    } else {
-      markets = "h2h,spreads,totals";
-    }
+    const categoriesData = await this.getCategories();
+
+    const has_outrights = categoriesData
+      ?.flatMap((item) => item.events)
+      .find((event) => event.key === sport).has_outrights;
+
+    markets = has_outrights ? "outright" : "h2h,spreads,totals";
+
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
       dateFormat || "iso"
     }_${oddsFormat || "decimal"}`;
@@ -252,6 +244,7 @@ class Store {
       this.eventOddsCache,
       cacheKey
     );
+
     const bookmakers = this.storeService.selectBookmaker(data.bookmakers);
     data.bookmakers = bookmakers.markets;
     return data;
