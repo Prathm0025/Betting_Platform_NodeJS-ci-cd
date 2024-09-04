@@ -11,14 +11,10 @@ import { redisClient } from "../redisclient";
 
 
 const workerFilePath = path.resolve(__dirname, "../bets/schedulerBetWorker.js");
-const redisOptions = {
-  host: 'localhost',
-  port: 6379,
-};
+
 
 const startWorker = () => {
   const worker = new Worker(workerFilePath, {
-    workerData: { redisOptions }
   });
 
   worker.on('message', async ({ taskName, data }: { taskName: string, data: any }) => {
