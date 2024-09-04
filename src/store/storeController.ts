@@ -53,7 +53,6 @@ class Store {
     if (cachedData) {
       return cachedData;
     }
-
     try {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
@@ -71,6 +70,7 @@ class Store {
       cache.set(cacheKey, response.data);
       return response.data;
     } catch (error) {
+      console.log("EVENT ODDS ERROR", error);
       throw new Error(error.message || "Error Fetching Data");
     }
   }
@@ -138,19 +138,21 @@ class Store {
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
         );
-
+        if (bookmaker === undefined) {
+          return {};
+        }
         return {
-          id: game.id,
-          sport_key: game.sport_key,
-          sport_title: game.sport_title,
-          commence_time: game.commence_time,
-          home_team: game.home_team,
-          away_team: game.away_team,
+          id: game?.id,
+          sport_key: game?.sport_key,
+          sport_title: game?.sport_title,
+          commence_time: game?.commence_time,
+          home_team: game?.home_team,
+          away_team: game?.away_team,
           markets: bookmaker?.markets || [],
           scores: matchedScore?.scores || [],
           completed: matchedScore?.completed,
           last_update: matchedScore?.last_update,
-          selected: bookmaker.key,
+          selected: bookmaker?.key,
         };
       });
 
@@ -217,10 +219,11 @@ class Store {
     );
   }
 
-  public getEventOdds(
+  public async getEventOdds(
     sport: string,
     eventId: string,
-    markets: string | undefined,
+    has_outrights: boolean,
+    markets?: string | undefined,
     regions?: string | undefined,
     oddsFormat?: string | undefined,
     dateFormat?: string | undefined
@@ -232,23 +235,32 @@ class Store {
       markets,
       regions,
       oddsFormat,
-      dateFormat
+      dateFormat,
+      has_outrights
     );
+    if (has_outrights) {
+      markets = "outright";
+    } else {
+      markets = "h2h,spreads,totals";
+    }
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
       dateFormat || "iso"
     }_${oddsFormat || "decimal"}`;
-    return this.fetchFromApi(
+    const data = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
-      { regions, markets, dateFormat, oddsFormat },
+      { regions, markets, dateFormat: "iso", oddsFormat: "decimal" },
       this.eventOddsCache,
       cacheKey
     );
+    const bookmakers = this.storeService.selectBookmaker(data.bookmakers);
+    data.bookmakers = bookmakers.markets;
+    return data;
   }
 
   public async getCategories(): Promise<
     {
-      group: string;
-      items: any;
+      category: string;
+      events: any;
     }[]
   > {
     try {
@@ -262,19 +274,19 @@ class Store {
       groupedData["All"] = [];
 
       sportsData.forEach((item) => {
-        const { group, title, key } = item;
+        const { group, title, key, has_outrights, active } = item;
 
         if (!groupedData[group]) {
           groupedData[group] = [];
         }
 
-        groupedData[group].push({ title, key });
-        groupedData["All"].push({ title, key });
+        groupedData[group].push({ title, key, has_outrights, active });
+        groupedData["All"].push({ title, key, has_outrights, active });
       });
 
       const categories = Object.keys(groupedData).map((group) => ({
-        group,
-        items: groupedData[group],
+        category: group,
+        events: groupedData[group],
       }));
 
       return categories;
@@ -311,10 +323,7 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    console.log("i will update the live data");
-
     const currentActive = this.removeInactiveRooms();
-    console.log(currentActive, "cdcdc");
 
     for (const sport of currentActive) {
       const { live_games, todays_upcoming_games, future_upcoming_games } =
@@ -340,10 +349,8 @@ class Store {
     activeRooms.forEach((room) => {
       if (!currentRooms.has(room)) {
         activeRooms.delete(room);
-        console.log(`Removed inactive room: ${room}`);
       }
     });
-    console.log(activeRooms, "rooms active");
 
     return activeRooms;
   }

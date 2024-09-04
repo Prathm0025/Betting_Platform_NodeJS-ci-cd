@@ -152,16 +152,18 @@ export default class Player {
             this.joinRoom(res.payload.sport);
             break;
 
-          case "EVENT_ODDS":
+          case "GET event odds":
             const eventOddsData = await Store.getEventOdds(
               res.payload.sport,
               res.payload.eventId,
-              res.payload.regions,
+              res.payload.has_outrights,
               res.payload.markets,
-              res.payload.dateFormat,
-              res.payload.oddsFormat
+              res.payload.regions,
+              res.payload.oddsFormat,
+              res.payload.dateFormat
             );
-            this.sendData({ type: "EVENT_ODDS", data: eventOddsData });
+            console.log("ODDS DATA", eventOddsData);
+            this.sendData({ type: "GET event odds", data: eventOddsData });
             break;
 
           case "SPORTS":

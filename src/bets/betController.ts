@@ -469,6 +469,7 @@ class BetController {
         const currentData = await Store.getEventOdds(
           betDetails.sport_key,
           betDetails.event_id,
+          false,
           betDetails.market,
           "us",
           betDetails.oddsFormat,
