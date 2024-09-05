@@ -1,5 +1,3 @@
-// queueService.ts
-
 import { redisClient } from "../redisclient";
 
 const QUEUE_NAME = 'processingQueue';
@@ -26,4 +24,8 @@ export async function getAll(): Promise<string[]> {
 //size of the queue
 export async function size(): Promise<number> {
   return redisClient.llen(QUEUE_NAME);
+}
+// Remove a specific item from the queue
+export async function removeItem(item: string): Promise<number> {
+  return redisClient.lrem(QUEUE_NAME, 0, item);
 }
