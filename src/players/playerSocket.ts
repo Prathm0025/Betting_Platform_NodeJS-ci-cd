@@ -110,7 +110,7 @@ export default class Player {
             const categoriesData = await Store.getCategories();
             this.sendData({
               type: "CATEGORIES",
-              data: ["All", ...categoriesData],
+              data: categoriesData,
             });
             break;
 
@@ -152,16 +152,17 @@ export default class Player {
             this.joinRoom(res.payload.sport);
             break;
 
-          case "EVENT_ODDS":
+          case "GET event odds":
             const eventOddsData = await Store.getEventOdds(
               res.payload.sport,
               res.payload.eventId,
-              res.payload.regions,
               res.payload.markets,
-              res.payload.dateFormat,
-              res.payload.oddsFormat
+              res.payload.regions,
+              res.payload.oddsFormat,
+              res.payload.dateFormat
             );
-            this.sendData({ type: "EVENT_ODDS", data: eventOddsData });
+            const { bookmakers, ...data } = eventOddsData;
+            this.sendData({ type: "GET event odds", data: data });
             break;
 
           case "SPORTS":
@@ -259,7 +260,7 @@ export default class Player {
       this.socket.leave(this.currentRoom);
       const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
       console.log(clients, "clients");
-      
+
       if (!clients || clients.size === 0) {
         activeRooms.delete(this.currentRoom);
         console.log(`Room ${this.currentRoom} removed from activeRooms.`);

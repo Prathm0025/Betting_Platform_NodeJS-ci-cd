@@ -6,6 +6,7 @@ import Player from "../players/playerModel";
 import bcrypt from "bcrypt";
 import { IPlayer } from "./playerType";
 import User from "../users/userModel";
+import { users } from "../socket/socket";
 
 class PlayerController {
   static saltRounds: Number = 10;
@@ -51,11 +52,11 @@ class PlayerController {
 
       role === "admin"
         ? creator.subordinates.push(
-            newUser._id as unknown as mongoose.Schema.Types.ObjectId
-          )
+          newUser._id as unknown as mongoose.Schema.Types.ObjectId
+        )
         : creator.players.push(
-            newUser._id as unknown as mongoose.Schema.Types.ObjectId
-          );
+          newUser._id as unknown as mongoose.Schema.Types.ObjectId
+        );
       await creator.save();
 
       res
@@ -173,10 +174,16 @@ class PlayerController {
         throw createHttpError(404, "Player not found");
       }
 
+      const playerSocket = users.get(updatedPlayer?.username);
+      if (playerSocket) {
+        playerSocket.sendMessage({ type: "STATUS", payload: updatedPlayer.status === "active" ? true : false, message: "" });
+      }
       res.status(200).json({
         message: "Player updated successfully",
         player: updatedPlayer,
       });
+
+
     } catch (error) {
       next(error);
     }

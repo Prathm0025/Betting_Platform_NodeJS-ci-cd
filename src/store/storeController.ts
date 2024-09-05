@@ -18,11 +18,8 @@ class Store {
 
   private async initializeRedis() {
     try {
-     
-  
       this.redisGetAsync = redisClient.get.bind(redisClient);
       this.redisSetAsync = redisClient.set.bind(redisClient);
-      
     } catch (error) {
       console.error("Redis client connection error:", error);
       this.redisGetAsync = async () => null;
@@ -30,31 +27,39 @@ class Store {
     }
   }
 
-
-  private async fetchFromApi(url: string, params: any, cacheKey: string): Promise<any> {
+  private async fetchFromApi(
+    url: string,
+    params: any,
+    cacheKey: string
+  ): Promise<any> {
     // Check if the data is already in the Redis cache
     const cachedData = await this.redisGetAsync(cacheKey);
     if (cachedData) {
       // console.log(JSON.parse(cachedData), "cached");
-      
+
       return JSON.parse(cachedData);
     }
-
     try {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
       });
       console.log("API CALL");
-      
+
       // Log the quota-related headers
       // const requestsRemaining = response.headers["x-requests-remaining"];
       // const requestsUsed = response.headers["x-requests-used"];
       // const requestsLast = response.headers["x-requests-last"];
 
       // Cache the data in Redis
-      await this.redisSetAsync(cacheKey, JSON.stringify(response.data), 'EX', 43200); // Cache for 12 hours
+      await this.redisSetAsync(
+        cacheKey,
+        JSON.stringify(response.data),
+        "EX",
+        43200
+      ); // Cache for 12 hours
       return response.data;
     } catch (error) {
+      console.log("EVENT ODDS ERROR", error);
       throw new Error(error.message || "Error Fetching Data");
     }
   }
@@ -111,7 +116,9 @@ class Store {
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
         );
-        if (bookmaker === undefined) {return {};}
+        if (bookmaker === undefined) {
+          return {};
+        }
         return {
           id: game?.id,
           sport_key: game?.sport_key,
@@ -147,7 +154,9 @@ class Store {
         return commenceTime > endOfToday && !game.completed;
       });
 
-      const completedGames = processedData.filter((game: any) => game.completed);
+      const completedGames = processedData.filter(
+        (game: any) => game.completed
+      );
 
       return {
         live_games: liveGames,
@@ -172,35 +181,71 @@ class Store {
     );
   }
 
-  public getEventOdds(
+  public async getEventOdds(
     sport: string,
     eventId: string,
-    markets: string | undefined,
+    markets?: string | undefined,
     regions?: string | undefined,
     oddsFormat?: string | undefined,
     dateFormat?: string | undefined
   ): Promise<any> {
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
-      }_${oddsFormat || "decimal"}`;
-    return this.fetchFromApi(
+    const categoriesData = await this.getCategories();
+    const has_outrights = categoriesData
+      ?.flatMap((item) => item?.events)
+      ?.find((event) => event?.key === sport)?.has_outrights;
+
+    markets = has_outrights ? "outright" : "h2h,spreads,totals";
+
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
+      dateFormat || "iso"
+    }_${oddsFormat || "decimal"}`;
+
+    const data = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
-      { regions, markets, dateFormat, oddsFormat },
+      { regions, markets, dateFormat: "iso", oddsFormat: "decimal" },
       cacheKey
     );
+    const { bookmakers } = data;
+
+    const selectBookmakers = this.storeService.selectBookmaker(bookmakers);
+
+    return {
+      ...data,
+      markets: selectBookmakers.markets,
+      selected: selectBookmakers?.key,
+    };
   }
 
-  public async getCategories(): Promise<string[]> {
+  public async getCategories(): Promise<
+    {
+      category: string;
+      events: any;
+    }[]
+  > {
     try {
-      const sportsData = await this.getSports();
+      const sportsData = await this.fetchFromApi(
+        `${config.oddsApi.url}/sports`,
+        {},
+        "sportsList"
+      );
+      const groupedData: { [key: string]: any[] } = {};
+      groupedData["All"] = [];
 
-      const categories = (
-        sportsData as Array<{ group: string; active: boolean }>
-      ).reduce<string[]>((acc, sport) => {
-        if (sport.active && !acc.includes(sport.group)) {
-          acc.push(sport.group);
+      sportsData.forEach((item) => {
+        const { group, title, key, has_outrights, active } = item;
+
+        if (!groupedData[group]) {
+          groupedData[group] = [];
         }
-        return acc;
-      }, []);
+
+        groupedData[group].push({ title, key, has_outrights, active });
+        groupedData["All"].push({ title, key, has_outrights, active });
+      });
+
+      const categories = Object.keys(groupedData).map((group) => ({
+        category: group,
+        events: groupedData[group],
+      }));
 
       return categories;
     } catch (error) {
@@ -229,15 +274,25 @@ class Store {
   }
 
   public async updateLiveData(livedata: any) {
-    const currentActive = this.removeInactiveRooms()
+    const currentActive = this.removeInactiveRooms();
 
     for (const sport of currentActive) {
-      const liveGamesForSport = livedata.live_games.filter((game: any) => game.sport_key === sport);
-      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game: any) => game.sport_key === sport);
-      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game: any) => game.sport_key === sport);
+      const liveGamesForSport = livedata.live_games.filter(
+        (game: any) => game.sport_key === sport
+      );
+      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
+        (game: any) => game.sport_key === sport
+      );
+      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
+        (game: any) => game.sport_key === sport
+      );
 
       // Check if there's any data for the current sport before emitting
-      if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
+      if (
+        liveGamesForSport.length > 0 ||
+        todaysUpcomingGamesForSport.length > 0 ||
+        futureUpcomingGamesForSport.length > 0
+      ) {
         io.to(sport).emit("data", {
           type: "ODDS",
           data: {
@@ -260,10 +315,8 @@ class Store {
     activeRooms.forEach((room) => {
       if (!currentRooms.has(room)) {
         activeRooms.delete(room);
-        console.log(`Removed inactive room: ${room}`);
       }
     });
-    console.log(activeRooms, "rooms active");
 
     return activeRooms;
   }

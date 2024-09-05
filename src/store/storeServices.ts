@@ -5,14 +5,15 @@ class StoreService {
 
   }
   public selectBookmaker(bookmakers: Bookmaker[]): Bookmaker | null {
-    let bestBookmaker: Bookmaker | null = null;
+    
+    let bestBookmaker: Bookmaker;
     let highestMargin = -Infinity;
 
-    bookmakers.forEach((bookmaker: Bookmaker) => {
-      bookmaker.markets.forEach((market) => {
+    bookmakers?.forEach((bookmaker: Bookmaker) => {
+      bookmaker?.markets?.forEach((market) => {
         let totalImpliedProbability = 0;
 
-        market.outcomes.forEach((outcome) => {
+        market?.outcomes?.forEach((outcome) => {
           const impliedProbability = 1 / outcome.price;
           totalImpliedProbability += impliedProbability;
         });
@@ -29,6 +30,7 @@ class StoreService {
     });
 
     return bestBookmaker;
+
   }
 
 }
