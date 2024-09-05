@@ -3,7 +3,27 @@ import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "../bets/betModel";
 import { dequeue, getAll, size } from "../utils/ProcessingQueue";
+import { connect } from "http2";
+import { config } from "../config/config";
 
+async  function connectDB (){
+  try {
+    mongoose.connection.on("connected", async () => {
+      console.log("Connected to database successfully");
+    });
+
+    mongoose.connection.on("error", (err) => {
+      console.log("Error in connecting to database.", err);
+    });
+
+    await mongoose.connect(config.databaseUrl as string);
+  } catch (err) {
+    console.error("Failed to connect to database.", err);
+    process.exit(1);
+  }
+}
+
+connectDB();
 async function processBets(sportKeys, bets) {
   console.log("Starting bet processing...");
   console.log("Bets:", bets.length);
@@ -158,48 +178,35 @@ function determineWinner(betDetail, gameData, bet) {
 
 const fetchAndProcessQueue = async () => {
   console.log("fetching and processing queue");
-
+  
   let betsData: any[] = [];
   const sports = new Set<string>();
-
+  
+    
   try {
-    const queueSize = await size();
+    const queueSize = await size(); 
 
     for (let i = 0; i < queueSize; i++) {
-      const bet = await dequeue();
+      const bet = await dequeue(); 
       console.log(bet, "bet");
-
+      //handle error
+      /**
+       * check if db query has failed send dequeed bet to error queue
+       */
+      
       if (bet) {
-        // Start a Mongoose session for each dequeued bet
-        const session = await mongoose.startSession();
-        session.startTransaction();
-        try {
-          const betDetail = await BetDetail.findById(bet).session(session);
-          if (!betDetail) {
-            throw new Error("BetDetail not found");
-          }
-
-          betsData.push(betDetail);
-
-          // Commit the transaction
-          await session.commitTransaction();
-        } catch (error) {
-          console.error('Error processing bet during transaction:', error);
-          await session.abortTransaction();  // Rollback if there's an error
-        } finally {
-          session.endSession();  // Ensure the session is closed
-        }
+        const betDetail = (await BetDetail.findById(bet));;
+        betsData.push(betDetail); 
       }
     }
-
     betsData.forEach((bet) => sports.add(bet._doc.sport_key));
     const sportKeysArray = Array.from(sports);
     console.log("Bets data after dequeuing:", betsData);
-    if (betsData.length > 0) {
-      processBets(sportKeysArray, betsData);
-    } else {
-      console.log("Nothing to process in processing queue");
-    }
+   if(betsData.length>0)
+    processBets(sportKeysArray, betsData)
+   else
+   console.log("nothing to process in processing queue");
+    
   } catch (error) {
     console.error('Error fetching or processing queue data:', error);
   }
