@@ -24,6 +24,9 @@ async  function connectDB (){
 }
 
 connectDB();
+
+
+
 async function processBets(sportKeys, bets) {
   console.log("Starting bet processing...");
   console.log("Bets:", bets.length);
@@ -34,7 +37,8 @@ async function processBets(sportKeys, bets) {
     for (const sport of sportKeys) {
       // console.log("Processing sport:", sport);
       const oddsData = await Store.getOdds(sport);
-     
+       console.log(oddsData, "odds data of bets");
+       
       if (!oddsData || !oddsData.completed_games) {
         // console.error(`No data or completed games found for sport: ${sport}`);
         continue; 
@@ -42,15 +46,15 @@ async function processBets(sportKeys, bets) {
 
       const { completed_games, live_games, upcoming_games } = oddsData;
       
-      parentPort.postMessage({
-        type: 'updateLiveData',
-        livedata: oddsData,
-        activeRooms: sportKeys
-      });     
+      // parentPort.postMessage({
+      //   type: 'updateLiveData',
+      //   livedata: oddsData,
+      //   activeRooms: sportKeys
+      // });     
 
       // console.log("Live games:", live_games);
    
-      console.log("Upcoming games:", upcoming_games);
+      // console.log("Upcoming games:", upcoming_games);
       
       for (const game of completed_games) {
         const bet = bets.find((b) => b.event_id === game.id);
