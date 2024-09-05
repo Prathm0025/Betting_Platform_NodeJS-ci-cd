@@ -5,6 +5,7 @@ import { sanitizeInput } from "../utils/utils";
 import User from "../users/userModel";
 class AdminController {
   static saltRounds: Number = 10;
+
   //CREATE AN ADMIN
 
   async createAdmin(req: Request, res: Response, next: NextFunction) {
