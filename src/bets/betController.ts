@@ -11,7 +11,7 @@ import Store from "../store/storeController";
 import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
-import { scheduleBets } from "../config/scheduler";
+import { redisClient } from "../redisclient";
 
 class BetController {
 
@@ -117,7 +117,7 @@ class BetController {
         betDetailIds.push(betDetail._id); // No need to cast, using mongoose.Types.ObjectId
 
         // Schedule the job for this BetDetail based on its commence_time
-        await this.scheduleBetDetailJob(betDetail, session);
+        await this.addBetToWaitingQueue(betDetail);
       }
 
       // Calculate the possible winning amount
@@ -180,10 +180,7 @@ class BetController {
     }
   }
 
-  private async scheduleBetDetailJob(
-    betDetail: IBetDetail,
-    session: mongoose.ClientSession
-  ) {
+  private async addBetToWaitingQueue(betDetail: IBetDetail) {
     const commence_time = new Date(betDetail.commence_time);
     const delay = commence_time.getTime() - Date.now();
 
@@ -192,92 +189,19 @@ class BetController {
     }
 
     try {
-      await scheduleBets('addBetToQueue', commence_time, { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) });
+      const runAt = commence_time;
+      const data = { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) }
+      const timestamp = runAt.getTime() / 1000
 
-      console.log(
-        `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
-      );
+
+      await redisClient.zadd('waitingQueue', timestamp.toString(), JSON.stringify(data))
+
     } catch (error) {
       console.error(`Failed to schedule bet detail ${betDetail._id.toString()}:`, error);
     }
   }
 
-  private calculatePossibleWinning(data: any) {
-    const selectedTeam =
-      data.bet_on === "home_team" ? data.home_team : data.away_team;
-    const oddsFormat = data.oddsFormat;
-    const betAmount = parseFloat(data.amount.toString());
 
-    let possibleWinningAmount = 0;
-
-    switch (oddsFormat) {
-      case "decimal":
-        possibleWinningAmount = selectedTeam.odds * betAmount;
-        break;
-
-      case "american":
-        if (selectedTeam.odds > 0) {
-          possibleWinningAmount =
-            (selectedTeam.odds / 100) * betAmount + betAmount;
-        } else {
-          possibleWinningAmount =
-            (100 / Math.abs(selectedTeam.odds)) * betAmount + betAmount;
-        }
-        break;
-
-      default:
-        console.log("INVALID ODDS FORMAT");
-    }
-
-    return possibleWinningAmount;
-  }
-
-  private async lockBet(betId: string) {
-    const session = await Bet.startSession();
-    session.startTransaction();
-
-    try {
-      const bet = await Bet.findById(betId).session(session);
-      if (bet && bet.status !== "locked") {
-        bet.status = "locked";
-        await bet.save();
-        await session.commitTransaction();
-      }
-    } catch (error) {
-      await session.abortTransaction();
-    } finally {
-      session.endSession();
-    }
-  }
-
-  private async processOutcomeQueue(betId: string, result: "won" | "lost") {
-    const bet = await Bet.findById(betId);
-
-    if (bet) {
-      try {
-        bet.status = result;
-        await bet.save();
-      } catch (error) {
-      }
-    }
-  }
-
-  private async processRetryQueue(betId: string) {
-    const bet = await Bet.findById(betId);
-
-    if (bet) {
-      try {
-        bet.retryCount += 1;
-        if (bet.retryCount > 1) {
-          bet.status = "lost";
-        } else {
-          bet.status = "retry";
-        }
-        await bet.save();
-      } catch (error) {
-      }
-    }
-  }
 
   public async settleBet(betId: string, result: "success" | "fail") {
   }

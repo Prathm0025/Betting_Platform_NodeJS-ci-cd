@@ -259,7 +259,7 @@ export default class Player {
       this.socket.leave(this.currentRoom);
       const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
       console.log(clients, "clients");
-      
+
       if (!clients || clients.size === 0) {
         activeRooms.delete(this.currentRoom);
         console.log(`Room ${this.currentRoom} removed from activeRooms.`);

@@ -44,6 +44,7 @@ const startWorker = () => {
 const connectDB = async () => {
   try {
     mongoose.connection.on("connected", async () => {
+      
       console.log("Connected to database successfully");
     });
 
@@ -58,10 +59,6 @@ const connectDB = async () => {
     // const queueData = betServices.getPriorityQueueData();
     const activeRoomsData = Array.from(activeRooms);
     console.log(activeRoomsData, activeRooms);
-
-    startWorker(
-
-    );
 
   } catch (err) {
     console.error("Failed to connect to database.", err);
