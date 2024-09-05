@@ -161,7 +161,8 @@ export default class Player {
               res.payload.oddsFormat,
               res.payload.dateFormat
             );
-            this.sendData({ type: "GET event odds", data: eventOddsData });
+            const { bookmakers, ...data } = eventOddsData;
+            this.sendData({ type: "GET event odds", data: data });
             break;
 
           case "SPORTS":

@@ -51,10 +51,7 @@ class Store {
   ): Promise<any> {
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
-      console.log("CACHED DATA", cachedData);
       return cachedData;
-    } else {
-      console.log("not cached");
     }
     try {
       const response = await axios.get(url, {
@@ -247,11 +244,15 @@ class Store {
       this.eventOddsCache,
       cacheKey
     );
-    const { bookmakers, ...restOfData } = data;
+    const { bookmakers } = data;
 
     const selectBookmakers = this.storeService.selectBookmaker(bookmakers);
 
-    return { ...data, markets: selectBookmakers.markets };
+    return {
+      ...data,
+      markets: selectBookmakers.markets,
+      selected: selectBookmakers?.key,
+    };
   }
 
   public async getCategories(): Promise<
