@@ -6,7 +6,7 @@ import { dequeue, getAll, size } from "../utils/ProcessingQueue";
 import { connect } from "http2";
 import { config } from "../config/config";
 
-async  function connectDB (){
+async function connectDB() {
   try {
     mongoose.connection.on("connected", async () => {
       console.log("Connected to database successfully");
@@ -32,20 +32,20 @@ async function processBets(sportKeys, bets) {
   console.log("Bets:", bets.length);
   // sportKeys.push(...Array.from(activeRooms));
   console.log(sportKeys, "worker sport key");
-  
+
   try {
     for (const sport of sportKeys) {
       // console.log("Processing sport:", sport);
       const oddsData = await Store.getOdds(sport);
-       console.log(oddsData, "odds data of bets");
-       
+      console.log(oddsData, "odds data of bets");
+
       if (!oddsData || !oddsData.completed_games) {
         // console.error(`No data or completed games found for sport: ${sport}`);
-        continue; 
+        continue;
       }
 
       const { completed_games, live_games, upcoming_games } = oddsData;
-      
+
       // parentPort.postMessage({
       //   type: 'updateLiveData',
       //   livedata: oddsData,
@@ -53,9 +53,9 @@ async function processBets(sportKeys, bets) {
       // });     
 
       // console.log("Live games:", live_games);
-   
+
       // console.log("Upcoming games:", upcoming_games);
-      
+
       for (const game of completed_games) {
         const bet = bets.find((b) => b.event_id === game.id);
         if (bet) {
@@ -127,48 +127,48 @@ async function processCompletedBet(betDetailId, gameData) {
 // }
 
 function determineWinner(betDetail, gameData, bet) {
-    const betType =bet.market;
-    const homeTeamScore = gameData.scores.find(score => score.name === gameData.home_team).score;
-    const awayTeamScore = gameData.scores.find(score => score.name === gameData.away_team).score;
-    switch(betType) {
-        case 'spreads':
-            const { handicap, betOn } = betDetail;
-            let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
-            let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
+  const betType = bet.market;
+  const homeTeamScore = gameData.scores.find(score => score.name === gameData.home_team).score;
+  const awayTeamScore = gameData.scores.find(score => score.name === gameData.away_team).score;
+  switch (betType) {
+    case 'spreads':
+      const { handicap, betOn } = betDetail;
+      let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
+      let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
 
-            if (betOn === 'A') {
-                return adjustedHomeTeamScore > awayTeamScore;
-            } else if (betOn === 'B') {
-                return adjustedAwayTeamScore > homeTeamScore;
-            } else {
-                throw new Error("Invalid betOn value for Handicap. It should be 'A' or 'B'.");
-            }
+      if (betOn === 'A') {
+        return adjustedHomeTeamScore > awayTeamScore;
+      } else if (betOn === 'B') {
+        return adjustedAwayTeamScore > homeTeamScore;
+      } else {
+        throw new Error("Invalid betOn value for Handicap. It should be 'A' or 'B'.");
+      }
 
-        case 'h2h':
-            const { betOn:h2hBetOn } = betDetail;
-            if (h2hBetOn === 'home_team') {
-                return homeTeamScore > awayTeamScore;
-            } else if (h2hBetOn === 'away_team') {
-                return awayTeamScore > homeTeamScore;
-            } else {
-                throw new Error("Invalid betOn value for H2H. It should be 'A' or 'B'.");
-            }
+    case 'h2h':
+      const { betOn: h2hBetOn } = betDetail;
+      if (h2hBetOn === 'home_team') {
+        return homeTeamScore > awayTeamScore;
+      } else if (h2hBetOn === 'away_team') {
+        return awayTeamScore > homeTeamScore;
+      } else {
+        throw new Error("Invalid betOn value for H2H. It should be 'A' or 'B'.");
+      }
 
-        // case 'totals':
-        //     const { totalLine, overUnder } = options;
-        //     let totalScore = teamAScore + teamBScore;
+    // case 'totals':
+    //     const { totalLine, overUnder } = options;
+    //     let totalScore = teamAScore + teamBScore;
 
-        //     if (overUnder === 'Over') {
-        //         return totalScore > totalLine;
-        //     } else if (overUnder === 'Under') {
-        //         return totalScore < totalLine;
-        //     } else {
-        //         throw new Error("Invalid overUnder value for Totals. It should be 'Over' or 'Under'.");
-        //     }
+    //     if (overUnder === 'Over') {
+    //         return totalScore > totalLine;
+    //     } else if (overUnder === 'Under') {
+    //         return totalScore < totalLine;
+    //     } else {
+    //         throw new Error("Invalid overUnder value for Totals. It should be 'Over' or 'Under'.");
+    //     }
 
-        default:
-            throw new Error("Invalid betType. It should be 'Handicap', 'H2H', or 'Totals'.");
-    }
+    default:
+      throw new Error("Invalid betType. It should be 'Handicap', 'H2H', or 'Totals'.");
+  }
 }
 
 // Example usage for Handicap
@@ -182,41 +182,41 @@ function determineWinner(betDetail, gameData, bet) {
 
 const fetchAndProcessQueue = async () => {
   console.log("fetching and processing queue");
-  
+
   let betsData: any[] = [];
   const sports = new Set<string>();
-  
-    
+
+
   try {
-    const queueSize = await size(); 
+    const queueSize = await size();
 
     for (let i = 0; i < queueSize; i++) {
-      const bet = await dequeue(); 
+      const bet = await dequeue();
       console.log(bet, "bet");
       //handle error
       /**
        * check if db query has failed send dequeed bet to error queue
        */
-      
+
       if (bet) {
         const betDetail = (await BetDetail.findById(bet));;
-        betsData.push(betDetail); 
+        betsData.push(betDetail);
       }
     }
     betsData.forEach((bet) => sports.add(bet._doc.sport_key));
     const sportKeysArray = Array.from(sports);
     console.log("Bets data after dequeuing:", betsData);
-   if(betsData.length>0)
-    processBets(sportKeysArray, betsData)
-   else
-   console.log("nothing to process in processing queue");
-    
+    if (betsData.length > 0)
+      processBets(sportKeysArray, betsData)
+    else
+      console.log("nothing to process in processing queue");
+
   } catch (error) {
     console.error('Error fetching or processing queue data:', error);
   }
 };
 
-setInterval(()=>{
+setInterval(() => {
   fetchAndProcessQueue();
 }, 30000)
 // The worker receives data from the main thread
