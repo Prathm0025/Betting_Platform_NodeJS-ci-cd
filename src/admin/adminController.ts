@@ -5,16 +5,15 @@ import { sanitizeInput } from "../utils/utils";
 import User from "../users/userModel";
 class AdminController {
   static saltRounds: Number = 10;
-
   //CREATE AN ADMIN
 
   async createAdmin(req: Request, res: Response, next: NextFunction) {
     const { username, password } = req.body;
-    
+
     try {
       const sanitizedUsername = sanitizeInput(username);
       const sanitizedPassword = sanitizeInput(password);
-    if (!sanitizedUsername || !sanitizedPassword) {
+      if (!sanitizedUsername || !sanitizedPassword) {
         throw createHttpError(400, "Username, password are required");
       }
       const existingAdmin = await User.findOne({ username: username });
@@ -38,7 +37,7 @@ class AdminController {
   }
 
   //GET AGENT UNDER ADMIN AND PLAYERS UNDER THOSE AGENTS
-  
+
   // async getAdminAgentsandAgentPlayers(req:Request, res:Response, next:NextFunction){
   //   try {
   //     const {adminId} = req.params;
