@@ -2,7 +2,7 @@
 
 import { redisClient } from "../redisclient";
 
-const QUEUE_NAME = 'processing_queue';
+const QUEUE_NAME = 'processingQueue';
 
 // Enqueue an item to the queue
 export async function enqueue(item: string): Promise<void> {

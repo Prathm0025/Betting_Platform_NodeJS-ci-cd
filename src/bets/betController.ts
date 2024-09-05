@@ -1,5 +1,5 @@
 import Bet, { BetDetail } from "./betModel";
-import { IBet, IBetDetail } from "./betsType";
+import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 
@@ -192,7 +192,7 @@ class BetController {
     }
 
     try {
-      await scheduleBets('addBetToQueue', commence_time, { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) });
+      await scheduleBets('addedBet', commence_time, { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) });
 
       console.log(
         `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`

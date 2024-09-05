@@ -2,9 +2,8 @@ import mongoose from "mongoose";
 import { config } from "./config";
 import path from "path";
 import { Worker } from "worker_threads";
-import betServices from "../bets/betServices";
-import storeController from "../store/storeController";
 import { activeRooms } from "../socket/socket";
+
 // import Scheduler from "./scheduler";
 import { redisClient } from "../redisclient";
 import { getAll } from "../utils/ProcessingQueue";
@@ -18,16 +17,16 @@ const startWorker = () => {
   const worker = new Worker(workerFilePath, {
   });
 
-  worker.on('message', async ({ taskName, data }: { taskName: string, data: any }) => {
-    switch (taskName) {
-      case 'addBetToQueue':
-        await betServices.addBetToQueueAtCommenceTime(data.betId);
-        break;
-      // Handle other tasks if needed
-      default:
-        console.log(`No task found for ${taskName}`);
-    }
-  });
+  // worker.on('message', async ({ taskName, data }: { taskName: string, data: any }) => {
+  //   switch (taskName) {
+  //     case 'addBetToQueue':
+  //       await betServices.addBetToQueueAtCommenceTime(data.betId);
+  //       break;
+  //     // Handle other tasks if needed
+  //     default:
+  //       console.log(`No task found for ${taskName}`);
+  //   }
+  // });
 
   // Error handling
   worker.on('error', (error) => {
@@ -137,9 +136,6 @@ const connectDB = async () => {
 
     await mongoose.connect(config.databaseUrl as string);
 
-    // scheduler.start();
-
-    // const queueData = betServices.getPriorityQueueData();
     const activeRoomsData = Array.from(activeRooms);
     console.log(activeRoomsData, activeRooms);
 
