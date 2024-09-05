@@ -2,14 +2,43 @@ import { parentPort, workerData } from "worker_threads";
 import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "../bets/betModel";
+import { dequeue, getAll, size } from "../utils/ProcessingQueue";
+import { connect } from "http2";
+import { config } from "../config/config";
+
+async  function connectDB (){
+  try {
+    mongoose.connection.on("connected", async () => {
+      console.log("Connected to database successfully");
+    });
+
+    mongoose.connection.on("error", (err) => {
+      console.log("Error in connecting to database.", err);
+    });
+
+    await mongoose.connect(config.databaseUrl as string);
+  } catch (err) {
+    console.error("Failed to connect to database.", err);
+    process.exit(1);
+  }
+}
+
+connectDB();
+
+
 
 async function processBets(sportKeys, bets) {
+  console.log("Starting bet processing...");
+  console.log("Bets:", bets.length);
+  // sportKeys.push(...Array.from(activeRooms));
+  console.log(sportKeys, "worker sport key");
   
   try {
     for (const sport of sportKeys) {
       // console.log("Processing sport:", sport);
       const oddsData = await Store.getOdds(sport);
-     
+       console.log(oddsData, "odds data of bets");
+       
       if (!oddsData || !oddsData.completed_games) {
         // console.error(`No data or completed games found for sport: ${sport}`);
         continue; 
@@ -17,15 +46,15 @@ async function processBets(sportKeys, bets) {
 
       const { completed_games, live_games, upcoming_games } = oddsData;
       
-      parentPort.postMessage({
-        type: 'updateLiveData',
-        livedata: oddsData,
-        activeRooms: sportKeys
-      });     
+      // parentPort.postMessage({
+      //   type: 'updateLiveData',
+      //   livedata: oddsData,
+      //   activeRooms: sportKeys
+      // });     
 
       // console.log("Live games:", live_games);
    
-      console.log("Upcoming games:", upcoming_games);
+      // console.log("Upcoming games:", upcoming_games);
       
       for (const game of completed_games) {
         const bet = bets.find((b) => b.event_id === game.id);
@@ -151,30 +180,51 @@ function determineWinner(betDetail, gameData, bet) {
 // // Example usage for Totals
 // console.log(isBetWinner('Totals', 2, 2, { totalLine: 3.5, overUnder: 'Over' })); // Output: true
 
-function chunkArray<T>(array: T[], chunkSize: number): T[][] {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    chunks.push(array.slice(i, i + chunkSize));
-  }
-  return chunks;
-  }
+const fetchAndProcessQueue = async () => {
+  console.log("fetching and processing queue");
   
+  let betsData: any[] = [];
+  const sports = new Set<string>();
   
-
-// The worker receives data from the main thread
-
-
-  setInterval(() => {
     
-    console.log("processing BETS 30 s");
-    processBets(workerData.sportKeys, workerData.bets)
-    .then(() => {
-      parentPort.postMessage("Bet processing completed.");
-    })
-    .catch((error) => {
-      console.error("Error during worker processing:", error);
-      parentPort.postMessage({ error: error.message });
-    });
-  
-  }, 30000);
-  
+  try {
+    const queueSize = await size(); 
+
+    for (let i = 0; i < queueSize; i++) {
+      const bet = await dequeue(); 
+      console.log(bet, "bet");
+      //handle error
+      /**
+       * check if db query has failed send dequeed bet to error queue
+       */
+      
+      if (bet) {
+        const betDetail = (await BetDetail.findById(bet));;
+        betsData.push(betDetail); 
+      }
+    }
+    betsData.forEach((bet) => sports.add(bet._doc.sport_key));
+    const sportKeysArray = Array.from(sports);
+    console.log("Bets data after dequeuing:", betsData);
+   if(betsData.length>0)
+    processBets(sportKeysArray, betsData)
+   else
+   console.log("nothing to process in processing queue");
+    
+  } catch (error) {
+    console.error('Error fetching or processing queue data:', error);
+  }
+};
+
+setInterval(()=>{
+  fetchAndProcessQueue();
+}, 30000)
+// The worker receives data from the main thread
+// processBets(workerData.sportKeys, workerData.bets)
+//   .then(() => {
+//     parentPort.postMessage("Bet processing completed.");
+//   })
+//   .catch((error) => {
+//     console.error("Error during worker processing:", error);
+//     parentPort.postMessage({ error: error.message });
+//   });

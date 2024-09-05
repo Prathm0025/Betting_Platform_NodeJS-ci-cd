@@ -11,7 +11,7 @@ import Store from "../store/storeController";
 import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
-import { scheduleBets } from "../config/scheduler";
+import { scheduleBets } from "../utils/scheduler";
 
 class BetController {
 
