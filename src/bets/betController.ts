@@ -1,5 +1,5 @@
 import Bet, { BetDetail } from "./betModel";
-import { IBet, IBetDetail } from "./betsType";
+import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 
