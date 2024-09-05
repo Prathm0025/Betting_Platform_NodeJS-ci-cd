@@ -4,42 +4,9 @@ import path from "path";
 import { Worker } from "worker_threads";
 import { activeRooms } from "../socket/socket";
 
-// import Scheduler from "./scheduler";
-import { redisClient } from "../redisclient";
 import { getAll } from "../utils/ProcessingQueue";
-// import scheduler from "./scheduler";
+import { startWorkers } from "../workers/initWorker";
 
-
-const workerFilePath = path.resolve(__dirname, "../bets/schedulerBetWorker.js");
-
-
-const startWorker = () => {
-  const worker = new Worker(workerFilePath, {
-  });
-
-  // worker.on('message', async ({ taskName, data }: { taskName: string, data: any }) => {
-  //   switch (taskName) {
-  //     case 'addBetToQueue':
-  //       await betServices.addBetToQueueAtCommenceTime(data.betId);
-  //       break;
-  //     // Handle other tasks if needed
-  //     default:
-  //       console.log(`No task found for ${taskName}`);
-  //   }
-  // });
-
-  // Error handling
-  worker.on('error', (error) => {
-    console.error('Worker encountered an error:', error);
-  });
-
-  // Cleanup on exit
-  worker.on('exit', (code) => {
-    if (code !== 0) {
-      console.error(`Worker stopped with exit code ${code}`);
-    }
-  });
-};
 
 const fetchAndProcessQueue = async () => {
   try {
@@ -115,19 +82,18 @@ async function processOddsForQueueBets(queueData: any, activeRooms: any) {
 
 // Helper function to chunk arrays
 function chunkArray<T>(array: T[], chunkSize: number): T[][] {
-const chunks = [];
-for (let i = 0; i < array.length; i += chunkSize) {
-  chunks.push(array.slice(i, i + chunkSize));
+  const chunks = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
 }
-return chunks;
-}
-
 
 
 const connectDB = async () => {
   try {
     mongoose.connection.on("connected", async () => {
-      
+
       console.log("Connected to database successfully");
     });
 
@@ -138,9 +104,8 @@ const connectDB = async () => {
     await mongoose.connect(config.databaseUrl as string);
 
     const activeRoomsData = Array.from(activeRooms);
-    console.log(activeRoomsData, activeRooms);
 
-    startWorker();
+    startWorkers()
     fetchAndProcessQueue();
 
   } catch (err) {

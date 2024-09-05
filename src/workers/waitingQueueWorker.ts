@@ -1,6 +1,7 @@
+import { parentPort } from "worker_threads";
 import { redisClient } from "../redisclient";
 
-async function checkBetsCommenceTime() {
+export async function checkBetsCommenceTime() {
     const now = new Date().getTime();
     const bets = await redisClient.zrangebyscore('waitingQueue', 0, now);
 
@@ -9,29 +10,40 @@ async function checkBetsCommenceTime() {
         const commenceTime = data.commence_time;
 
         if (now >= new Date(commenceTime).getTime()) {
-            const multi = redisClient.multi();
+            try {
+                const multi = redisClient.multi();
 
-            // Add the bet to the processing queue
-            multi.lpush('processingQueue', bet);
+                // Add the bet to the processing queue
+                multi.lpush('processingQueue', bet);
 
-            // Remove the bet from the waiting queue
-            multi.zrem('waitingQueue', bet)
+                // Remove the bet from the waiting queue
+                multi.zrem('waitingQueue', bet)
 
-            await multi.exec();
+                await multi.exec();
+
+            } catch (error) {
+                console.log("Error in Waiting Queue Worker : ", error);
+            }
+
         }
     }
 }
 
-export async function startWorker() {
-    console.log("Waiting Queue worker started......")
-
+async function startWorker() {
+    console.log("Waiting Queue Worker Started")
     setInterval(async () => {
         try {
             console.log("Checking bets commence time...");
             await checkBetsCommenceTime();
         } catch (error) {
-            console.error("Error in bet worker:", error);
+            console.error("Error in setInterval Waiting Queue Worker:", error);
         }
-    }, 30000); // Run every 30 seconds
+    }, 30000); // Runs every 30 seconds
 }
 
+
+parentPort.on('message', (message) => {
+    if (message === "start") {
+        startWorker()
+    }
+})
