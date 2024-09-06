@@ -6,10 +6,12 @@ class StoreService {
     selectBookmaker(bookmakers) {
         let bestBookmaker;
         let highestMargin = -Infinity;
-        bookmakers.forEach((bookmaker) => {
-            bookmaker.markets.forEach((market) => {
+        bookmakers === null || bookmakers === void 0 ? void 0 : bookmakers.forEach((bookmaker) => {
+            var _a;
+            (_a = bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.markets) === null || _a === void 0 ? void 0 : _a.forEach((market) => {
+                var _a;
                 let totalImpliedProbability = 0;
-                market.outcomes.forEach((outcome) => {
+                (_a = market === null || market === void 0 ? void 0 : market.outcomes) === null || _a === void 0 ? void 0 : _a.forEach((outcome) => {
                     const impliedProbability = 1 / outcome.price;
                     totalImpliedProbability += impliedProbability;
                 });
