@@ -8,6 +8,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -105,7 +116,7 @@ class Player {
                         const categoriesData = yield storeController_1.default.getCategories();
                         this.sendData({
                             type: "CATEGORIES",
-                            data: ["All", ...categoriesData],
+                            data: categoriesData,
                         });
                         break;
                     case "CATEGORY_SPORTS":
@@ -128,9 +139,10 @@ class Player {
                         this.sendData({ type: "ODDS", data: oddsData });
                         this.joinRoom(res.payload.sport);
                         break;
-                    case "EVENT_ODDS":
-                        const eventOddsData = yield storeController_1.default.getEventOdds(res.payload.sport, res.payload.eventId, res.payload.regions, res.payload.markets, res.payload.dateFormat, res.payload.oddsFormat);
-                        this.sendData({ type: "EVENT_ODDS", data: eventOddsData });
+                    case "GET event odds":
+                        const eventOddsData = yield storeController_1.default.getEventOdds(res.payload.sport, res.payload.eventId, res.payload.markets, res.payload.regions, res.payload.oddsFormat, res.payload.dateFormat);
+                        const { bookmakers } = eventOddsData, data = __rest(eventOddsData, ["bookmakers"]);
+                        this.sendData({ type: "GET event odds", data: data });
                         break;
                     case "SPORTS":
                         const sportsData = yield storeController_1.default.getSports();

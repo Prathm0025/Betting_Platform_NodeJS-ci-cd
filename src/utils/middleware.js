@@ -51,7 +51,6 @@ function checkUser(req, res, next) {
                     username: decoded.username,
                     role: decoded.role,
                 };
-                console.log(_req.user);
                 next();
             }
         });
@@ -111,7 +110,6 @@ function checkStatus(req, res, next) {
     }
     try {
         const decoded = jsonwebtoken_1.default.verify(cookie, process.env.JWT_SECRET);
-        console.log(decoded);
         next();
     }
     catch (error) {

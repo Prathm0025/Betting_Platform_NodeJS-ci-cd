@@ -13,87 +13,83 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("../config/config");
-const lru_cache_1 = require("lru-cache");
 const axios_1 = __importDefault(require("axios"));
 const storeServices_1 = __importDefault(require("./storeServices"));
 const socket_1 = require("../socket/socket");
 const server_1 = require("../server");
+const redisclient_1 = require("../../src/redisclient");
 class Store {
     constructor() {
-        this.sportsCache = new lru_cache_1.LRUCache({
-            max: 100,
-            ttl: 12 * 60 * 60 * 1000, // 12 hours
-        });
-        this.scoresCache = new lru_cache_1.LRUCache({
-            max: 100,
-            ttl: 30 * 1000, // 30 seconds
-        });
-        this.oddsCache = new lru_cache_1.LRUCache({
-            max: 100,
-            ttl: 30 * 1000, // 30 seconds
-        });
-        this.eventsCache = new lru_cache_1.LRUCache({
-            max: 100,
-            ttl: 30 * 1000, // 30 seconds
-        });
-        this.eventOddsCache = new lru_cache_1.LRUCache({
-            max: 100,
-            ttl: 30 * 1000, // 30 seconds
-        });
         this.storeService = new storeServices_1.default();
+        this.initializeRedis();
     }
-    fetchFromApi(url, params, cache, cacheKey) {
+    initializeRedis() {
         return __awaiter(this, void 0, void 0, function* () {
-            const cachedData = cache.get(cacheKey);
+            try {
+                this.redisGetAsync = redisclient_1.redisClient.get.bind(redisclient_1.redisClient);
+                this.redisSetAsync = redisclient_1.redisClient.set.bind(redisclient_1.redisClient);
+            }
+            catch (error) {
+                console.error("Redis client connection error:", error);
+                this.redisGetAsync = () => __awaiter(this, void 0, void 0, function* () { return null; });
+                this.redisSetAsync = () => __awaiter(this, void 0, void 0, function* () { return null; });
+            }
+        });
+    }
+    fetchFromApi(url, params, cacheKey) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check if the data is already in the Redis cache
+            const cachedData = yield this.redisGetAsync(cacheKey);
             if (cachedData) {
-                return cachedData;
+                // console.log(JSON.parse(cachedData), "cached");
+                return JSON.parse(cachedData);
             }
             try {
                 const response = yield axios_1.default.get(url, {
                     params: Object.assign(Object.assign({}, params), { apiKey: config_1.config.oddsApi.key }),
                 });
+                console.log("API CALL");
                 // Log the quota-related headers
-                const requestsRemaining = response.headers["x-requests-remaining"];
-                const requestsUsed = response.headers["x-requests-used"];
-                const requestsLast = response.headers["x-requests-last"];
-                console.log(`Requests Remaining: ${requestsRemaining}`);
-                console.log(`Requests Used: ${requestsUsed}`);
-                console.log(`Requests Last: ${requestsLast}`);
-                cache.set(cacheKey, response.data);
+                // const requestsRemaining = response.headers["x-requests-remaining"];
+                // const requestsUsed = response.headers["x-requests-used"];
+                // const requestsLast = response.headers["x-requests-last"];
+                // Cache the data in Redis
+                yield this.redisSetAsync(cacheKey, JSON.stringify(response.data), "EX", 43200); // Cache for 12 hours
                 return response.data;
             }
             catch (error) {
+                console.log("EVENT ODDS ERROR", error);
                 throw new Error(error.message || "Error Fetching Data");
             }
         });
     }
     getSports() {
-        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, this.sportsCache, "sportsList");
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, "sportsList");
     }
     getScores(sport, daysFrom, dateFormat) {
         const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
-        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/scores`, { daysFrom, dateFormat }, this.scoresCache, cacheKey);
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/scores`, { daysFrom, dateFormat }, cacheKey);
     }
     // HANDLE ODDS
     getOdds(sport, markets, regions, player) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const cacheKey = `odds_${sport}_h2h_us`;
-                // console.log("CACHE KEY : ", cacheKey);
                 // Fetch data from the API
                 const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds`, {
                     // markets: "h2h", // Default to 'h2h' if not provided
                     regions: "us", // Default to 'us' if not provided
                     oddsFormat: "decimal",
-                }, this.oddsCache, cacheKey);
+                }, cacheKey);
+                //  console.log(oddsResponse, "odds response");
                 const scoresResponse = yield this.getScores(sport, "1", "iso");
-                // Get the current time for filtering live games
+                const filteredScores = scoresResponse.filter((score) => score.completed === false && score.scores !== null);
+                console.log(filteredScores, "filtered scores");
                 const now = new Date();
                 const startOfToday = new Date(now);
                 startOfToday.setHours(0, 0, 0, 0);
                 const endOfToday = new Date(now);
                 endOfToday.setHours(23, 59, 59, 999);
-                // Process the data
                 const processedData = oddsResponse.map((game) => {
                     const bookmaker = this.storeService.selectBookmaker(game.bookmakers);
                     const matchedScore = scoresResponse.find((score) => score.id === game.id);
@@ -114,14 +110,12 @@ class Store {
                         selected: bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.key,
                     };
                 });
-                // Get the current time for filtering live games
-                // Filter live games
+                //  console.log(processedData, "data");
                 const liveGames = processedData.filter((game) => {
                     const commenceTime = new Date(game.commence_time);
                     return commenceTime <= now && !game.completed;
                 });
-                // console.log(liveGames, "liveGames");
-                // Filter today's upcoming games
+                //  console.log(liveGames, "live");
                 const todaysUpcomingGames = processedData.filter((game) => {
                     const commenceTime = new Date(game.commence_time);
                     return (commenceTime > now &&
@@ -129,13 +123,10 @@ class Store {
                         commenceTime <= endOfToday &&
                         !game.completed);
                 });
-                // console.log(todaysUpcomingGames, "todaysUpcomingGames");
-                // Filter future upcoming games
                 const futureUpcomingGames = processedData.filter((game) => {
                     const commenceTime = new Date(game.commence_time);
                     return commenceTime > endOfToday && !game.completed;
                 });
-                // console.log(todaysUpcomingGames, "todaysUpcomingGames");
                 const completedGames = processedData.filter((game) => game.completed);
                 return {
                     live_games: liveGames,
@@ -154,24 +145,39 @@ class Store {
     }
     getEvents(sport, dateFormat) {
         const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
-        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events`, { dateFormat }, this.eventsCache, cacheKey);
+        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events`, { dateFormat }, cacheKey);
     }
     getEventOdds(sport, eventId, markets, regions, oddsFormat, dateFormat) {
-        console.log("in event odds", sport, eventId, markets, regions, oddsFormat, dateFormat);
-        const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"}_${oddsFormat || "decimal"}`;
-        return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`, { regions, markets, dateFormat, oddsFormat }, this.eventOddsCache, cacheKey);
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
+            const categoriesData = yield this.getCategories();
+            const has_outrights = (_b = (_a = categoriesData === null || categoriesData === void 0 ? void 0 : categoriesData.flatMap((item) => item === null || item === void 0 ? void 0 : item.events)) === null || _a === void 0 ? void 0 : _a.find((event) => (event === null || event === void 0 ? void 0 : event.key) === sport)) === null || _b === void 0 ? void 0 : _b.has_outrights;
+            markets = has_outrights ? "outright" : "h2h,spreads,totals";
+            const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"}_${oddsFormat || "decimal"}`;
+            const data = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`, { regions, markets, dateFormat: "iso", oddsFormat: "decimal" }, cacheKey);
+            const { bookmakers } = data;
+            const selectBookmakers = this.storeService.selectBookmaker(bookmakers);
+            return Object.assign(Object.assign({}, data), { markets: selectBookmakers.markets, selected: selectBookmakers === null || selectBookmakers === void 0 ? void 0 : selectBookmakers.key });
+        });
     }
     getCategories() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const sportsData = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, this.sportsCache, "sportsList");
-                // Ensure sportsData is treated as an array of objects with known structure
-                const categories = sportsData.reduce((acc, sport) => {
-                    if (sport.active && !acc.includes(sport.group)) {
-                        acc.push(sport.group);
+                const sportsData = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, "sportsList");
+                const groupedData = {};
+                groupedData["All"] = [];
+                sportsData.forEach((item) => {
+                    const { group, title, key, has_outrights, active } = item;
+                    if (!groupedData[group]) {
+                        groupedData[group] = [];
                     }
-                    return acc;
-                }, []);
+                    groupedData[group].push({ title, key, has_outrights, active });
+                    groupedData["All"].push({ title, key, has_outrights, active });
+                });
+                const categories = Object.keys(groupedData).map((group) => ({
+                    category: group,
+                    events: groupedData[group],
+                }));
                 return categories;
             }
             catch (error) {
@@ -183,12 +189,10 @@ class Store {
     getCategorySports(category) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const sportsData = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports`, {}, this.sportsCache, "sportsList");
+                const sportsData = yield this.getSports();
                 if (category.toLowerCase() === "all") {
-                    // If the category is "all", return all sports
                     return sportsData.filter((sport) => sport.active);
                 }
-                // Otherwise, filter by the specified category
                 const categorySports = sportsData.filter((sport) => sport.group === category && sport.active);
                 return categorySports;
             }
@@ -206,7 +210,9 @@ class Store {
                 const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game) => game.sport_key === sport);
                 const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game) => game.sport_key === sport);
                 // Check if there's any data for the current sport before emitting
-                if (liveGamesForSport.length > 0 || todaysUpcomingGamesForSport.length > 0 || futureUpcomingGamesForSport.length > 0) {
+                if (liveGamesForSport.length > 0 ||
+                    todaysUpcomingGamesForSport.length > 0 ||
+                    futureUpcomingGamesForSport.length > 0) {
                     server_1.io.to(sport).emit("data", {
                         type: "ODDS",
                         data: {
@@ -229,10 +235,8 @@ class Store {
         socket_1.activeRooms.forEach((room) => {
             if (!currentRooms.has(room)) {
                 socket_1.activeRooms.delete(room);
-                console.log(`Removed inactive room: ${room}`);
             }
         });
-        console.log(socket_1.activeRooms, "rooms active");
         return socket_1.activeRooms;
     }
 }

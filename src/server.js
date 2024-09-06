@@ -26,6 +26,19 @@ app.use((0, cors_1.default)({
 }));
 app.use(express_1.default.json());
 const server = (0, http_1.createServer)(app);
+// // Initialize Redis client
+// const redisClient = new Redis({
+//   port: 6379, // Redis server port
+//   host: 'localhost' // Redis server host
+// });redisClient.on("error", (err) => console.error("Redis Client Error", err));
+// redisClient.set('key', 'value')
+//   .then(() => redisClient.get('key'))
+//   .then(result => {
+//     console.log(result); // Should output 'value'
+//   })
+//   .catch(err => {
+//     console.error('Redis error:', err);
+//   });
 app.use("/api/auth", userRoutes_1.default);
 app.use("/api/players", middleware_1.checkUser, playerRoutes_1.default);
 app.use("/api/admin", middleware_1.verifyApiKey, adminRoutes_1.default);
@@ -39,15 +52,17 @@ app.get("/", (req, res, next) => {
         message: "OK",
         timestamp: new Date().toLocaleDateString(),
     };
+    // redisClient.lpush("submissions", JSON.stringify({ health }))
     res.status(200).json(health);
 });
 app.use(express_1.default.static("src"));
-exports.io = new socket_io_1.Server(server, {
+const io = new socket_io_1.Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"],
     },
 });
-(0, socket_1.default)(exports.io);
+exports.io = io;
+(0, socket_1.default)(io);
 app.use(globalHandler_1.default);
 exports.default = server;
