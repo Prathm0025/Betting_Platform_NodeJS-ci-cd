@@ -34,11 +34,11 @@ class Store {
   private async fetchFromApi(url: string, params: any, cacheKey: string): Promise<any> {
     // Check if the data is already in the Redis cache
     const cachedData = await this.redisGetAsync(cacheKey);
-    // if (cachedData) {
-    //   // console.log(JSON.parse(cachedData), "cached");
+    if (cachedData) {
+      // console.log(JSON.parse(cachedData), "cached");
       
-    //   return JSON.parse(cachedData);
-    // }
+      return JSON.parse(cachedData);
+    }
 
     try {
       const response = await axios.get(url, {
@@ -52,7 +52,7 @@ class Store {
       // const requestsLast = response.headers["x-requests-last"];
 
       // Cache the data in Redis
-
+      await this.redisSetAsync(cacheKey, JSON.stringify(response.data), 'EX', 43200); // Cache for 12 hours
       return response.data;
     } catch (error) {
       throw new Error(error.message || "Error Fetching Data");
@@ -100,7 +100,7 @@ class Store {
    
    
       const scoresResponse = await this.getScores(sport, "1", "iso");
-     const filteredScores = scoresResponse.filter((score: any) => score.completed === false && score.scores!==null);
+     const filteredScores = scoresResponse.filter((score: any) => score.completed === false && score.scores!==null  );
 
      console.log(filteredScores, "filtered scores");
       const now = new Date();
