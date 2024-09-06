@@ -7,7 +7,7 @@ import { connect } from "http2";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
 
-async  function connectDB (){
+async function connectDB() {
   try {
     mongoose.connection.on("connected", async () => {
       console.log("Connected to database successfully");
@@ -64,20 +64,20 @@ async function processBets(sportKeys, bets) {
         if (bet) {
 
           await processCompletedBet(bet._id.toString(), game);
-          for(const processedBets of bets){
+          for (const processedBets of bets) {
             const removalResult = await removeItem(JSON.stringify(processedBets));
             if (removalResult === 0) {
               console.log(`Bet ${bet._id} could not be removed from the queue.`);
             } else {
               console.log(`Bet ${bet._id} removed successfully from the queue.`);
             }
-           
+
           }
-                   // console.log("Processed bet:", bet._id);
+          // console.log("Processed bet:", bet._id);
         } else {
           console.log("No bet found for game:", game.id);
         }
-        
+
       }
     }
   } catch (error) {
@@ -97,24 +97,52 @@ async function processCompletedBet(betDetailId, gameData) {
       await session.abortTransaction();
       return;
     }
+
     console.log(betDetail, "bet detail");
 
-    const bet = await Bet.findById(betDetail.key).session(session);
+    const bet = await Bet.findById(betDetail.key)
+      .populate('data')
+      .session(session);
+
     if (!bet) {
       console.error("Parent Bet not found:", betDetail.key);
       await session.abortTransaction();
       return;
     }
 
-    const winner =await processBetResult(
+    const allBetDetailsValid = bet.data.every(
+      (betDetail: any) => betDetail.status === 'won' || betDetail.status === 'pending'
+    );
+
+
+    if (!allBetDetailsValid) {
+      // Update all bet details to 'failed'
+      await Promise.all(
+        bet.data.map(async (betDetail: any) => {
+          if (betDetail.status !== 'won' && betDetail.status !== 'pending') {
+            betDetail.status = 'failed'; // Update status to 'failed'
+            await betDetail.save({ session }); // Save the updated BetDetail within the transaction session
+          }
+        })
+      );
+
+      // Update the parent bet status to 'failed'
+      bet.status = 'failed';
+      await bet.save({ session });
+
+      console.log("All invalid bet details and parent bet have been updated to 'failed'.");
+      return
+    }else{
+      bet.status = "won"
+      await bet.save({ session });
+
+    }
+    const winner = await processBetResult(
       betDetail,
       gameData,
       bet
     );
-  if(winner){
-    betDetail.status = "won"
-
-  }
+      betDetail.status = "won"
     await betDetail.save({ session });
 
     const allBetDetails = await BetDetail.find({ key: bet._id }).session(session);
@@ -148,14 +176,14 @@ async function processCompletedBet(betDetailId, gameData) {
 function determineWinner(betDetail, gameData, bet) {
   console.log(bet, "bet");
 
-    const betType =betDetail.market;
+  const betType = betDetail.market;
   console.log(betType, "betType");
 
   const homeTeamScore = gameData.scores.find(score => score.name === gameData.home_team).score;
   const awayTeamScore = gameData.scores.find(score => score.name === gameData.away_team).score;
-    switch(betType) {
+  switch (betType) {
     case 'spreads':
-            const { handicap, bet_on:betOn } = betDetail;
+      const { handicap, bet_on: betOn } = betDetail;
       let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
       let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
 
@@ -168,7 +196,7 @@ function determineWinner(betDetail, gameData, bet) {
       }
 
     case 'h2h':
-            const { bet_on:h2hBetOn } = betDetail;
+      const { bet_on: h2hBetOn } = betDetail;
       if (h2hBetOn === 'home_team') {
         return homeTeamScore > awayTeamScore;
       } else if (h2hBetOn === 'away_team') {
@@ -180,7 +208,7 @@ function determineWinner(betDetail, gameData, bet) {
     // case 'totals':
     //     const { totalLine, overUnder } = options;
     //     let totalScore = teamAScore + teamBScore;
-                                                      
+
     //     if (overUnder === 'Over') {
     //         return totalScore > totalLine;
     //     } else if (overUnder === 'Under') {
@@ -227,32 +255,40 @@ function calculateWinningAmount(stake, odds, oddsType) {
 
 async function processBetResult(betDetail, gameData, bet) {
   const isWinner = determineWinner(betDetail, gameData, bet);
-
+  
   if (isWinner) {
     console.log(gameData.markets, "market");
 
     const market = gameData.markets.find((m) => m.key === bet.market)
     // Find the outcome for the specified team
-      const teamname = betDetail.bet_on===  "home_team"? betDetail.home_team.name:betDetail.away_team.name;
+    const teamname = betDetail.bet_on === "home_team" ? betDetail.home_team.name : betDetail.away_team.name;
     console.log(teamname, "teamname");
+    const type = bet.type;
+    const allBetDetailsValid = bet.data.every(
+      (betDetail: any) => betDetail.status === 'won' || betDetail.status === 'pending'
+    );
 
-      // const outcome = market?.outcomes?.find((o) => o.name === teamname )||[];
-      // console.log(outcome, "outcome");
+    if(type==="combo" && !allBetDetailsValid){
+      return;
+    }
+    // const outcome = market?.outcomes?.find((o) => o.name === teamname )||[];
+    // console.log(outcome, "outcome");
 
-      const  odds = 2.5
+    const odds = betDetail.bet_on === "home_team" ? betDetail.home_team.odds : betDetail.away_team.odds;
     const winnings = calculateWinningAmount(bet.amount, odds, betDetail.oddsFormat);
     console.log(`Bet won! Winning amount: ${winnings}`);
+
     const playerId = bet.player;
-      const player:any = await Player.findById(playerId);
+    const player: any = await Player.findById(playerId);
 
     if (!player) {
       console.log('Player not found.');
       return;
     }
-        player.credits = (player.credits || 0) + winnings;
+    player.credits = (player.credits || 0) + winnings;
 
     await player.save();
-      console.log(`Player's credit updated. New credit: ${player.credits}`);
+    console.log(`Player's credit updated. New credit: ${player.credits}`);
 
 
   } else {
@@ -292,7 +328,7 @@ const processBetsFromQueue = async () => {
   const sports = new Set<string>();
 
   try {
-    const betQueue: any = await getAll(); 
+    const betQueue: any = await getAll();
     console.log(betQueue, "betqueue");
 
     // Parse the stringified betQueue data
