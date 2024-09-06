@@ -4,38 +4,43 @@ import path from "path";
 import { Worker } from "worker_threads";
 import { activeRooms } from "../socket/socket";
 
-const schedulerWorkerFilePath = path.resolve(
-  __dirname,
-  "../workers/waitingQueueWorker.js"
-);
-const betWorkerFilePath = path.resolve(__dirname, "../workers/betWorker.js");
+
+
+const schedulerWorkerFilePath = path.resolve(__dirname, "../workers/waitingQueueWorker.js");
+const betWorkerFilePath = path.resolve(__dirname, "../workers/betWorker.js")
 
 const startSchedulingWorker = () => {
-  const worker = new Worker(schedulerWorkerFilePath, {});
-  worker.on("error", (error) => {
-    console.error("Worker encountered an error:", error);
+  const worker = new Worker(schedulerWorkerFilePath, {
+  });
+  worker.on('error', (error) => {
+    console.error('Worker encountered an error:', error);
   });
 
-  worker.on("exit", (code) => {
+  worker.on('exit', (code) => {
     if (code !== 0) {
       console.error(`Worker stopped with exit code ${code}`);
     }
   });
 };
+
+
 
 const startBetsProcessingWorker = () => {
-  const worker = new Worker(betWorkerFilePath, {});
-
-  worker.on("error", (error) => {
-    console.error("Worker encountered an error:", error);
+  const worker = new Worker(betWorkerFilePath, {
   });
 
-  worker.on("exit", (code) => {
+  worker.on('error', (error) => {
+    console.error('Worker encountered an error:', error);
+  });
+
+  worker.on('exit', (code) => {
     if (code !== 0) {
       console.error(`Worker stopped with exit code ${code}`);
     }
   });
-};
+}
+
+
 
 const connectDB = async () => {
   try {

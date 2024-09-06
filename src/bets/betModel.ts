@@ -10,13 +10,19 @@ const BetDetailSchema: Schema = new Schema({
   home_team: {
     name: { type: String, required: true },
     odds: { type: Number, required: true },
+    points: { type: Number, required: false },
   },
   away_team: {
     name: { type: String, required: true },
     odds: { type: Number, required: true },
+    points: { type: Number, required: false },
   },
   market: { type: String, required: true },
-  bet_on: { type: String, enum: ["home_team", "away_team"], required: true },
+  bet_on: {
+    type: String,
+    enum: ["home_team", "away_team", "Over", "Under"],
+    required: true,
+  },
   selected: { type: String, required: true },
   oddsFormat: { type: String, required: true },
   status: {

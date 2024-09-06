@@ -11,12 +11,9 @@ import Store from "../store/storeController";
 import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
-import { scheduleBets } from "../config/scheduler";
+import { scheduleBets } from "../utils/scheduler";
 
 class BetController {
-
-
-
   public async placeBet(
     playerRef: Player,
     betDetails: IBetDetail[],
@@ -52,13 +49,15 @@ class BetController {
         throw new Error("Betting amount can't be zero");
       }
 
-      if (betType === "combo") {
-        const eventIds = betDetails.map((bet) => bet.event_id);
-        const uniqueEventIds = new Set(eventIds);
-        if (eventIds.length !== uniqueEventIds.size) {
-          throw new Error("Invalid combo!");
-        }
-      }
+      //combo from same event and market
+      // if (betType === "combo") {
+      //   const combinedKeys = betDetails.map((bet) => `${bet.event_id}-${bet.market}`);
+      //   const uniqueCombinedKeys = new Set(combinedKeys);
+      //   if (combinedKeys.length !== uniqueCombinedKeys.size) {
+      //     throw new Error("Invalid combo!");
+      //   }
+      // }
+
       // Check if the player already has a pending bet on the same team
       for (const betDetailData of betDetails) {
         const existingBetDetail = await BetDetail.findOne({
@@ -85,6 +84,7 @@ class BetController {
             );
         }
       }
+
       // Deduct the bet amount from the player's credits
       player.credits -= amount;
       await player.save({ session });
@@ -99,10 +99,23 @@ class BetController {
       // Loop through each BetDetail and create it
       for (const betDetailData of betDetails) {
         // Calculate the selected team's odds
-        const selectedOdds =
-          betDetailData.bet_on === "home_team"
-            ? betDetailData.home_team.odds
-            : betDetailData.away_team.odds;
+        let selectedOdds;
+        switch (betDetailData.bet_on) {
+          case "home_team":
+            selectedOdds = betDetailData.home_team.odds;
+            break;
+          case "away_team":
+            selectedOdds = betDetailData.home_team.odds;
+            break;
+          case "Over":
+            selectedOdds = betDetailData.home_team.odds;
+            break;
+          case "Under":
+            selectedOdds = betDetailData.away_team.odds;
+            break;
+          default:
+            break;
+        }
 
         cumulativeOdds *= selectedOdds;
 
@@ -154,10 +167,11 @@ class BetController {
 
       let responseMessage;
       if (betType === "single") {
-        responseMessage = `Single bet on ${betDetails[0].bet_on === "home_team"
-          ? betDetails[0].home_team.name
-          : betDetails[0].away_team.name
-          } placed successfully!`;
+        responseMessage = `Single bet on ${
+          betDetails[0].bet_on === "home_team"
+            ? betDetails[0].home_team.name
+            : betDetails[0].away_team.name
+        } placed successfully!`;
       } else {
         responseMessage = "Combo bet placed sccessfully!";
       }
@@ -188,17 +202,25 @@ class BetController {
     const delay = commence_time.getTime() - Date.now();
 
     if (delay < 0) {
-      throw new Error(`Commence time for bet detail ${betDetail._id.toString()} is in the past.`);
+      throw new Error(
+        `Commence time for bet detail ${betDetail._id.toString()} is in the past.`
+      );
     }
 
     try {
-      await scheduleBets('addedBet', commence_time, { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) });
+      await scheduleBets("addedBet", commence_time, {
+        betId: betDetail._id.toString(),
+        commence_time: new Date(betDetail.commence_time),
+      });
 
       console.log(
         `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
       );
     } catch (error) {
-      console.error(`Failed to schedule bet detail ${betDetail._id.toString()}:`, error);
+      console.error(
+        `Failed to schedule bet detail ${betDetail._id.toString()}:`,
+        error
+      );
     }
   }
 
@@ -257,8 +279,7 @@ class BetController {
       try {
         bet.status = result;
         await bet.save();
-      } catch (error) {
-      }
+      } catch (error) {}
     }
   }
 
@@ -274,13 +295,11 @@ class BetController {
           bet.status = "retry";
         }
         await bet.save();
-      } catch (error) {
-      }
+      } catch (error) {}
     }
   }
 
-  public async settleBet(betId: string, result: "success" | "fail") {
-  }
+  public async settleBet(betId: string, result: "success" | "fail") {}
 
   //GET BETS OF PLAYERS UNDER AN AGENT
 
@@ -412,15 +431,25 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
-        const selectedTeam =
-          betDetails.bet_on === "home_team"
-            ? betDetails.home_team.name
-            : betDetails.away_team.name;
+        let selectedTeam;
+        switch (betDetails.bet_on) {
+          case "home_team":
+            selectedTeam = betDetails.home_team;
+            break;
+          case "away_team":
+            selectedTeam = betDetails.home_team;
+            break;
+          case "Over":
+            selectedTeam = betDetails.home_team;
+            break;
+          case "Under":
+            selectedTeam = betDetails.away_team;
+            break;
+          default:
+            break;
+        }
 
-        const oldOdds =
-          betDetails.bet_on === "home_team"
-            ? betDetails.home_team.odds
-            : betDetails.away_team.odds;
+        const oldOdds = selectedTeam.odds;
 
         totalOldOdds *= oldOdds;
 
@@ -442,8 +471,12 @@ class BetController {
           failed = true;
           break;
         } else {
-          const newOdds = currentBookmakerData.markets[0].outcomes.find(
-            (item) => item.name === selectedTeam
+          const marketDetails = currentBookmakerData?.markets?.find(
+            (item) => item.key === betDetails.market
+          );
+
+          const newOdds = marketDetails.outcomes.find(
+            (item) => item.name === selectedTeam.name
           ).price;
           totalNewOdds *= newOdds;
 
@@ -470,7 +503,6 @@ class BetController {
         const amount = (totalNewOdds / totalOldOdds) * betAmount;
         const finalPayout =
           amount - (parseInt(config.betCommission) / 100) * amount;
-
         player.credits += finalPayout;
 
         await player.save();
