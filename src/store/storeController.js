@@ -48,13 +48,12 @@ class Store {
                 const response = yield axios_1.default.get(url, {
                     params: Object.assign(Object.assign({}, params), { apiKey: config_1.config.oddsApi.key }),
                 });
-                console.log("API CALL");
-                // Log the quota-related headers
-                // const requestsRemaining = response.headers["x-requests-remaining"];
-                // const requestsUsed = response.headers["x-requests-used"];
-                // const requestsLast = response.headers["x-requests-last"];
+                let cacheDuration = 60; // Default to 1 minute (60 seconds)
+                if (cacheKey === 'sportsList') {
+                    cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
+                }
                 // Cache the data in Redis
-                yield this.redisSetAsync(cacheKey, JSON.stringify(response.data), "EX", 43200); // Cache for 12 hours
+                yield this.redisSetAsync(cacheKey, JSON.stringify(response.data), "EX", cacheDuration); // Cache for 12 hours
                 return response.data;
             }
             catch (error) {
