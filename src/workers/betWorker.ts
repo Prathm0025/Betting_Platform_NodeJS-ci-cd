@@ -38,14 +38,14 @@ async function processBets(sportKeys, bets) {
     for (const sport of sportKeys) {
       // console.log("Processing sport:", sport);
       const oddsData = await Store.getOdds(sport);
-      console.log(oddsData, "odds data of bets");
+      // console.log(oddsData, "odds data of bets");
 
       if (!oddsData || !oddsData.completed_games) {
         // console.error(`No data or completed games found for sport: ${sport}`);
         continue;
       }
 
-      const { completed_games, live_games, upcoming_games } = oddsData;
+      const { completed_games, live_games, future_upcoming_games } = oddsData;
 
       // parentPort.postMessage({
       //   type: 'updateLiveData',
@@ -57,14 +57,14 @@ async function processBets(sportKeys, bets) {
 
       // console.log("Upcoming games:", upcoming_games);
 
-      for (const game of live_games) {
+      for (const game of future_upcoming_games) {
 
         const bet = bets.find((b) => b.event_id === game.id);
         
         if (bet) {
 
           await processCompletedBet(bet._id.toString(), game);
-          removeItem(bet);
+          removeItem(bets[0]);
           // console.log("Processed bet:", bet._id);
         } else {
           console.log("No bet found for game:", game.id);
@@ -102,7 +102,10 @@ async function processCompletedBet(betDetailId, gameData) {
       gameData,
       bet
     );
-    // betDetail.status = winner === betDetail.bet_on ? "won" : "lost";
+  // if(winner){
+    betDetail.status = "won"
+
+  // }
     await betDetail.save({ session });
 
     const allBetDetails = await BetDetail.find({ key: bet._id }).session(session);
@@ -221,26 +224,26 @@ async function processBetResult(betDetail, gameData, bet) {
     
     const market = gameData.markets.find((m) => m.key === bet.market)
       // Find the outcome for the specified team
-      const teamname = betDetail.bet_on="home_team"? betDetail.home_team.name:betDetail.away_team.name;
+      const teamname = betDetail.bet_on===  "home_team"? betDetail.home_team.name:betDetail.away_team.name;
       console.log(teamname, "teamname");
       
-      const outcome = market.outcomes.find((o) => o.name === teamname );
-      console.log(outcome, "outcome");
+      // const outcome = market?.outcomes?.find((o) => o.name === teamname )||[];
+      // console.log(outcome, "outcome");
       
-      const  odds = outcome.price
+      const  odds = 2.5
       const winnings = calculateWinningAmount(bet.amount, odds, betDetail.oddsFormat);
       console.log(`Bet won! Winning amount: ${winnings}`);  
       const playerId = bet.player;
       const player:any = await Player.findById(playerId);
-
+       
       if (!player) {
         console.log('Player not found.');
         return;
       }
-        player.credit = (player.credit || 0) + winnings;
+        player.credits = (player.credits || 0) + winnings;
   
       await player.save();
-      console.log(`Player's credit updated. New credit: ${player.credit}`);
+      console.log(`Player's credit updated. New credit: ${player.credits}`);
   
 
   } else {
@@ -303,8 +306,10 @@ const fetchAndProcessQueue = async () => {
       console.log(sportKeysArray, "sports key array");
 
       console.log("Bets data after dequeuing:", betsData);
-
+      
       if (betsData.length > 0) {
+        console.log(betsData, "BET DATA");
+        
         processBets(sportKeysArray, betsData); // Process bets if data exists
       } else {
         console.log("Nothing to process in processing queue");

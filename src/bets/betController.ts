@@ -187,9 +187,9 @@ class BetController {
     const commence_time = new Date(betDetail.commence_time);
     const delay = commence_time.getTime() - Date.now();
 
-    if (delay < 0) {
-      throw new Error(`Commence time for bet detail ${betDetail._id.toString()} is in the past.`);
-    }
+    // if (delay < 0) {
+    //   throw new Error(`Commence time for bet detail ${betDetail._id.toString()} is in the past.`);
+    // }
 
     try {
       await scheduleBets('addedBet', commence_time, { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) });
