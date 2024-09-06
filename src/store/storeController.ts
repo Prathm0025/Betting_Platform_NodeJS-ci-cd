@@ -18,11 +18,11 @@ class Store {
 
   private async initializeRedis() {
     try {
-     
-  
+
+
       this.redisGetAsync = redisClient.get.bind(redisClient);
       this.redisSetAsync = redisClient.set.bind(redisClient);
-      
+
     } catch (error) {
       console.error("Redis client connection error:", error);
       this.redisGetAsync = async () => null;
@@ -36,7 +36,7 @@ class Store {
     const cachedData = await this.redisGetAsync(cacheKey);
     if (cachedData) {
       // console.log(JSON.parse(cachedData), "cached");
-      
+
       return JSON.parse(cachedData);
     }
 
@@ -45,7 +45,7 @@ class Store {
         params: { ...params, apiKey: config.oddsApi.key },
       });
       console.log("API CALL");
-      
+
       // Log the quota-related headers
       // const requestsRemaining = response.headers["x-requests-remaining"];
       // const requestsUsed = response.headers["x-requests-used"];
@@ -111,7 +111,7 @@ class Store {
         const matchedScore = scoresResponse.find(
           (score: any) => score.id === game.id
         );
-        if (bookmaker === undefined) {return {};}
+        if (bookmaker === undefined) { return {}; }
         return {
           id: game?.id,
           sport_key: game?.sport_key,
