@@ -239,7 +239,7 @@ async function processBetResult(betDetail, gameData, bet) {
       // const outcome = market?.outcomes?.find((o) => o.name === teamname )||[];
       // console.log(outcome, "outcome");
 
-      const  odds = 2.5
+    const  odds = betDetail.bet_on === "home_team"? betDetail.home_team.odds: betDetail.away_team.odds;
     const winnings = calculateWinningAmount(bet.amount, odds, betDetail.oddsFormat);
     console.log(`Bet won! Winning amount: ${winnings}`);
     const playerId = bet.player;
