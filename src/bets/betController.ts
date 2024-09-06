@@ -36,6 +36,7 @@ class BetController {
       const player = await PlayerModel.findById(playerRef.userId).session(
         session
       );
+
       if (!player) {
         console.log("Player not found");
         throw new Error("Player not found");
@@ -60,28 +61,30 @@ class BetController {
 
       // Check if the player already has a pending bet on the same team
       for (const betDetailData of betDetails) {
-        const existingBetDetail = await BetDetail.findOne({
+        const existingBetDetails = await BetDetail.find({
           event_id: betDetailData.event_id,
           bet_on: betDetailData.bet_on,
           status: "pending",
+          market: betDetailData.market,
         }).session(session);
 
-        if (existingBetDetail) {
-          const bet = await Bet.findById(existingBetDetail.key).session(
-            session
-          );
-          if (!bet) {
-            throw new Error("Something went wrong");
-          }
-
-          const betPlayer = await PlayerModel.findById(bet.player).session(
-            session
-          );
-
-          if (betPlayer._id === player._id)
-            throw new Error(
-              `You already have a pending bet on ${betDetailData.bet_on}.`
+        // Check if there are any existing bet details
+        if (existingBetDetails.length > 0) {
+          for (const data of existingBetDetails) {
+            const bet = await Bet.findById(data.key).session(session);
+            if (!bet) {
+              throw new Error("Something went wrong");
+            }
+            const betPlayer = await PlayerModel.findById(bet.player).session(
+              session
             );
+            if (betPlayer._id.equals(player._id)) {
+              // Use `.equals` for MongoDB ObjectId comparison
+              throw new Error(
+                `You already have a pending bet on ${betDetailData.bet_on}.`
+              );
+            }
+          }
         }
       }
 
@@ -138,9 +141,9 @@ class BetController {
 
       // Create the Bet document with the manually generated _id
       const bet = new Bet({
-        _id: betId, // Use the manually generated _id
+        _id: betId,
         player: player._id,
-        data: betDetailIds, // Store all the BetDetail references
+        data: betDetailIds,
         amount,
         possibleWinningAmount,
         status: "pending",
@@ -149,7 +152,6 @@ class BetController {
       });
       await bet.save({ session });
 
-      //send myBets to user for disabling
       const playerBets = await Bet.find({
         player: player._id,
       })

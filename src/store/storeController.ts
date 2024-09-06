@@ -101,9 +101,13 @@ class Store {
         },
         cacheKey
       );
-
+  //  console.log(oddsResponse, "odds response");
+   
+   
       const scoresResponse = await this.getScores(sport, "1", "iso");
+     const filteredScores = scoresResponse.filter((score: any) => score.completed === false && score.scores!==null  );
 
+     console.log(filteredScores, "filtered scores");
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
@@ -133,12 +137,15 @@ class Store {
           selected: bookmaker?.key,
         };
       });
+      //  console.log(processedData, "data");
+       
 
       const liveGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
-        return commenceTime <= now && !game.completed;
+          return commenceTime <= now && !game.completed ;
       });
-
+    //  console.log(liveGames, "live");
+     
       const todaysUpcomingGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return (
@@ -151,12 +158,10 @@ class Store {
 
       const futureUpcomingGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
-        return commenceTime > endOfToday && !game.completed;
+        return commenceTime > endOfToday && !game.completed ;
       });
 
-      const completedGames = processedData.filter(
-        (game: any) => game.completed
-      );
+      const completedGames = processedData.filter((game: any) => game.completed );
 
       return {
         live_games: liveGames,
