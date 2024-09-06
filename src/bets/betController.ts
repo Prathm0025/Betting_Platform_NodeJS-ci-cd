@@ -186,7 +186,7 @@ class BetController {
       const timestamp = commence_time.getTime() / 1000
       const data = { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) };
 
-      await redisClient.zadd("waitingQueue", timestamp.toString(), JSON.stringify({ taskName, data }));
+      await redisClient.zadd("waitingQueue", timestamp.toString(), JSON.stringify(data));
 
       console.log(
         `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`

@@ -2,9 +2,9 @@ import { parentPort, workerData } from "worker_threads";
 import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "../bets/betModel";
-import { dequeue, getAll, size } from "../utils/ProcessingQueue";
-import { connect } from "http2";
+import {  getAll, removeItem } from "../utils/ProcessingQueue";
 import { config } from "../config/config";
+import Player from "../players/playerModel";
 
 async function connectDB() {
   try {
@@ -24,7 +24,6 @@ async function connectDB() {
 }
 
 connectDB();
-
 
 
 async function processBets(sportKeys, bets) {
@@ -56,11 +55,14 @@ async function processBets(sportKeys, bets) {
 
       // console.log("Upcoming games:", upcoming_games);
 
-      for (const game of completed_games) {
+      for (const game of live_games) {
+
         const bet = bets.find((b) => b.event_id === game.id);
 
         if (bet) {
+
           await processCompletedBet(bet._id.toString(), game);
+          removeItem(bet);
           // console.log("Processed bet:", bet._id);
         } else {
           console.log("No bet found for game:", game.id);
@@ -93,7 +95,7 @@ async function processCompletedBet(betDetailId, gameData) {
       return;
     }
 
-    const winner = processBetResult(
+    const winner = await processBetResult(
       betDetail,
       gameData,
       bet
@@ -209,7 +211,7 @@ function calculateWinningAmount(stake, odds, oddsType) {
   return winningAmount + stake;
 }
 
-function processBetResult(betDetail, gameData, bet) {
+async function processBetResult(betDetail, gameData, bet) {
   const isWinner = determineWinner(betDetail, gameData, bet);
 
   if (isWinner) {
@@ -226,7 +228,19 @@ function processBetResult(betDetail, gameData, bet) {
     const odds = outcome.price
     const winnings = calculateWinningAmount(bet.amount, odds, betDetail.oddsFormat);
     console.log(`Bet won! Winning amount: ${winnings}`);
-    return winnings;
+    const playerId = bet.player;
+    const player: any = await Player.findById(playerId);
+
+    if (!player) {
+      console.log('Player not found.');
+      return;
+    }
+    player.credit = (player.credit || 0) + winnings;
+
+    await player.save();
+    console.log(`Player's credit updated. New credit: ${player.credit}`);
+
+
   } else {
     console.log('Bet lost. No winnings.');
     return 0; // No winnings if the bet is lost
@@ -259,52 +273,61 @@ function processBetResult(betDetail, gameData, bet) {
 // // Example usage for Totals
 // console.log(isBetWinner('Totals', 2, 2, { totalLine: 3.5, overUnder: 'Over' })); // Output: true
 
-const fetchAndProcessQueue = async () => {
-  console.log("fetching and processing queue");
-
+const processBetsFromQueue = async () => {
   let betsData: any[] = [];
   const sports = new Set<string>();
 
-
   try {
-    const queueSize = await size();
+    const betQueue: any = await getAll(); 
+    console.log(betQueue, "betqueue");
 
-    for (let i = 0; i < queueSize; i++) {
-      const bet = JSON.parse(await dequeue());
-      //handle error
-      /**
-       * check if db query has failed send dequeed bet to error queue
-       */
+    // Parse the stringified betQueue data
+    const parsedBetQueue = betQueue.map((bet: string) => JSON.parse(bet));
 
-      if (bet) {
-        const betDetail = (await BetDetail.findById(bet));;
-        betsData.push(betDetail);
+    // Ensure parsedBetQueue is an array
+    if (Array.isArray(parsedBetQueue)) {
+      // Process each bet item in the parsed queue
+      parsedBetQueue.forEach((bet) => {
+        // Ensure bet is an object and has sport_key
+        if (bet && bet.sport_key) {
+          betsData.push(bet); // Add to betsData
+          sports.add(bet.sport_key); // Add sport_key to the Set
+        }
+      });
+
+      const sportKeysArray = Array.from(sports);
+      console.log(sportKeysArray, "sports key array");
+
+      console.log("Bets data after dequeuing:", betsData);
+
+      if (betsData.length > 0) {
+        processBets(sportKeysArray, betsData); // Process bets if data exists
+      } else {
+        console.log("Nothing to process in processing queue");
       }
+    } else {
+      console.log("No bets found in the queue");
     }
-    betsData.forEach((bet) => sports.add(bet._doc.sport_key));
-    const sportKeysArray = Array.from(sports);
-    console.log("Bets data after dequeuing:", betsData);
-
-    if (betsData.length > 0)
-      if (betsData)
-        processBets(sportKeysArray, betsData)
-      else
-        console.log("nothing to process in processing queue");
-
   } catch (error) {
     console.error('Error fetching or processing queue data:', error);
   }
 };
 
-setInterval(() => {
-  fetchAndProcessQueue();
-}, 30000)
-// The worker receives data from the main thread
-// processBets(workerData.sportKeys, workerData.bets)
-//   .then(() => {
-//     parentPort.postMessage("Bet processing completed.");
-//   })
-//   .catch((error) => {
-//     console.error("Error during worker processing:", error);
-//     parentPort.postMessage({ error: error.message });
-//   });
+
+async function startWorker() {
+  console.log("Processing Queue Worker Started")
+  setInterval(async () => {
+    try {
+      console.log("Processing Bet.........");
+      await processBetsFromQueue();
+    } catch (error) {
+      console.error("Error in setInterval Waiting Queue Worker:", error);
+    }
+  }, 30000); // Runs every 30 seconds
+}
+
+parentPort.on('message', (message) => {
+  if (message === "start") {
+    startWorker()
+  }
+})

@@ -1,8 +1,8 @@
-import { enqueue } from '../utils/ProcessingQueue';
 import { redisClient } from '../redisclient';
 import mongoose from 'mongoose';
 import Bet, { BetDetail } from '../bets/betModel';
 import { config } from '../config/config';
+import { parentPort } from 'worker_threads';
 
 async function connectDB() {
   try {
@@ -22,71 +22,59 @@ async function connectDB() {
 }
 
 connectDB();
-async function setProcessingQueueItem(betDetailId: string) {
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const betDetail = await BetDetail.findById(betDetailId).session(session);
-    if (!betDetail) {
-      console.error("BetDetail not found:", betDetailId);
-      await session.abortTransaction();
-      return;
-    }
-
-    const bet = await Bet.findById(betDetail.key).session(session);
-    if (!bet) {
-      console.error("Parent Bet not found:", betDetail.key);
-      await session.abortTransaction();
-      return;
-    }
-
-    // betDetail.status = winner === betDetail.bet_on ? "won" : "lost";
-    await betDetail.save({ session });
-
-
-    await session.commitTransaction();
-
-
-    enqueue(JSON.stringify(betDetail));
-  } catch (error) {
-    console.error("Error processing completed bet:", error);
-    await session.abortTransaction();
-  } finally {
-    session.endSession();
-  }
-}
-// Function to process tasks
-async function processTasks() {
-
-  const now = new Date().getTime()
+export async function checkBetsCommenceTime() {
+  const now = new Date().getTime();
   const bets = await redisClient.zrangebyscore('waitingQueue', 0, now);
 
   for (const bet of bets) {
-    const { taskName, data } = JSON.parse(bet);
+    const data = JSON.parse(bet);
+    const commenceTime = data.commence_time;
+    const betId = data.betId;
 
-    const commenceTime = data.commence_time
-    const betDetailId = data.betId
 
     if (now >= new Date(commenceTime).getTime()) {
       try {
+        const betDetail = await BetDetail.findById(betId).lean();
+        const betParent = await Bet.findById(betDetail.key).lean();
 
+        if (!betDetail || !betParent) {
+          console.log(`BetDetail not found for betId: ${betId}`);
+          continue;
+        }
 
-        //querying db for betdetail and pushing it to processing QUEUE
-        await setProcessingQueueItem(betDetailId);
-        // enqueue(betDetailId)
-        await redisClient.zrem('waitingQueue', bet);
+        const multi = redisClient.multi();
+
+        // Add the entire betDetail data to the processing queue
+        multi.lpush('processingQueue', JSON.stringify(betDetail));
+
+        // Remove the bet from the waiting queue
+        multi.zrem('waitingQueue', bet)
+
+        await multi.exec();
 
       } catch (error) {
-        console.log("ERROR IN BET QUEUE");
-        console.log(error);
-
+        console.log("Error in Waiting Queue Worker : ", error);
       }
+
     }
   }
 }
 
-setInterval(() => {
-  processTasks().catch(console.error);
-}, 10000);
+async function startWorker() {
+  console.log("Waiting Queue Worker Started")
+  setInterval(async () => {
+    try {
+      console.log("Checking bets commence time...");
+      await checkBetsCommenceTime();
+    } catch (error) {
+      console.error("Error in setInterval Waiting Queue Worker:", error);
+    }
+  }, 30000); // Runs every 30 seconds
+}
+
+parentPort.on('message', (message) => {
+  if (message === "start") {
+    startWorker()
+  }
+})
