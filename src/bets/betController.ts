@@ -11,7 +11,7 @@ import Store from "../store/storeController";
 import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
-import { scheduleBets } from "../utils/scheduler";
+import { redisClient } from "../redisclient";
 
 class BetController {
   public async placeBet(
@@ -133,7 +133,7 @@ class BetController {
         betDetailIds.push(betDetail._id); // No need to cast, using mongoose.Types.ObjectId
 
         // Schedule the job for this BetDetail based on its commence_time
-        await this.scheduleBetDetailJob(betDetail, session);
+        await this.scheduleBetDetailJob(betDetail);
       }
 
       // Calculate the possible winning amount
@@ -196,24 +196,15 @@ class BetController {
     }
   }
 
-  private async scheduleBetDetailJob(
-    betDetail: IBetDetail,
-    session: mongoose.ClientSession
-  ) {
+  private async scheduleBetDetailJob(betDetail: IBetDetail) {
     const commence_time = new Date(betDetail.commence_time);
     const delay = commence_time.getTime() - Date.now();
 
-    if (delay < 0) {
-      throw new Error(
-        `Commence time for bet detail ${betDetail._id.toString()} is in the past.`
-      );
-    }
-
     try {
-      await scheduleBets("addedBet", commence_time, {
-        betId: betDetail._id.toString(),
-        commence_time: new Date(betDetail.commence_time),
-      });
+      const timestamp = commence_time.getTime() / 1000
+      const data = { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) };
+
+      await redisClient.zadd("waitingQueue", timestamp.toString(), JSON.stringify(data));
 
       console.log(
         `BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`
@@ -225,6 +216,7 @@ class BetController {
       );
     }
   }
+
 
   private calculatePossibleWinning(data: any) {
     const selectedTeam =
