@@ -43,19 +43,19 @@ class Store {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
       });
-      console.log("API CALL");
 
-      // Log the quota-related headers
-      // const requestsRemaining = response.headers["x-requests-remaining"];
-      // const requestsUsed = response.headers["x-requests-used"];
-      // const requestsLast = response.headers["x-requests-last"];
+      let cacheDuration = 60; // Default to 1 minute (60 seconds)
+
+      if (cacheKey === 'sportsList') {
+        cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
+      }
 
       // Cache the data in Redis
       await this.redisSetAsync(
         cacheKey,
         JSON.stringify(response.data),
         "EX",
-        43200
+        cacheDuration
       ); // Cache for 12 hours
       return response.data;
     } catch (error) {
@@ -204,9 +204,8 @@ class Store {
 
     markets = has_outrights ? "outright" : "h2h,spreads,totals";
 
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
-      dateFormat || "iso"
-    }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
+      }_${oddsFormat || "decimal"}`;
 
     const data = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
