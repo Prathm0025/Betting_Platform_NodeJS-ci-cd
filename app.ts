@@ -3,8 +3,6 @@ import { config } from "./src/config/config";
 import connectDB from "./src/config/db";
 
 const startServer = async () => {
-  // await redisClient.connect();
-
 
   await connectDB();
 
