@@ -475,9 +475,14 @@ class BetController {
             (item) => item.key === betDetails.market
           );
 
-          const newOdds = marketDetails.outcomes.find(
-            (item) => item.name === selectedTeam.name
-          ).price;
+          const newOdds = marketDetails.outcomes.find((item) => {
+            if (betDetails.market !== "totals") {
+              return item.name === selectedTeam.name;
+            } else {
+              console.log("HRE");
+              return item.name === betDetails.bet_on;
+            }
+          }).price;
           totalNewOdds *= newOdds;
 
           betDetails.status = "redeem";
