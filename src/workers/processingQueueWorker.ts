@@ -57,7 +57,7 @@ async function processBets(sportKeys, bets) {
 
       // console.log("Upcoming games:", upcoming_games);
 
-      for (const game of future_upcoming_games) {
+      for (const game of live_games) {
 
         const bet = bets.find((b) => b.event_id === game.id);
 
@@ -97,9 +97,10 @@ async function processCompletedBet(betDetailId, gameData) {
       await session.abortTransaction();
       return;
     }
+    var parentBetId = betDetail.key;
+
 
     console.log(betDetail, "bet detail");
-
     const bet = await Bet.findById(betDetail.key)
       .populate('data')
       .session(session);
@@ -160,8 +161,34 @@ async function processCompletedBet(betDetailId, gameData) {
     await session.commitTransaction();
   } catch (error) {
     console.error("Error processing completed bet:", error);
+
+    // Set bet status to 'failed' and refund bet amount in case of failure
+    const betDetail = await BetDetail.findById(betDetailId);
+    console.log(betDetail, "betDeab");
+    
+    if (betDetail) {
+      betDetail.status = "failed";
+      await betDetail.save();
+
+      
+    }
+
+    const bet = await Bet.findById(betDetail.key)
+    .session(session);
+    const betAmount = bet.amount
+    const player = await Player.findById(bet.player);
+      if (player) {
+        console.log(player.credits, "credits before");
+        
+        player.credits += betAmount;
+        console.log(player.credits, "credits after");
+        
+        await player.save();
+        console.log(`Refunded ${bet.amount} to player ${player._id} due to failure.`);
+      }
+
     await session.abortTransaction();
-  } finally {
+    } finally {
     session.endSession();
   }
 }
@@ -174,38 +201,39 @@ async function processCompletedBet(betDetailId, gameData) {
 // }
 
 function determineWinner(betDetail, gameData, bet) {
-  console.log(bet, "bet");
+  try {
+    console.log(bet, "bet");
 
-  const betType = betDetail.market;
-  console.log(betType, "betType");
+    const betType = betDetail.market;
+    console.log(betType, "betType");
 
-  const homeTeamScore = gameData.scores.find(score => score.name === gameData.home_team).score;
-  const awayTeamScore = gameData.scores.find(score => score.name === gameData.away_team).score;
-  switch (betType) {
-    case 'spreads':
-      const { handicap, bet_on: betOn } = betDetail;
-      let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
-      let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
+    const homeTeamScore = gameData.scores.find(score => score.name === gameData.home_team).score;
+    const awayTeamScore = gameData.scores.find(score => score.name === gameData.away_team).score;
 
-      if (betOn === 'home_team') {
-        return adjustedHomeTeamScore > awayTeamScore;
-      } else if (betOn === 'away_team') {
-        return adjustedAwayTeamScore > homeTeamScore;
-      } else {
-        throw new Error("Invalid betOn value for Handicap. It should be 'A' or 'B'.");
-      }
+    switch (betType) {
+      case 'spreads':
+        const { handicap, bet_on: betOn } = betDetail;
+        let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
+        let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
 
-    case 'h2h':
-      const { bet_on: h2hBetOn } = betDetail;
-      if (h2hBetOn === 'home_team') {
-        return homeTeamScore > awayTeamScore;
-      } else if (h2hBetOn === 'away_team') {
-        return awayTeamScore > homeTeamScore;
-      } else {
-        throw new Error("Invalid betOn value for H2H. It should be 'A' or 'B'.");
-      }
+        if (betOn === 'home_team') {
+          return adjustedHomeTeamScore > awayTeamScore;
+        } else if (betOn === 'away_team') {
+          return adjustedAwayTeamScore > homeTeamScore;
+        } else {
+          throw new Error("Invalid betOn value for Handicap. It should be home_team or away_team.");
+        }
 
-    // case 'totals':
+      case 'h2h':
+        const { bet_on: h2hBetOn } = betDetail;
+        if (h2hBetOn === 'home_team') {
+          return homeTeamScore > awayTeamScore;
+        } else if (h2hBetOn === 'away_team') {
+          return awayTeamScore > homeTeamScore;
+        } else {
+          throw new Error("Invalid betOn value for H2H. It should be 'home_team' or 'away_team'.");
+        }
+          // case 'totals':
     //     const { totalLine, overUnder } = options;
     //     let totalScore = teamAScore + teamBScore;
 
@@ -216,11 +244,15 @@ function determineWinner(betDetail, gameData, bet) {
     //     } else {
     //         throw new Error("Invalid overUnder value for Totals. It should be 'Over' or 'Under'.");
     //     }
-
-    default:
-      throw new Error("Invalid betType. It should be 'Handicap', 'H2H', or 'Totals'.");
+      default:
+        throw new Error("Invalid betType. It should be 'spreads' or 'h2h'.");
+    }
+  } catch (error) {
+    console.error("Error determining winner:", error.message);
+    throw new Error("An Error occured, maybe no scores")
   }
 }
+
 
 
 function calculateWinningAmount(stake, odds, oddsType) {
