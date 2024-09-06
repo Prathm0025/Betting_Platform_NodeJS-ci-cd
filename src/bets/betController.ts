@@ -15,13 +15,14 @@ import { redisClient } from "../redisclient";
 
 class BetController {
 
-  public async placeBet(playerRef: Player, betDetails: IBetDetail[], amount: number, betType: "single" | "combo") {
+  public async placeBet(
+    playerRef: Player,
+    betDetails: IBetDetail[],
+    amount: number,
+    betType: "single" | "combo"
+  ) {
     const session = await mongoose.startSession();
     session.startTransaction();
-
-    console.log("PLACE BET : ", betDetails);
-    console.log("PLACE BET AMOUNT : ", amount);
-    console.log("PLACE BET betType : ", betType);
 
     try {
       // Check if the player is connected to the socket
@@ -182,7 +183,6 @@ class BetController {
     const delay = commence_time.getTime() - Date.now();
 
     try {
-      const taskName = "addedBet";
       const timestamp = commence_time.getTime() / 1000
       const data = { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) };
 
@@ -195,6 +195,7 @@ class BetController {
       console.error(`Failed to schedule bet detail ${betDetail._id.toString()}:`, error);
     }
   }
+
 
   private calculatePossibleWinning(data: any) {
     const selectedTeam =
