@@ -42,7 +42,6 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
             username: decoded!.username,
             role: decoded!.role,
           };
-          console.log(_req.user);
 
           next();
         }
@@ -119,7 +118,6 @@ export function checkStatus(req: Request, res: Response, next: NextFunction) {
 
   try {
       const decoded = jwt.verify(cookie, process.env.JWT_SECRET);
-      console.log(decoded);
       next();
   } catch (error) {
       console.error('Invalid token:', error);

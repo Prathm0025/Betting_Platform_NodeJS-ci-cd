@@ -12,6 +12,7 @@ const _config = {
     key: process.env.ODDS_API_KEY,
   },
   betCommission: process.env.BET_COMMISSION,
+  redisUrl: process.env.NODE_ENV === 'development' ? 'redis://localhost:6379' : process.env.REDIS_URL,
 };
 
 export const config = Object.freeze(_config);

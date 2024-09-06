@@ -1,40 +1,7 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import Agenda, { Job } from "agenda";
-import path from "path";
-import { Worker } from "worker_threads";
-import betServices from "../bets/betServices";
-import storeController from "../store/storeController";
 import { activeRooms } from "../socket/socket";
-
-let agenda: Agenda;
-
-const workerFilePath = path.resolve(__dirname, "../bets/betWorkerScheduler.js");
-
-const startWorker = (queueData: any[], activeRoomsData: string[]) => {
-  const worker = new Worker(workerFilePath, {
-    workerData: { queueData, activeRoomsData },
-  });
-
-  worker.on("message", (message) => {
-    console.log("Worker message:", message);
-
-    if (message.type === 'updateLiveData') {
-      const { livedata } = message;
-      storeController.updateLiveData(livedata);
-    }
-  });
-
-  worker.on("error", (error) => {
-    console.error("Worker error:", error);
-  });
-
-  worker.on("exit", (code) => {
-    if (code !== 0) {
-      console.error(`Worker stopped with exit code ${code}`);
-    }
-  });
-};
+import { startWorkers } from "../workers/initWorker";
 
 const connectDB = async () => {
   try {
@@ -48,25 +15,10 @@ const connectDB = async () => {
 
     await mongoose.connect(config.databaseUrl as string);
 
-    agenda = new Agenda({
-      db: { address: config.databaseUrl as string, collection: "jobs" },
-    });
+    const activeRoomsData = Array.from(activeRooms);
+    console.log(activeRoomsData, activeRooms);
 
-    agenda.define("add bet to queue", async (job: Job) => {
-      const { betDetailId } = job.attrs.data;
-      await betServices.addBetToQueueAtCommenceTime(betDetailId);
-      console.log(`Bet ${betDetailId} is added to processing queue`);
-    });
-
-    await agenda.start();
-
-    setInterval(async () => {
-      const queueData = betServices.getPriorityQueueData();
-      const activeRoomsData = Array.from(activeRooms);
-      console.log(activeRoomsData, activeRooms);
-     
-      startWorker(queueData, activeRoomsData);
-    }, 30000);
+    startWorkers()
 
   } catch (err) {
     console.error("Failed to connect to database.", err);
@@ -74,5 +26,4 @@ const connectDB = async () => {
   }
 };
 
-export { agenda };
 export default connectDB;
