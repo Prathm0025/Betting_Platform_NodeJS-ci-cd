@@ -49,8 +49,9 @@ async function processBets(sportKeys, bets) {
       ];
       
 
-      for (const game of allGames ) {
-        const bet = bets.find((b) => b.event_id === game.id);
+      for (const game of completed_games ) {
+        
+        const bet = bets.find((b) => b.event_id === game.id );
 
         if (bet) {
           try {
