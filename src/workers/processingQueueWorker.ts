@@ -31,59 +31,52 @@ connectDB();
 async function processBets(sportKeys, bets) {
   console.log("Starting bet processing...");
   console.log("Bets:", bets.length);
-  // sportKeys.push(...Array.from(activeRooms));
-  console.log(sportKeys, "worker sport key");
 
   try {
     for (const sport of sportKeys) {
-      // console.log("Processing sport:", sport);
       const oddsData = await Store.getOdds(sport);
-      // console.log(oddsData, "odds data of bets");
 
       if (!oddsData || !oddsData.completed_games) {
-        // console.error(`No data or completed games found for sport: ${sport}`);
         continue;
       }
 
-      const { completed_games, live_games, future_upcoming_games } = oddsData;
+      const { completed_games, live_games, future_upcoming_games,todays_upcoming_games } = oddsData;
+      const allGames = [
+        ...completed_games,
+        ...live_games,
+        ...future_upcoming_games,
+        ...todays_upcoming_games
+      ];
+      
 
-      // parentPort.postMessage({
-      //   type: 'updateLiveData',
-      //   livedata: oddsData,
-      //   activeRooms: sportKeys
-      // });     
-
-      // console.log("Live games:", live_games);
-
-      // console.log("Upcoming games:", upcoming_games);
-
-      for (const game of live_games) {
-
+      for (const game of allGames ) {
         const bet = bets.find((b) => b.event_id === game.id);
 
         if (bet) {
-
-          await processCompletedBet(bet._id.toString(), game);
-          for (const processedBets of bets) {
+          try {
+            await processCompletedBet(bet._id.toString(), game);
+          } catch (error) {
+            console.error(`Error processing bet ${bet._id}:`, error);
+          } finally {
+            for(const processedBets of bets ){
             const removalResult = await removeItem(JSON.stringify(processedBets));
             if (removalResult === 0) {
               console.log(`Bet ${bet._id} could not be removed from the queue.`);
             } else {
               console.log(`Bet ${bet._id} removed successfully from the queue.`);
             }
-
           }
-          // console.log("Processed bet:", bet._id);
+          }
         } else {
           console.log("No bet found for game:", game.id);
         }
-
       }
     }
   } catch (error) {
     console.error("Error during bet processing:", error);
   }
 }
+
 
 async function processCompletedBet(betDetailId, gameData) {
   const session = await mongoose.startSession();
