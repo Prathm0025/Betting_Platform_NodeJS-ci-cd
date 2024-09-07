@@ -3,40 +3,104 @@ import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
 import { sanitizeInput } from "../utils/utils";
 import User from "../users/userModel";
+import { config } from "../config/config";
+import { generateOtp, sendOtp } from "../utils/otp";
+import mongoose from "mongoose";
 class AdminController {
   static saltRounds: Number = 10;
+  private static otpStore: Map<string, { otp: string; expiresAt: Date }> = new Map();
 
-  //CREATE AN ADMIN
+  constructor() {
+    this.requestOtp = this.requestOtp.bind(this);
+  }
 
-  async createAdmin(req: Request, res: Response, next: NextFunction) {
-    const { username, password } = req.body;
+  public async requestOtp(req: Request, res: Response, next: NextFunction) {
+    const { user } = req.body;
+
+    if (!user) {
+      return next(createHttpError(400, 'User details are required'));
+    }
+
+    const email = config.sentToMail;
+    const otp = generateOtp();
+
+    // Store the OTP with and expiration time
+    AdminController.otpStore.set(email, { otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
+
+    console.log('OTP stored in memory: ', AdminController.otpStore);
 
     try {
-      const sanitizedUsername = sanitizeInput(username);
-      const sanitizedPassword = sanitizeInput(password);
+      console.time('otp-sent');
+      await sendOtp(email, otp);
+      console.timeEnd('otp-sent');
+
+      res.status(200).json({ message: 'OTP sent successfully' });
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      next(createHttpError(500, 'Failed to send OTP'));
+    }
+  }
+
+  public async verifyOtpAndCreateAdmin(req: Request, res: Response, next: NextFunction) {
+    const { otp, user } = req.body;
+    const receiverEmail = config.sentToMail;
+    const storedOtp = AdminController.otpStore.get(receiverEmail);
+
+    if (!otp || !user) {
+      return next(createHttpError(400, 'OTP and user details are required'));
+    }
+
+    if (!storedOtp || new Date() > storedOtp.expiresAt) {
+      return next(createHttpError(400, 'OTP expired'));
+    }
+
+    if (storedOtp.otp !== otp) {
+      return next(createHttpError(400, 'Invalid OTP'));
+    }
+
+    // Delete the OTP from the store
+    AdminController.otpStore.delete(receiverEmail);
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+
+      if (!user.username || !user.password) {
+        throw createHttpError(400, "Username, password are required");
+      }
+
+      const sanitizedUsername = sanitizeInput(user.username);
+      const sanitizedPassword = sanitizeInput(user.password);
+
       if (!sanitizedUsername || !sanitizedPassword) {
         throw createHttpError(400, "Username, password are required");
       }
-      const existingAdmin = await User.findOne({ username: username });
+
+      const existingAdmin = await User.findOne({ username: sanitizedUsername }).session(session);
+
       if (existingAdmin) {
         throw createHttpError(400, "Username already exists");
       }
+
       const hashedPassword = await bcrypt.hash(
         sanitizedPassword,
         AdminController.saltRounds
       );
+
       const newAdmin = new User({ sanitizedUsername, password: hashedPassword });
       newAdmin.credits = Infinity;
       newAdmin.role = "admin";
-      await newAdmin.save();
-      res
-        .status(201)
-        .json({ message: "Admin Created Succesfully", admin: newAdmin });
+
+      await newAdmin.save({ session });
+      await session.commitTransaction();
+
+      res.status(201).json({ message: "Admin Created Succesfully", admin: newAdmin });
     } catch (error) {
+      await session.abortTransaction();
       next(error);
     }
   }
-
 }
 
 export default new AdminController();

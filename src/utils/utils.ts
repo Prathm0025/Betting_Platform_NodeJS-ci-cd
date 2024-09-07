@@ -1,9 +1,6 @@
 import { Request } from "express";
 import { JwtPayload } from "jsonwebtoken";
-// import { IPlayer, IUser } from "../dashboard/users/userType";
-// import createHttpError from "http-errors";
-// import mongoose from "mongoose";
-// import { TransactionController } from "../dashboard/transactions/transactionController";
+
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import validator from 'validator';
@@ -14,7 +11,6 @@ export function sanitizeInput(input: string) {
 }
 
 //USERS HEIRARCHy OBJECT
-
 export const rolesHierarchy = {
   admin: ["distributor", "subdistributor", "agent", "player"],
   distributor: ["subdistributor"],
@@ -23,22 +19,21 @@ export const rolesHierarchy = {
 };
 
 //CHECKS PERMISSION TO PERFORM ACTIONS
-
 export const hasPermission = async (
   requestingUserId: string,
-  targetUserId: string, 
+  targetUserId: string,
   requestingUserRole: string,
 ): Promise<boolean> => {
-  if (!requestingUserId || !requestingUserRole || !targetUserId ) {
+  if (!requestingUserId || !requestingUserRole || !targetUserId) {
     return false;
   }
 
   const requestingUser = await User.findById(requestingUserId);
   if (!requestingUser) return false;
- 
+
   const targetUser = await User.findOne({
-    _id:targetUserId,
-    createdBy:requestingUserId
+    _id: targetUserId,
+    createdBy: requestingUserId
   });
   if (!targetUser) return false;
   const allowedRoles = rolesHierarchy[requestingUserRole] || [];
