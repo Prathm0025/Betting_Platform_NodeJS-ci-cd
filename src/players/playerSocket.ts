@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
 import { activeRooms } from "../socket/socket";
+import betController from "../bets/betController";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
@@ -169,7 +170,10 @@ export default class Player {
             const sportsData = await Store.getSports();
             this.sendData({ sports: sportsData });
             break;
-
+          case "REDEEM_AMOUNT":
+            const amount = await betController.recevingReddemAmount(res.payload.userId, res.payload.betID);
+            this.sendData({ type: "REDEEM_AMOUNT", data: amount });
+            break;
           default:
             console.warn(`Unknown action: ${res.action}`);
             this.sendError(`Unknown action: ${res.action}`);

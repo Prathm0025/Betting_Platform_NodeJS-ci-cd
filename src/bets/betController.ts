@@ -516,6 +516,39 @@ class BetController {
       next(error);
     }
   }
+
+
+  public async recevingReddemAmount(userId: any, betId: any) {
+  try {
+    console.log(betId,"Bet Id is here",userId,"User Id is here")
+    const player = await PlayerModel.findById({ _id: userId });
+
+    if (!player) {
+      throw createHttpError(404, "Player not found");
+    }
+    const betObjectId = new mongoose.Types.ObjectId(betId);
+    const bet = await Bet.findById(betObjectId);
+    if (!bet) {
+      throw createHttpError(404, "Bet not found");
+    }
+    if (bet.status !== "pending") {
+      throw createHttpError(
+        400,
+        "Only bets with pending status can be redeemed!"
+      );
+    }
+    let totalOldOdds = 1;
+    let totalNewOdds = 1;
+    const betAmount = bet.amount;
+    const amount = (totalNewOdds / totalOldOdds) * betAmount;
+        const finalPayout =
+          amount - (parseInt(config.betCommission) / 100) * amount;
+    return finalPayout;
+  } catch (error) {
+    
+  }
+  
+  }
 }
 
 export default new BetController();
