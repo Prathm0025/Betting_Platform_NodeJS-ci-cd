@@ -4,7 +4,7 @@
   "description": "BackendsByMTT/Betting_Platform_Nodejs",
   "main": "index.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node dist/app.js",
     "dev": "tsc-watch --onSuccess \"nodemon dist/app.js\"",
     "build": "tsc"
   },
