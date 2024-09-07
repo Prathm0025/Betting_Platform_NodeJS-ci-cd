@@ -26,7 +26,7 @@ const server = createServer(app);
 
 app.use("/api/auth", userRoutes);
 app.use("/api/players", checkUser, playerRoutes);
-app.use("/api/admin", verifyApiKey, adminRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
