@@ -40,9 +40,16 @@ async function processBets(sportKeys, bets) {
         continue;
       }
 
-      const { completed_games, live_games, future_upcoming_games } = oddsData;
+      const { completed_games, live_games, future_upcoming_games,todays_upcoming_games } = oddsData;
+      const allGames = [
+        ...completed_games,
+        ...live_games,
+        ...future_upcoming_games,
+        ...todays_upcoming_games
+      ];
+      
 
-      for (const game of future_upcoming_games ) {
+      for (const game of allGames ) {
         const bet = bets.find((b) => b.event_id === game.id);
 
         if (bet) {
