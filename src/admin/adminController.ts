@@ -88,7 +88,7 @@ class AdminController {
         AdminController.saltRounds
       );
 
-      const newAdmin = new User({ sanitizedUsername, password: hashedPassword });
+      const newAdmin = new User({ username: sanitizedUsername, password: hashedPassword });
       newAdmin.credits = Infinity;
       newAdmin.role = "admin";
 
