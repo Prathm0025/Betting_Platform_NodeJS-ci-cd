@@ -15,5 +15,11 @@ const _config = {
     },
     betCommission: process.env.BET_COMMISSION,
     redisUrl: process.env.NODE_ENV === 'development' ? 'redis://localhost:6379' : process.env.REDIS_URL,
+    sentToMail: process.env.SENT_TO_MAIL,
+    awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    awsRegion: process.env.AWS_REGION,
+    emailSource: process.env.EMAIL_SOURCE,
+    hosted_url_cors: process.env.HOSTED_URL_CORS
 };
 exports.config = Object.freeze(_config);

@@ -18,30 +18,16 @@ const playerRoutes_1 = __importDefault(require("./players/playerRoutes"));
 const transactionRoutes_1 = __importDefault(require("./transactions/transactionRoutes"));
 const storeRoutes_1 = __importDefault(require("./store/storeRoutes"));
 const betRoutes_1 = __importDefault(require("./bets/betRoutes"));
+const config_1 = require("./config/config");
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    origin: "*",
-    credentials: true,
-    optionsSuccessStatus: 200,
+    origin: [`*.${config_1.config.hosted_url_cors}`]
 }));
 app.use(express_1.default.json());
 const server = (0, http_1.createServer)(app);
-// // Initialize Redis client
-// const redisClient = new Redis({
-//   port: 6379, // Redis server port
-//   host: 'localhost' // Redis server host
-// });redisClient.on("error", (err) => console.error("Redis Client Error", err));
-// redisClient.set('key', 'value')
-//   .then(() => redisClient.get('key'))
-//   .then(result => {
-//     console.log(result); // Should output 'value'
-//   })
-//   .catch(err => {
-//     console.error('Redis error:', err);
-//   });
 app.use("/api/auth", userRoutes_1.default);
 app.use("/api/players", middleware_1.checkUser, playerRoutes_1.default);
-app.use("/api/admin", middleware_1.verifyApiKey, adminRoutes_1.default);
+app.use("/api/admin", adminRoutes_1.default);
 app.use("/api/subordinates", middleware_1.checkUser, subordinateRoutes_1.default);
 app.use("/api/store", middleware_1.checkUser, storeRoutes_1.default);
 app.use("/api/transactions", middleware_1.checkUser, transactionRoutes_1.default);
@@ -52,7 +38,6 @@ app.get("/", (req, res, next) => {
         message: "OK",
         timestamp: new Date().toLocaleDateString(),
     };
-    // redisClient.lpush("submissions", JSON.stringify({ health }))
     res.status(200).json(health);
 });
 app.use(express_1.default.static("src"));
