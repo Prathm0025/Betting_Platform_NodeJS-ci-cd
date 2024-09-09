@@ -69,6 +69,26 @@ class Store {
         const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
         return this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/scores`, { daysFrom, dateFormat }, cacheKey);
     }
+    getScoresForProcessing(sport, daysFrom, dateFormat) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
+            const scoresResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/scores`, { daysFrom, dateFormat }, cacheKey);
+            const now = new Date();
+            const startOfToday = new Date(now);
+            startOfToday.setHours(0, 0, 0, 0);
+            const endOfToday = new Date(now);
+            endOfToday.setHours(23, 59, 59, 999);
+            const completedGames = scoresResponse.filter((game) => game.completed);
+            const futureUpcomingGames = scoresResponse.filter((game) => {
+                const commenceTime = new Date(game.commence_time);
+                return commenceTime > endOfToday && !game.completed;
+            });
+            return {
+                futureUpcomingGames,
+                completedGames
+            };
+        });
+    }
     // HANDLE ODDS
     getOdds(sport, markets, regions, player) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -109,7 +129,6 @@ class Store {
                         selected: bookmaker === null || bookmaker === void 0 ? void 0 : bookmaker.key,
                     };
                 });
-                //  console.log(processedData, "data");
                 const liveGames = processedData.filter((game) => {
                     const commenceTime = new Date(game.commence_time);
                     return commenceTime <= now && !game.completed;
@@ -140,6 +159,17 @@ class Store {
                     player.sendError(error.message);
                 }
             }
+        });
+    }
+    getOddsForProcessing(sport) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const cacheKey = `odds_${sport}_h2h_us`;
+            const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds`, {
+                // markets: "h2h", // Default to 'h2h' if not provided
+                regions: "us", // Default to 'us' if not provided
+                oddsFormat: "decimal",
+            }, cacheKey);
+            return oddsResponse;
         });
     }
     getEvents(sport, dateFormat) {
