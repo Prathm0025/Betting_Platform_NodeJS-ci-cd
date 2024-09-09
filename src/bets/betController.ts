@@ -169,11 +169,10 @@ class BetController {
 
       let responseMessage;
       if (betType === "single") {
-        responseMessage = `Single bet on ${
-          betDetails[0].bet_on === "home_team"
+        responseMessage = `Single bet on ${betDetails[0].bet_on === "home_team"
             ? betDetails[0].home_team.name
             : betDetails[0].away_team.name
-        } placed successfully!`;
+          } placed successfully!`;
       } else {
         responseMessage = "Combo bet placed sccessfully!";
       }
@@ -248,52 +247,7 @@ class BetController {
     return possibleWinningAmount;
   }
 
-  private async lockBet(betId: string) {
-    const session = await Bet.startSession();
-    session.startTransaction();
 
-    try {
-      const bet = await Bet.findById(betId).session(session);
-      if (bet && bet.status !== "locked") {
-        bet.status = "locked";
-        await bet.save();
-        await session.commitTransaction();
-      }
-    } catch (error) {
-      await session.abortTransaction();
-    } finally {
-      session.endSession();
-    }
-  }
-
-  private async processOutcomeQueue(betId: string, result: "won" | "lost") {
-    const bet = await Bet.findById(betId);
-
-    if (bet) {
-      try {
-        bet.status = result;
-        await bet.save();
-      } catch (error) {}
-    }
-  }
-
-  private async processRetryQueue(betId: string) {
-    const bet = await Bet.findById(betId);
-
-    if (bet) {
-      try {
-        bet.retryCount += 1;
-        if (bet.retryCount > 1) {
-          bet.status = "lost";
-        } else {
-          bet.status = "retry";
-        }
-        await bet.save();
-      } catch (error) {}
-    }
-  }
-
-  public async settleBet(betId: string, result: "success" | "fail") {}
 
   //GET BETS OF PLAYERS UNDER AN AGENT
 

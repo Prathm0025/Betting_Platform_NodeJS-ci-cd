@@ -27,9 +27,14 @@ const BetDetailSchema: Schema = new Schema({
   oddsFormat: { type: String, required: true },
   status: {
     type: String,
-    enum: ["won", "lost", "pending", "locked", "retry", "redeem", "failed"],
+    enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
+  isResolved:{
+    type:Boolean,
+    default: false,  // Default value if required
+
+  }
 });
 
 const BetSchema: Schema = new Schema({
@@ -39,7 +44,7 @@ const BetSchema: Schema = new Schema({
   possibleWinningAmount: { type: Number, required: true },
   status: {
     type: String,
-    enum: ["won", "lost", "pending", "locked", "retry", "redeem", "failed"],
+    enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
   retryCount: { type: Number, default: 0 },

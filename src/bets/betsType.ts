@@ -22,6 +22,7 @@ export interface IBetDetail extends Document {
   selected: string;
   oddsFormat: string;
   status: "won" | "lost" | "pending" | "locked" | "retry" | "redeem" | "failed";
+  isResolved:boolean
 }
 
 export interface IBet extends Document {
