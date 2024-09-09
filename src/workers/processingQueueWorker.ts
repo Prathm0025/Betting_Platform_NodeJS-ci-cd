@@ -29,7 +29,6 @@ connectDB();
 
 async function processBets(sportKeys, bets) {
   console.log("Starting bet processing...");
-  console.log("Bets:", bets.length);
 
   try {
     for (const sport of sportKeys) {
@@ -41,25 +40,17 @@ async function processBets(sportKeys, bets) {
       }
       const { futureUpcomingGames, completedGames } = scoresData;
       //  const oddsData = await Store.getOddsForProcessing(sport)
-      //  console.log(oddsData, "odds Data");
-
-
-      for (const game of futureUpcomingGames) {
-
+      
+      for (const game of futureUpcomingGames) { // CHANGE THIS TO COMPLETD BETS (if not)
         const bet = bets.find((b) => b.event_id === game.id);
-
         if (bet) {
           try {
-            //removing the bets from proceassing queue befor processing
             const removalResult = await removeItem(JSON.stringify(bet));
             if (removalResult === 0) {
               console.log(`Bet ${bet._id} could not be removed from the queue.`);
             } else {
               console.log(`Bet ${bet._id} removed successfully from the queue.`);
             }
-
-            //processing completed bets
-
             await processCompletedBet(bet._id.toString(), game);
           } catch (error) {
             console.log(error);
@@ -67,7 +58,6 @@ async function processBets(sportKeys, bets) {
         } else {
           console.log("No bet found for game:", game.id);
         }
-
       }
     }
   } catch (error) {
@@ -75,7 +65,7 @@ async function processBets(sportKeys, bets) {
   }
 }
 
-
+// THIS WILL BE CALLED ONLY WHEN MATCH IS COMPLETED
 async function processCompletedBet(betDetailId, gameData) {
 
 
@@ -122,14 +112,16 @@ async function processCompletedBet(betDetailId, gameData) {
 
     // Await result of processing bet
     await processBetResult(betDetail, gameData, bet);
+   
     if (processBetResult) {
       betDetail.status = "won";
       await betDetail.save({ session });
     } else {
       betDetail.status = "lost"
       await betDetail.save({ session });
-
     }
+
+
     const allBetDetails = await BetDetail.find({ key: bet._id }).session(session);
     const allProcessed = allBetDetails.every(detail => detail.status !== "pending");
 
@@ -155,15 +147,6 @@ async function processCompletedBet(betDetailId, gameData) {
     session.endSession();
   }
 }
-
-
-
-// function determineWinner(homeTeam, awayTeam, scores) {
-//   const homeScore = parseInt(scores.find((s) => s.name === homeTeam)?.score || "0");
-//   const awayScore = parseInt(scores.find((s) => s.name === awayTeam)?.score || "0");
-
-//   return homeScore > awayScore ? "home_team" : awayScore > homeScore ? "away_team" : null;
-// }
 
 function determineWinner(betDetail, gameData, bet) {
   try {
@@ -228,28 +211,21 @@ function calculateWinningAmount(stake, odds, oddsType) {
 
   if (oddsType === 'american') {
     if (odds > 0) {
-      // Positive American odds
       winningAmount = stake * (odds / 100);
     } else if (odds < 0) {
-      // Negative American odds
       winningAmount = stake / (Math.abs(odds) / 100);
     } else {
-      // Invalid American odds
       return stake;
     }
   } else if (oddsType === 'decimal') {
     if (odds <= 1) {
-      // Decimal odds of 1 or less indicate no profit
-      return stake; // You only get your stake back
+      return stake; 
     }
 
-    // Total payout for decimal odds
     winningAmount = stake * odds - stake;
   } else {
     throw new Error('Invalid odds type provided. Use "american" or "decimal".');
   }
-
-  // Return the total payout which is the winning amount plus the original stake
   return winningAmount + stake;
 }
 
@@ -261,8 +237,6 @@ async function processBetResult(betDetail, gameData, bet) {
   if (isWinner) {
     console.log(gameData.markets, "market");
 
-    const market = gameData.markets.find((m) => m.key === bet.market)
-    // Find the outcome for the specified team
     const teamname = betDetail.bet_on === "home_team" ? betDetail.home_team.name : betDetail.away_team.name;
     console.log(teamname, "teamname");
     const type = bet.type;
@@ -271,11 +245,8 @@ async function processBetResult(betDetail, gameData, bet) {
     );
 
     if (type === "combo" && !allBetDetailsValid) {
-      return;
+      return false;
     }
-    // const outcome = market?.outcomes?.find((o) => o.name === teamname )||[];
-    // console.log(outcome, "outcome");
-
     const odds = betDetail.bet_on === "home_team" ? betDetail.home_team.odds : betDetail.away_team.odds;
     const winnings = calculateWinningAmount(bet.amount, odds, betDetail.oddsFormat);
     console.log(`Bet won! Winning amount: ${winnings}`);
@@ -293,9 +264,6 @@ async function processBetResult(betDetail, gameData, bet) {
     console.log(`Player's credit updated. New credit: ${player.credits}`);
 
 
-  } else {
-    console.log('Bet lost. No winnings.');
-    return 0; // No winnings if the bet is lost
   }
 }
 
@@ -333,27 +301,22 @@ const processBetsFromQueue = async () => {
     const betQueue: any = await getAll();
     console.log(betQueue, "betqueue");
 
-    // Parse the stringified betQueue data
     const parsedBetQueue = betQueue.map((bet: string) => JSON.parse(bet));
 
-    // Ensure parsedBetQueue is an array
     if (Array.isArray(parsedBetQueue)) {
-      // Process each bet item in the parsed queue
       parsedBetQueue.forEach((bet) => {
-        // Ensure bet is an object and has sport_key
         if (bet && bet.sport_key) {
-          betsData.push(bet); // Add to betsData
-          sports.add(bet.sport_key); // Add sport_key to the Set
+          betsData.push(bet);
+          sports.add(bet.sport_key);
         }
       });
-
       const sportKeysArray = Array.from(sports);
       console.log(sportKeysArray, "sports key array");
 
       console.log("Bets data after dequeuing:", betsData);
 
       if (betsData.length > 0) {
-        processBets(sportKeysArray, betsData); // Process bets if data exists
+        processBets(sportKeysArray, betsData); 
       } else {
         console.log("Nothing to process in processing queue");
       }
@@ -375,7 +338,7 @@ async function startWorker() {
     } catch (error) {
       console.error("Error in setInterval Waiting Queue Worker:", error);
     }
-  }, 30000); // Runs every 30 seconds
+  }, 30000);
 }
 
 parentPort.on('message', (message) => {
