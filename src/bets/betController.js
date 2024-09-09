@@ -80,7 +80,6 @@ class BetController {
                 for (const betDetailData of betDetails) {
                     const existingBetDetails = yield betModel_1.BetDetail.find({
                         event_id: betDetailData.event_id,
-                        bet_on: betDetailData.bet_on,
                         status: "pending",
                         market: betDetailData.market,
                     }).session(session);
@@ -94,7 +93,12 @@ class BetController {
                             const betPlayer = yield playerModel_1.default.findById(bet.player).session(session);
                             if (betPlayer._id.equals(player._id)) {
                                 // Use `.equals` for MongoDB ObjectId comparison
-                                throw new Error(`You already have a pending bet on ${betDetailData.bet_on}.`);
+                                if (data.bet_on === betDetailData.bet_on) {
+                                    throw new Error(`You already have a pending bet on ${betDetailData.bet_on}.`);
+                                }
+                                else {
+                                    throw new Error(`This is not a valid bet since the other bet is not yet resolved!`);
+                                }
                             }
                         }
                     }
@@ -195,7 +199,10 @@ class BetController {
             const delay = commence_time.getTime() - Date.now();
             try {
                 const timestamp = commence_time.getTime() / 1000;
-                const data = { betId: betDetail._id.toString(), commence_time: new Date(betDetail.commence_time) };
+                const data = {
+                    betId: betDetail._id.toString(),
+                    commence_time: new Date(betDetail.commence_time),
+                };
                 yield redisclient_1.redisClient.zadd("waitingQueue", timestamp.toString(), JSON.stringify(data));
                 console.log(`BetDetail ${betDetail._id.toString()} scheduled successfully with a delay of ${delay}ms`);
             }
@@ -317,6 +324,91 @@ class BetController {
             }
         });
     }
+    redeemBetInfo(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
+            try {
+                const _req = req;
+                const { userId } = _req.user;
+                const { betId } = req.params;
+                let failed = false;
+                const player = yield playerModel_1.default.findById({ _id: userId });
+                console.log("PLAYERRRR", player);
+                if (!player) {
+                    throw (0, http_errors_1.default)(404, "Player not found");
+                }
+                const betObjectId = new mongoose_1.default.Types.ObjectId(betId);
+                const bet = yield betModel_1.default.findById(betObjectId);
+                if (!bet) {
+                    throw (0, http_errors_1.default)(404, "Bet not found");
+                }
+                if (bet.status !== "pending") {
+                    throw (0, http_errors_1.default)(400, "Only bets with pending status can be redeemed!");
+                }
+                const betAmount = bet.amount;
+                const allBets = bet === null || bet === void 0 ? void 0 : bet.data;
+                const betDetailsArray = yield Promise.all(allBets.map((id) => betModel_1.BetDetail.findById(id)));
+                let totalOldOdds = 1;
+                let totalNewOdds = 1;
+                for (const betDetails of betDetailsArray) {
+                    let selectedTeam;
+                    switch (betDetails.bet_on) {
+                        case "home_team":
+                            selectedTeam = betDetails.home_team;
+                            break;
+                        case "away_team":
+                            selectedTeam = betDetails.home_team;
+                            break;
+                        case "Over":
+                            selectedTeam = betDetails.home_team;
+                            break;
+                        case "Under":
+                            selectedTeam = betDetails.away_team;
+                            break;
+                        default:
+                            break;
+                    }
+                    const oldOdds = selectedTeam.odds;
+                    totalOldOdds *= oldOdds;
+                    const currentData = yield storeController_1.default.getEventOdds(betDetails.sport_key, betDetails.event_id, betDetails.market, "us", betDetails.oddsFormat, "iso");
+                    const currentBookmakerData = (_a = currentData === null || currentData === void 0 ? void 0 : currentData.bookmakers) === null || _a === void 0 ? void 0 : _a.find((item) => (item === null || item === void 0 ? void 0 : item.key) === betDetails.selected);
+                    //the earlier selected bookmaker is not available anymore
+                    if (!currentBookmakerData) {
+                        failed = true;
+                        break;
+                    }
+                    else {
+                        const marketDetails = (_b = currentBookmakerData === null || currentBookmakerData === void 0 ? void 0 : currentBookmakerData.markets) === null || _b === void 0 ? void 0 : _b.find((item) => item.key === betDetails.market);
+                        const newOdds = marketDetails.outcomes.find((item) => {
+                            if (betDetails.market !== "totals") {
+                                return item.name === selectedTeam.name;
+                            }
+                            else {
+                                return item.name === betDetails.bet_on;
+                            }
+                        }).price;
+                        totalNewOdds *= newOdds;
+                    }
+                }
+                if (failed) {
+                    res.status(200).json({
+                        message: "There was some error in processing this bet so, you will be refunded with the complete amount",
+                        amount: betAmount,
+                    });
+                }
+                else {
+                    const amount = (totalNewOdds / totalOldOdds) * betAmount;
+                    const finalPayout = amount - (parseInt(config_1.config.betCommission) / 100) * amount;
+                    res
+                        .status(200)
+                        .json({ message: "Your final payout will be", amount: finalPayout });
+                }
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
     //REDEEM PLAYER BET
     redeemPlayerBet(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -378,12 +470,12 @@ class BetController {
                                 return item.name === selectedTeam.name;
                             }
                             else {
-                                console.log("HRE");
                                 return item.name === betDetails.bet_on;
                             }
                         }).price;
                         totalNewOdds *= newOdds;
                         betDetails.status = "redeem";
+                        betDetails.isResolved = true;
                         yield betDetails.save();
                         bet.status = "redeem";
                         yield bet.save();

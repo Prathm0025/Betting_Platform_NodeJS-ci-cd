@@ -27,6 +27,7 @@ const playerModel_1 = __importDefault(require("./playerModel"));
 const betController_1 = __importDefault(require("../bets/betController"));
 const storeController_1 = __importDefault(require("../store/storeController"));
 const socket_1 = require("../socket/socket");
+// import { updateLiveData } from "../workers/initWorker";
 class Player {
     constructor(socket, userId, username, credits, io // Initialize io instance in constructor
     ) {
@@ -226,7 +227,7 @@ class Player {
             }
         }
         socket_1.activeRooms.add(room);
-        console.log(socket_1.activeRooms, "active");
+        // updateLiveData(activeRooms);
         this.socket.join(room);
         this.currentRoom = room;
     }
