@@ -72,8 +72,10 @@ function checkBetsCommenceTime() {
                     const betDetail = yield betModel_1.BetDetail.findById(betId).lean();
                     const betParent = yield betModel_1.default.findById(betDetail.key).lean();
                     if (!betDetail || !betParent) {
-                        console.log(`BetDetail not found for betId: ${betId}`);
-                        continue;
+                        console.log(`BetDetail or BetParent not found for betId: ${betId}, removing from queue`);
+                        // Remove the problematic bet from the waiting queue
+                        yield redisclient_1.redisClient.zrem('waitingQueue', bet);
+                        continue; // Skip further processing for this bet
                     }
                     const multi = redisclient_1.redisClient.multi();
                     // Add the entire betDetail data to the processing queue
@@ -83,7 +85,9 @@ function checkBetsCommenceTime() {
                     yield multi.exec();
                 }
                 catch (error) {
-                    console.log("Error in Waiting Queue Worker : ", error);
+                    console.log(`Error processing bet with ID ${betId}:`, error);
+                    // Remove the problematic bet from the waiting queue if an error occurs
+                    yield redisclient_1.redisClient.zrem('waitingQueue', bet);
                 }
             }
         }
@@ -103,8 +107,68 @@ function startWorker() {
         }), 30000); // Runs every 30 seconds
     });
 }
-worker_threads_1.parentPort.on('message', (message) => {
+const bets = [];
+function getAllBetsForPlayer(playerId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // Ensure the provided playerId is a valid MongoDB ObjectId
+            if (!mongoose_1.default.Types.ObjectId.isValid(playerId)) {
+                throw new Error('Invalid player ID');
+            }
+            // Find all bets for the given playerId and populate the BetDetail data
+            const bets = yield betModel_1.default.find({ player: playerId })
+                .populate({
+                path: 'data', // Populate the 'data' field referencing BetDetail
+                model: 'BetDetail',
+            })
+                .lean(); // Use lean() for performance boost
+            if (!bets || bets.length === 0) {
+                console.log(`No bets found for player with ID: ${playerId}`);
+                return [];
+            }
+            return bets;
+        }
+        catch (error) {
+            console.error(`Error retrieving bets for player with ID ${playerId}:`, error);
+            throw error; // Rethrow the error to handle it in the calling function
+        }
+    });
+}
+function addMultipleBetsToProcessingQueue(bets) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // Start a Redis multi transaction to push multiple bets at once
+            const multi = redisclient_1.redisClient.multi();
+            // Loop through each bet and add to Redis multi command
+            for (const bet of bets) {
+                // Serialize each bet object to a JSON string
+                const serializedBet = JSON.stringify(bet);
+                // Add the serialized bet to the processingQueue
+                multi.lpush('processingQueue', serializedBet);
+            }
+            // Execute all commands in the multi queue
+            yield multi.exec();
+            console.log(`${bets.length} bets added to processingQueue`);
+        }
+        catch (error) {
+            console.error("Error adding bets to processing queue:", error);
+        }
+    });
+}
+function extractDataField(betsArray) {
+    let extractedData = [];
+    for (let bet of betsArray) {
+        if (bet.data && Array.isArray(bet.data)) {
+            extractedData = [...extractedData, ...bet.data];
+        }
+    }
+    return extractedData;
+}
+worker_threads_1.parentPort.on('message', (message) => __awaiter(void 0, void 0, void 0, function* () {
     if (message === "start") {
         startWorker();
+        // const bets = await getAllBetsForPlayer('66dc1327033fa0a4866e3ddf')
+        // const data = extractDataField(bets)
+        // await addMultipleBetsToProcessingQueue(data)
     }
-});
+}));

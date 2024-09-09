@@ -228,59 +228,6 @@ class BetController {
         }
         return possibleWinningAmount;
     }
-    lockBet(betId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const session = yield betModel_1.default.startSession();
-            session.startTransaction();
-            try {
-                const bet = yield betModel_1.default.findById(betId).session(session);
-                if (bet && bet.status !== "locked") {
-                    bet.status = "locked";
-                    yield bet.save();
-                    yield session.commitTransaction();
-                }
-            }
-            catch (error) {
-                yield session.abortTransaction();
-            }
-            finally {
-                session.endSession();
-            }
-        });
-    }
-    processOutcomeQueue(betId, result) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const bet = yield betModel_1.default.findById(betId);
-            if (bet) {
-                try {
-                    bet.status = result;
-                    yield bet.save();
-                }
-                catch (error) { }
-            }
-        });
-    }
-    processRetryQueue(betId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const bet = yield betModel_1.default.findById(betId);
-            if (bet) {
-                try {
-                    bet.retryCount += 1;
-                    if (bet.retryCount > 1) {
-                        bet.status = "lost";
-                    }
-                    else {
-                        bet.status = "retry";
-                    }
-                    yield bet.save();
-                }
-                catch (error) { }
-            }
-        });
-    }
-    settleBet(betId, result) {
-        return __awaiter(this, void 0, void 0, function* () { });
-    }
     //GET BETS OF PLAYERS UNDER AN AGENT
     getAgentBets(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
