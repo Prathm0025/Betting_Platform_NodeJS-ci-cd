@@ -21,7 +21,7 @@ export interface IBetDetail extends Document {
   bet_on: "home_team" | "away_team" | "Over" | "Under";
   selected: string;
   oddsFormat: string;
-  status: "won" | "lost" | "pending" | "locked" | "retry" | "redeem" | "failed";
+  status: "won" | "lost" | "draw" | "pending" | "redeem" | "failed";
 }
 
 export interface IBet extends Document {
@@ -29,7 +29,7 @@ export interface IBet extends Document {
   data: mongoose.Schema.Types.ObjectId[];
   amount: number;
   possibleWinningAmount: number;
-  status: "won" | "lost" | "pending" | "locked" | "retry" | "redeem" | "failed";
+  status: "won" | "lost" | "draw" | "pending" | "redeem" | "failed";
   retryCount: number;
   betType: "single" | "combo";
 }
