@@ -72,7 +72,8 @@ function processBets(sportKeys, bets) {
                 }
                 const { completedGames } = scoresData;
                 //  const oddsData = await Store.getOddsForProcessing(sport)
-                for (const game of completedGames) { // CHANGE THIS TO COMPLETD BETS (if not)
+                for (const game of completedGames) {
+                    // CHANGE THIS TO COMPLETD BETS (if not)
                     const betsToBeProcess = bets.filter((b) => b.event_id === game.id);
                     if (betsToBeProcess.length > 0) {
                         for (const bet of betsToBeProcess) {
@@ -118,16 +119,16 @@ function processCompletedBet(betDetailId, gameData) {
             }
             const parentBetId = betDetail.key;
             const bet = yield betModel_1.default.findById(parentBetId)
-                .populate('data')
+                .populate("data")
                 .session(session);
             if (!bet) {
                 console.error("Parent Bet not found:", parentBetId);
                 yield session.abortTransaction();
                 return;
             }
-            // for combo bets 
+            // for combo bets
             if (bet.betType === "combo") {
-                const allBetDetailsValid = bet.data.every((detail) => detail.status === 'won' || detail.status === 'pending');
+                const allBetDetailsValid = bet.data.every((detail) => detail.status === "won" || detail.status === "pending");
                 // if any one bet detail is failed under an parent  bet we mark all bet as failed
                 if (!allBetDetailsValid) {
                     betDetail.isResolved = true;
@@ -150,9 +151,11 @@ function processCompletedBet(betDetailId, gameData) {
                 yield betDetail.save({ session });
             }
             const allBetDetails = yield betModel_1.BetDetail.find({ key: bet._id }).session(session);
-            const allProcessed = allBetDetails.every(detail => detail.status !== "pending");
+            const allProcessed = allBetDetails.every((detail) => detail.status !== "pending");
             if (allProcessed) {
-                bet.status = allBetDetails.every(detail => detail.status === "won") ? "won" : "lost";
+                bet.status = allBetDetails.every((detail) => detail.status === "won")
+                    ? "won"
+                    : "lost";
                 yield bet.save({ session });
             }
             yield session.commitTransaction();
@@ -185,8 +188,8 @@ function determineWinner(betDetail, gameData, bet) {
         if (gameData.scores === null) {
             throw new Error("No Scores from the API");
         }
-        const homeTeamScore = (_a = gameData === null || gameData === void 0 ? void 0 : gameData.scores) === null || _a === void 0 ? void 0 : _a.find(score => score.name === gameData.home_team).score;
-        const awayTeamScore = (_b = gameData === null || gameData === void 0 ? void 0 : gameData.scores) === null || _b === void 0 ? void 0 : _b.find(score => score.name === gameData.away_team).score;
+        const homeTeamScore = (_a = gameData === null || gameData === void 0 ? void 0 : gameData.scores) === null || _a === void 0 ? void 0 : _a.find((score) => score.name === gameData.home_team).score;
+        const awayTeamScore = (_b = gameData === null || gameData === void 0 ? void 0 : gameData.scores) === null || _b === void 0 ? void 0 : _b.find((score) => score.name === gameData.away_team).score;
         switch (betType) {
             // case 'spreads':
             //   const { handicap, bet_on: betOn } = betDetail;
@@ -199,12 +202,12 @@ function determineWinner(betDetail, gameData, bet) {
             //   } else {
             //     throw new Error("Invalid betOn value for Handicap. It should be home_team or away_team.");
             //   }
-            case 'h2h':
+            case "h2h":
                 const { bet_on: h2hBetOn } = betDetail;
-                if (h2hBetOn === 'home_team') {
+                if (h2hBetOn === "home_team") {
                     return homeTeamScore > awayTeamScore;
                 }
-                else if (h2hBetOn === 'away_team') {
+                else if (h2hBetOn === "away_team") {
                     return awayTeamScore > homeTeamScore;
                 }
                 else {
@@ -231,7 +234,7 @@ function determineWinner(betDetail, gameData, bet) {
 }
 function calculateWinningAmount(stake, odds, oddsType) {
     let winningAmount;
-    if (oddsType === 'american') {
+    if (oddsType === "american") {
         if (odds > 0) {
             winningAmount = stake * (odds / 100);
         }
@@ -242,7 +245,7 @@ function calculateWinningAmount(stake, odds, oddsType) {
             return stake;
         }
     }
-    else if (oddsType === 'decimal') {
+    else if (oddsType === "decimal") {
         if (odds <= 1) {
             return stake;
         }
@@ -261,20 +264,24 @@ function processBetResult(betDetail, gameData, bet) {
         }
         if (isWinner) {
             console.log(gameData.markets, "market");
-            const teamname = betDetail.bet_on === "home_team" ? betDetail.home_team.name : betDetail.away_team.name;
+            const teamname = betDetail.bet_on === "home_team"
+                ? betDetail.home_team.name
+                : betDetail.away_team.name;
             console.log(teamname, "teamname");
             const type = bet.type;
-            const allBetDetailsValid = bet.data.every((betDetail) => betDetail.status === 'won' || betDetail.status === 'pending');
+            const allBetDetailsValid = bet.data.every((betDetail) => betDetail.status === "won" || betDetail.status === "pending");
             if (type === "combo" && !allBetDetailsValid) {
                 return false;
             }
-            const odds = betDetail.bet_on === "home_team" ? betDetail.home_team.odds : betDetail.away_team.odds;
+            const odds = betDetail.bet_on === "home_team"
+                ? betDetail.home_team.odds
+                : betDetail.away_team.odds;
             const winnings = calculateWinningAmount(bet.amount, odds, betDetail.oddsFormat);
             console.log(`Bet won! Winning amount: ${winnings}`);
             const playerId = bet.player;
             const player = yield playerModel_1.default.findById(playerId);
             if (!player) {
-                console.log('Player not found.');
+                console.log("Player not found.");
                 return;
             }
             player.credits = (player.credits || 0) + winnings;
@@ -328,7 +335,7 @@ const processBetsFromQueue = () => __awaiter(void 0, void 0, void 0, function* (
         }
     }
     catch (error) {
-        console.error('Error fetching or processing queue data:', error);
+        console.error("Error fetching or processing queue data:", error);
     }
 });
 function startWorker() {
@@ -345,7 +352,7 @@ function startWorker() {
         }), 30000);
     });
 }
-worker_threads_1.parentPort.on('message', (message) => {
+worker_threads_1.parentPort.on("message", (message) => {
     if (message === "start") {
         startWorker();
     }
