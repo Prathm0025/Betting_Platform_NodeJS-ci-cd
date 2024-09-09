@@ -43,19 +43,19 @@ class Store {
       const response = await axios.get(url, {
         params: { ...params, apiKey: config.oddsApi.key },
       });
-      console.log("API CALL");
 
-      // Log the quota-related headers
-      // const requestsRemaining = response.headers["x-requests-remaining"];
-      // const requestsUsed = response.headers["x-requests-used"];
-      // const requestsLast = response.headers["x-requests-last"];
+      let cacheDuration = 60; // Default to 1 minute (60 seconds)
+
+      if (cacheKey === 'sportsList') {
+        cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
+      }
 
       // Cache the data in Redis
       await this.redisSetAsync(
         cacheKey,
         JSON.stringify(response.data),
         "EX",
-        43200
+        cacheDuration
       ); // Cache for 12 hours
       return response.data;
     } catch (error) {
@@ -80,6 +80,37 @@ class Store {
       cacheKey
     );
   }
+
+  public async getScoresForProcessing(
+    sport: string,
+    daysFrom: string | undefined,
+    dateFormat: string | undefined
+  ){
+    const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
+    const scoresResponse = await this.fetchFromApi(
+      `${config.oddsApi.url}/sports/${sport}/scores`,
+      { daysFrom, dateFormat },
+      cacheKey
+    );
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const completedGames = scoresResponse.filter(
+      (game: any) => game.completed
+    );
+
+    const futureUpcomingGames = scoresResponse.filter((game: any) => {
+      const commenceTime = new Date(game.commence_time);
+      return commenceTime > endOfToday && !game.completed;
+    });
+   return {
+    futureUpcomingGames,
+    completedGames
+   }
+  } 
 
   // HANDLE ODDS
   public async getOdds(
@@ -139,8 +170,8 @@ class Store {
           selected: bookmaker?.key,
         };
       });
-      //  console.log(processedData, "data");
 
+      
       const liveGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return commenceTime <= now && !game.completed;
@@ -180,6 +211,23 @@ class Store {
     }
   }
 
+  public async getOddsForProcessing(
+    sport: string,
+  ){
+    const cacheKey = `odds_${sport}_h2h_us`;
+
+    const oddsResponse = await this.fetchFromApi(
+      `${config.oddsApi.url}/sports/${sport}/odds`,
+      {
+        // markets: "h2h", // Default to 'h2h' if not provided
+        regions: "us", // Default to 'us' if not provided
+        oddsFormat: "decimal",
+      },
+      cacheKey
+    );
+   return oddsResponse
+
+  }
   public getEvents(sport: string, dateFormat?: string): Promise<any> {
     const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
     return this.fetchFromApi(
@@ -204,9 +252,8 @@ class Store {
 
     markets = has_outrights ? "outright" : "h2h,spreads,totals";
 
-    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${
-      dateFormat || "iso"
-    }_${oddsFormat || "decimal"}`;
+    const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
+      }_${oddsFormat || "decimal"}`;
 
     const data = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`,
