@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "../bets/betModel";
 import { dequeue, getAll, removeItem, size } from "../utils/ProcessingQueue";
-import { connect } from "http2";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
 
@@ -34,42 +33,46 @@ async function processBets(sportKeys, bets) {
 
   try {
     for (const sport of sportKeys) {
-      const oddsData = await Store.getOdds(sport);
-
-      if (!oddsData || !oddsData.completed_games) {
+      const scoresData = await Store.getScoresForProcessing(sport, "3", "iso");
+    console.log(scoresData, "score data");
+    
+      if (!scoresData ) {
         continue;
       }
-
-      const { completed_games, live_games, future_upcoming_games,todays_upcoming_games } = oddsData;
-      const allGames = [
-        ...completed_games,
-        ...live_games,
-        ...future_upcoming_games,
-        ...todays_upcoming_games
-      ];
+      const {futureUpcomingGames, completedGames} =scoresData;
+    //  const oddsData = await Store.getOddsForProcessing(sport)
+    //  console.log(oddsData, "odds Data");
+     
+      // const { completed_games, live_games, future_upcoming_games,todays_upcoming_games } = oddsData;
+      // const allGames = [
+      //   ...completed_games,
+      //   ...live_games,
+      //   ...future_upcoming_games,
+      //   ...todays_upcoming_games
+      // ];
       
 
-      for (const game of completed_games ) {
+      for (const game of completedGames) {
         
         const bet = bets.find((b) => b.event_id === game.id );
-
+        
         if (bet) {
           try {
             await processCompletedBet(bet._id.toString(), game);
+            // for(const processedBets of bets ){
+             
+          // }
           } catch (error) {
-            console.error(`Error processing bet ${bet._id}:`, error);
-          } finally {
-            for(const processedBets of bets ){
-            const removalResult = await removeItem(JSON.stringify(processedBets));
-            if (removalResult === 0) {
-              console.log(`Bet ${bet._id} could not be removed from the queue.`);
-            } else {
-              console.log(`Bet ${bet._id} removed successfully from the queue.`);
-            }
-          }
+            
           }
         } else {
           console.log("No bet found for game:", game.id);
+        }
+        const removalResult = await removeItem(JSON.stringify(bet));
+        if (removalResult === 0) {
+          console.log(`Bet ${bet._id} could not be removed from the queue.`);
+        } else {
+          console.log(`Bet ${bet._id} removed successfully from the queue.`);
         }
       }
     }
@@ -85,107 +88,102 @@ async function processCompletedBet(betDetailId, gameData) {
 
   try {
     const betDetail = await BetDetail.findById(betDetailId).session(session);
-
     if (!betDetail) {
       console.error("BetDetail not found:", betDetailId);
       await session.abortTransaction();
       return;
     }
-    var parentBetId = betDetail.key;
 
-
-    console.log(betDetail, "bet detail");
-    const bet = await Bet.findById(betDetail.key)
+    const parentBetId = betDetail.key;
+    const bet = await Bet.findById(parentBetId)
       .populate('data')
       .session(session);
 
     if (!bet) {
-      console.error("Parent Bet not found:", betDetail.key);
+      console.error("Parent Bet not found:", parentBetId);
       await session.abortTransaction();
       return;
     }
 
     const allBetDetailsValid = bet.data.every(
-      (betDetail: any) => betDetail.status === 'won' || betDetail.status === 'pending'
+      (detail: any) => detail.status === 'won' || detail.status === 'pending'
     );
 
-
     if (!allBetDetailsValid) {
-      // Update all bet details to 'failed'
+      // Mark all invalid bet details as failed
       await Promise.all(
-        bet.data.map(async (betDetail: any) => {
-          if (betDetail.status !== 'won' && betDetail.status !== 'pending') {
-            betDetail.status = 'failed'; // Update status to 'failed'
-            await betDetail.save({ session }); // Save the updated BetDetail within the transaction session
+        bet.data.map(async (detail: any) => {
+          if (detail.status !== 'won' && detail.status !== 'pending') {
+            detail.status = 'failed';
+            await detail.save({ session });
           }
         })
       );
 
-      // Update the parent bet status to 'failed'
+      // Mark the parent bet as failed
       bet.status = 'failed';
       await bet.save({ session });
-
-      console.log("All invalid bet details and parent bet have been updated to 'failed'.");
-      return
-    }else{
-      bet.status = "won"
-      await bet.save({ session });
-
+      await session.commitTransaction();
+      return;
     }
-    const winner = await processBetResult(
-      betDetail,
-      gameData,
-      bet
-    );
-      betDetail.status = "won"
+
+    // Mark parent bet as won
+    bet.status = "won";
+    await bet.save({ session });
+
+    // Await result of processing bet
+    const winner = await processBetResult(betDetail, gameData, bet);
+
+    betDetail.status = "won";
     await betDetail.save({ session });
 
     const allBetDetails = await BetDetail.find({ key: bet._id }).session(session);
-    const allProcessed = allBetDetails.every(
-      (detail) => detail.status !== "pending"
-    );
+    const allProcessed = allBetDetails.every(detail => detail.status !== "pending");
 
     if (allProcessed) {
-      bet.status = allBetDetails.every((detail) => detail.status === "won")
-        ? "won"
-        : "lost";
+      bet.status = allBetDetails.every(detail => detail.status === "won") ? "won" : "lost";
       await bet.save({ session });
     }
 
+    // Commit the transaction
     await session.commitTransaction();
   } catch (error) {
     console.error("Error processing completed bet:", error);
 
-    // Set bet status to 'failed' and refund bet amount in case of failure
-    const betDetail = await BetDetail.findById(betDetailId);
-    console.log(betDetail, "betDeab");
-    
-    if (betDetail) {
-      betDetail.status = "failed";
-      await betDetail.save();
+    // Abort the transaction first
+    await session.abortTransaction();
 
-      
-    }
-
-    const bet = await Bet.findById(betDetail.key)
-    .session(session);
-    const betAmount = bet.amount
-    const player = await Player.findById(bet.player);
-      if (player) {
-        console.log(player.credits, "credits before");
-        
-        player.credits += betAmount;
-        console.log(player.credits, "credits after");
-        
-        await player.save();
-        console.log(`Refunded ${bet.amount} to player ${player._id} due to failure.`);
+    try {
+      // Update BetDetail, Bet, and Player outside the session after the transaction is aborted
+      const betDetail = await BetDetail.findById(betDetailId);
+      if (betDetail) {
+        betDetail.status = "failed";
+        await betDetail.save();
       }
 
-    await session.abortTransaction();
-    } finally {
+      const bet = await Bet.findById(betDetail.key);
+      if (bet) {
+        const betAmount = bet.amount;
+        bet.status = "failed";
+        await bet.save();
+
+        const player = await Player.findById(bet.player);
+        if (player) {
+          // Refund player's credits after failed bet
+          player.credits += betAmount;
+          await player.save();
+          console.log(`Refunded ${betAmount} to player ${player._id} due to failure.`);
+        }
+      }
+    } catch (rollbackError) {
+      console.error("Error during rollback:", rollbackError);
+    }
+  } finally {
     session.endSession();
   }
 }
+
+
 
 // function determineWinner(homeTeam, awayTeam, scores) {
 //   const homeScore = parseInt(scores.find((s) => s.name === homeTeam)?.score || "0");
@@ -200,7 +198,8 @@ function determineWinner(betDetail, gameData, bet) {
 
     const betType = betDetail.market;
     console.log(betType, "betType");
-
+    console.log(gameData, "");
+    
     const homeTeamScore = gameData.scores.find(score => score.name === gameData.home_team).score;
     const awayTeamScore = gameData.scores.find(score => score.name === gameData.away_team).score;
 
