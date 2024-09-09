@@ -30,6 +30,11 @@ const BetDetailSchema: Schema = new Schema({
     enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
+  isResolved:{
+    type:Boolean,
+    default: false,  // Default value if required
+
+  }
 });
 
 const BetSchema: Schema = new Schema({
