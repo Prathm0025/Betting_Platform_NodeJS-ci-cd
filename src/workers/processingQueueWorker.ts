@@ -38,25 +38,31 @@ async function processBets(sportKeys, bets) {
       if (!scoresData) {
         continue;
       }
-      const { futureUpcomingGames, completedGames } = scoresData;
+      const { completedGames } = scoresData;
       //  const oddsData = await Store.getOddsForProcessing(sport)
-      
-      for (const game of futureUpcomingGames) { // CHANGE THIS TO COMPLETD BETS (if not)
-        const bet = bets.find((b) => b.event_id === game.id);
-        if (bet) {
-          try {
-            const removalResult = await removeItem(JSON.stringify(bet));
-            if (removalResult === 0) {
-              console.log(`Bet ${bet._id} could not be removed from the queue.`);
+
+      for (const game of completedGames) { // CHANGE THIS TO COMPLETD BETS (if not)
+        const betsToBeProcess = bets.filter((b) => b.event_id === game.id);
+
+        if (betsToBeProcess.length > 0) {
+          for (const bet of betsToBeProcess) {
+
+            if (bet) {
+              try {
+                const removalResult = await removeItem(JSON.stringify(bet));
+                if (removalResult === 0) {
+                  console.log(`Bet ${bet._id} could not be removed from the queue.`);
+                } else {
+                  console.log(`Bet ${bet._id} removed successfully from the queue.`);
+                }
+                await processCompletedBet(bet._id.toString(), game);
+              } catch (error) {
+                console.log(error);
+              }
             } else {
-              console.log(`Bet ${bet._id} removed successfully from the queue.`);
+              console.log("No bet found for game:", game.id);
             }
-            await processCompletedBet(bet._id.toString(), game);
-          } catch (error) {
-            console.log(error);
           }
-        } else {
-          console.log("No bet found for game:", game.id);
         }
       }
     }
@@ -112,7 +118,7 @@ async function processCompletedBet(betDetailId, gameData) {
 
     // Await result of processing bet
     await processBetResult(betDetail, gameData, bet);
-   
+
     if (processBetResult) {
       betDetail.status = "won";
       await betDetail.save({ session });
@@ -150,7 +156,6 @@ async function processCompletedBet(betDetailId, gameData) {
 
 function determineWinner(betDetail, gameData, bet) {
   try {
-    console.log(bet, "bet");
 
     const betType = betDetail.market;
     console.log(betType, "betType");
@@ -162,18 +167,18 @@ function determineWinner(betDetail, gameData, bet) {
     const awayTeamScore = gameData?.scores?.find(score => score.name === gameData.away_team).score;
 
     switch (betType) {
-      case 'spreads':
-        const { handicap, bet_on: betOn } = betDetail;
-        let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
-        let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
+      // case 'spreads':
+      //   const { handicap, bet_on: betOn } = betDetail;
+      //   let adjustedHomeTeamScore = homeTeamScore + (betOn === 'home_team' ? handicap : 0);
+      //   let adjustedAwayTeamScore = awayTeamScore + (betOn === 'away_team' ? handicap : 0);
 
-        if (betOn === 'home_team') {
-          return adjustedHomeTeamScore > awayTeamScore;
-        } else if (betOn === 'away_team') {
-          return adjustedAwayTeamScore > homeTeamScore;
-        } else {
-          throw new Error("Invalid betOn value for Handicap. It should be home_team or away_team.");
-        }
+      //   if (betOn === 'home_team') {
+      //     return adjustedHomeTeamScore > awayTeamScore;
+      //   } else if (betOn === 'away_team') {
+      //     return adjustedAwayTeamScore > homeTeamScore;
+      //   } else {
+      //     throw new Error("Invalid betOn value for Handicap. It should be home_team or away_team.");
+      //   }
 
       case 'h2h':
         const { bet_on: h2hBetOn } = betDetail;
@@ -219,7 +224,7 @@ function calculateWinningAmount(stake, odds, oddsType) {
     }
   } else if (oddsType === 'decimal') {
     if (odds <= 1) {
-      return stake; 
+      return stake;
     }
 
     winningAmount = stake * odds - stake;
@@ -316,7 +321,7 @@ const processBetsFromQueue = async () => {
       console.log("Bets data after dequeuing:", betsData);
 
       if (betsData.length > 0) {
-        processBets(sportKeysArray, betsData); 
+        processBets(sportKeysArray, betsData);
       } else {
         console.log("Nothing to process in processing queue");
       }
