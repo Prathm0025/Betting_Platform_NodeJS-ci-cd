@@ -34,7 +34,7 @@ async function processBets(sportKeys, bets) {
   try {
     for (const sport of sportKeys) {
       const scoresData = await Store.getScoresForProcessing(sport, "3", "iso");
-    console.log(scoresData, "score data");
+    // console.log(scoresData, "score data");
     
       if (!scoresData ) {
         continue;
@@ -42,38 +42,32 @@ async function processBets(sportKeys, bets) {
       const {futureUpcomingGames, completedGames} =scoresData;
     //  const oddsData = await Store.getOddsForProcessing(sport)
     //  console.log(oddsData, "odds Data");
-     
-      // const { completed_games, live_games, future_upcoming_games,todays_upcoming_games } = oddsData;
-      // const allGames = [
-      //   ...completed_games,
-      //   ...live_games,
-      //   ...future_upcoming_games,
-      //   ...todays_upcoming_games
-      // ];
-      
 
-      for (const game of completedGames) {
+
+      for (const game of futureUpcomingGames) {
         
         const bet = bets.find((b) => b.event_id === game.id );
         
         if (bet) {
           try {
+            //removing the bets from proceassing queue befor processing
+            const removalResult = await removeItem(JSON.stringify(bet));
+            if (removalResult === 0) {
+              console.log(`Bet ${bet._id} could not be removed from the queue.`);
+            } else {
+              console.log(`Bet ${bet._id} removed successfully from the queue.`);
+            } 
+
+            //processing completed bets
+
             await processCompletedBet(bet._id.toString(), game);
-            // for(const processedBets of bets ){
-             
-          // }
-          } catch (error) {
-            
+          } catch (error) {    
+            console.log(error);   
           }
         } else {
           console.log("No bet found for game:", game.id);
         }
-        const removalResult = await removeItem(JSON.stringify(bet));
-        if (removalResult === 0) {
-          console.log(`Bet ${bet._id} could not be removed from the queue.`);
-        } else {
-          console.log(`Bet ${bet._id} removed successfully from the queue.`);
-        }
+      
       }
     }
   } catch (error) {
@@ -83,6 +77,8 @@ async function processBets(sportKeys, bets) {
 
 
 async function processCompletedBet(betDetailId, gameData) {
+  
+  
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -105,34 +101,29 @@ async function processCompletedBet(betDetailId, gameData) {
       return;
     }
 
-    const allBetDetailsValid = bet.data.every(
-      (detail: any) => detail.status === 'won' || detail.status === 'pending'
-    );
-
-    if (!allBetDetailsValid) {
-      // Mark all invalid bet details as failed
-      await Promise.all(
-        bet.data.map(async (detail: any) => {
-          if (detail.status !== 'won' && detail.status !== 'pending') {
-            detail.status = 'failed';
-            await detail.save({ session });
-          }
-        })
+// for combo bets 
+    if(bet.betType==="combo") {
+      const allBetDetailsValid = bet.data.every(
+        (detail: any) => detail.status === 'won' || detail.status === 'pending'
       );
-
-      // Mark the parent bet as failed
-      bet.status = 'failed';
-      await bet.save({ session });
-      await session.commitTransaction();
-      return;
+    // if any one bet detail is failed under an parent  bet we mark all bet as failed
+      if (!allBetDetailsValid) {
+        betDetail.status = 'failed'; 
+        await betDetail.save({ session }); 
+    
+        bet.status = 'failed';
+        await bet.save({ session }); // Mark parent bet as failed
+        await session.commitTransaction();
+        return;
+      }
     }
-
+    
     // Mark parent bet as won
     bet.status = "won";
     await bet.save({ session });
 
     // Await result of processing bet
-    const winner = await processBetResult(betDetail, gameData, bet);
+     await processBetResult(betDetail, gameData, bet);
 
     betDetail.status = "won";
     await betDetail.save({ session });
@@ -145,12 +136,10 @@ async function processCompletedBet(betDetailId, gameData) {
       await bet.save({ session });
     }
 
-    // Commit the transaction
     await session.commitTransaction();
   } catch (error) {
     console.error("Error processing completed bet:", error);
 
-    // Abort the transaction first
     await session.abortTransaction();
 
     try {
