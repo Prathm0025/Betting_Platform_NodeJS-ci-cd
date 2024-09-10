@@ -12,6 +12,7 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
+import Notification from "../notifications/notificationModel";
 
 class BetController {
   public async placeBet(
@@ -587,6 +588,8 @@ class BetController {
       next(error);
     }
   }
+
+
 }
 
 export default new BetController();
