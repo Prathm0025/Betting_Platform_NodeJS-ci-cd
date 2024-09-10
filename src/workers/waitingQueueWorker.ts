@@ -163,7 +163,7 @@ function extractDataField(betsArray) {
 
 parentPort.on('message', async (message) => {
   if (message === "start") {
-    // startWorker();
+    startWorker();
 
     // const bets = await getAllBetsForPlayerAndUpdateStatus('66dee5b9cae56250cc64b370')
     // const data = extractDataField(bets)
