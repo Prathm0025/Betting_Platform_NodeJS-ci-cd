@@ -198,7 +198,6 @@ function processCompletedBet(betDetailId, gameData) {
 }
 function checkIfPlayerWonBet(betDetail, gameData) {
     var _a, _b;
-    throw new Error("Not implemented");
     // check if the game is completed
     if (!gameData.completed) {
         console.log("Game is not yet completed.");
