@@ -71,6 +71,7 @@ const BetSchema = new mongoose_1.Schema({
     },
     retryCount: { type: Number, default: 0 },
     betType: { type: String, enum: ["single", "combo"], required: true },
+    isResolved: { type: Boolean, default: false },
 });
 exports.BetDetail = mongoose_1.default.model("BetDetail", BetDetailSchema);
 const Bet = mongoose_1.default.model("Bet", BetSchema);

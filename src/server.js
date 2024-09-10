@@ -19,6 +19,7 @@ const transactionRoutes_1 = __importDefault(require("./transactions/transactionR
 const storeRoutes_1 = __importDefault(require("./store/storeRoutes"));
 const betRoutes_1 = __importDefault(require("./bets/betRoutes"));
 const config_1 = require("./config/config");
+const notificationRoutes_1 = __importDefault(require("./notifications/notificationRoutes"));
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
     origin: [`*.${config_1.config.hosted_url_cors}`]
@@ -32,6 +33,7 @@ app.use("/api/subordinates", middleware_1.checkUser, subordinateRoutes_1.default
 app.use("/api/store", middleware_1.checkUser, storeRoutes_1.default);
 app.use("/api/transactions", middleware_1.checkUser, transactionRoutes_1.default);
 app.use("/api/bets", middleware_1.checkUser, betRoutes_1.default);
+app.use("/api/notifications", middleware_1.checkUser, notificationRoutes_1.default);
 app.get("/", (req, res, next) => {
     const health = {
         uptime: process.uptime(),

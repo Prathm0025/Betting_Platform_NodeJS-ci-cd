@@ -27,6 +27,7 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
         yield mongoose_1.default.connect(config_1.config.databaseUrl);
         const activeRoomsData = Array.from(socket_1.activeRooms);
         console.log(activeRoomsData, socket_1.activeRooms);
+        // notificationController.createNotification(new ObjectId("66cd981c91d869aec34302db"), "error",  "An error Occured","bet",  new ObjectId("66dfc865131e4336ec269fe3"),  "refund" )
         (0, initWorker_1.startWorkers)();
     }
     catch (err) {

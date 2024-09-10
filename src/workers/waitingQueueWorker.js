@@ -108,7 +108,7 @@ function startWorker() {
     });
 }
 const bets = [];
-function getAllBetsForPlayer(playerId) {
+function getAllBetsForPlayerAndUpdateStatus(playerId) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Ensure the provided playerId is a valid MongoDB ObjectId
@@ -126,10 +126,18 @@ function getAllBetsForPlayer(playerId) {
                 console.log(`No bets found for player with ID: ${playerId}`);
                 return [];
             }
-            return bets;
+            // Update each BetDetail and the parent Bet
+            for (const bet of bets) {
+                const betDetailsIds = bet.data.map(detail => detail._id);
+                // Update all bet details to status 'pending' and isResolved 'false'
+                yield betModel_1.BetDetail.updateMany({ _id: { $in: betDetailsIds } }, { $set: { status: 'pending', isResolved: false } });
+                // Update the parent bet to status 'pending'
+                yield betModel_1.default.findByIdAndUpdate(bet._id, { status: 'pending', isResolved: false });
+            }
+            return bets; // Return the bets with updated status for further use
         }
         catch (error) {
-            console.error(`Error retrieving bets for player with ID ${playerId}:`, error);
+            console.error(`Error retrieving or updating bets for player with ID ${playerId}:`, error);
             throw error; // Rethrow the error to handle it in the calling function
         }
     });
@@ -166,9 +174,10 @@ function extractDataField(betsArray) {
 }
 worker_threads_1.parentPort.on('message', (message) => __awaiter(void 0, void 0, void 0, function* () {
     if (message === "start") {
-        startWorker();
-        // const bets = await getAllBetsForPlayer('66dc1327033fa0a4866e3ddf')
+        // startWorker();
+        // const bets = await getAllBetsForPlayerAndUpdateStatus('66dee5b9cae56250cc64b370')
         // const data = extractDataField(bets)
+        // console.log(data);
         // await addMultipleBetsToProcessingQueue(data)
     }
 }));
