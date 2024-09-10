@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
 import { activeRooms } from "../socket/socket";
+// import { updateLiveData } from "../workers/initWorker";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
@@ -268,7 +269,7 @@ export default class Player {
     }
 
     activeRooms.add(room);
-    console.log(activeRooms, "active");
+    // updateLiveData(activeRooms);
 
     this.socket.join(room);
     this.currentRoom = room;
