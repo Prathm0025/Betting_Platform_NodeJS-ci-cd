@@ -106,15 +106,14 @@ function processBets(sportKeys, bets) {
 // and remove all the bets associated with it from waiting queue and processing queue 
 function processCompletedBet(betDetailId, gameData) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
-        const maxRetries = 3; // Set the maximum number of retries
+        const maxRetries = 3;
         let retryCount = 0;
+        let currentBetDetail;
         while (retryCount < maxRetries) {
             try {
-                // Log the game data for this bet
                 console.log("Associated game data:", JSON.stringify(gameData, null, 2));
                 // Find the current BetDetail
-                let currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId);
+                currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId);
                 if (!currentBetDetail) {
                     console.error("BetDetail not found:", betDetailId);
                     return;
@@ -130,7 +129,7 @@ function processCompletedBet(betDetailId, gameData) {
                 // Process the current bet result
                 const result = checkIfPlayerWonBet(currentBetDetail, gameData);
                 if (["won", "lost", "draw"].includes(result)) {
-                    // Update the BetDetail status and save it
+                    // Update the BetDetail status
                     currentBetDetail.status = result;
                     yield currentBetDetail.save();
                     console.log(`BetDetail with ID ${currentBetDetail._id} updated to '${result}'`);
@@ -140,14 +139,22 @@ function processCompletedBet(betDetailId, gameData) {
                 console.log("UPDATED BET DETAIL: ", currentBetDetail);
                 // After updating the current BetDetail, check the status of all BetDetails
                 const updatedBetDetails = yield betModel_1.BetDetail.find({ _id: { $in: parentBet.data } });
+                // Log the updated details
                 console.log("UPDATED BET : ", updatedBetDetails);
-                // Check if any BetDetail is lost
+                // Check if any BetDetail is lost or failed
                 const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
-                // If any bet is lost, immediately mark the parent bet as lost
+                const anyBetFailed = updatedBetDetails.some(detail => detail.status === 'failed');
+                // If any bet is lost, mark the parent bet as lost and stop further processing
                 if (anyBetLost) {
                     yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
                     console.log(`Parent Bet with ID ${parentBet._id} updated to 'lost'`);
-                    return; // Stop further processing since the combo is lost
+                    return; // Stop processing other bet details under this parent
+                }
+                // If any bet fails, mark the parent bet as failed and stop further processing
+                if (anyBetFailed) {
+                    yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'failed', isResolved: false });
+                    console.log(`Parent Bet with ID ${parentBet._id} updated to 'failed' due to one or more failed bets.`);
+                    return; // Stop processing other bet details under this parent
                 }
                 // Check if all BetDetails are won
                 const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
@@ -163,30 +170,35 @@ function processCompletedBet(betDetailId, gameData) {
                     yield betModel_1.default.findByIdAndUpdate(parentBet._id, { isResolved: true });
                     console.log(`Parent Bet with ID ${parentBet._id} has been resolved.`);
                 }
-                break; // Exit retry loop on success
+                break;
             }
             catch (error) {
-                console.error("Error during transaction, retrying...", error);
-                // Retry only on specific transient errors like WriteConflict
-                if (error.codeName === "WriteConflict" || ((_a = error.errorLabels) === null || _a === void 0 ? void 0 : _a.includes("TransientTransactionError"))) {
-                    retryCount++;
-                    if (retryCount >= maxRetries) {
-                        console.error("Max retries reached. Aborting transaction.");
-                        throw error;
-                    }
+                console.error("Error during processing, retrying...", error);
+                // If an error occurs, mark the BetDetail as 'failed' and set isResolved to false
+                if (currentBetDetail) {
+                    yield betModel_1.BetDetail.findByIdAndUpdate(betDetailId, {
+                        status: 'failed',
+                        isResolved: false,
+                    });
+                    console.log(`BetDetail with ID ${betDetailId} marked as 'failed' due to error.`);
                 }
-                else {
-                    // For other errors, don't retry, just abort the transaction
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    console.error("Max retries reached. Aborting processing.");
+                    // Mark the parent bet as failed due to a processing issue
+                    if (currentBetDetail) {
+                        yield betModel_1.default.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+                        console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
+                    }
                     throw error;
                 }
-            }
-            finally {
             }
         }
     });
 }
 function checkIfPlayerWonBet(betDetail, gameData) {
     var _a, _b;
+    throw new Error("Not implemented");
     // check if the game is completed
     if (!gameData.completed) {
         console.log("Game is not yet completed.");
