@@ -513,5 +513,33 @@ class BetController {
             }
         });
     }
+    // UPADTE OR RESOLVE BET
+    resolveBet(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { betId } = req.params;
+                const { status } = req.body;
+                const parentBet = yield betModel_1.default.findById(betId);
+                if (!parentBet) {
+                    throw (0, http_errors_1.default)(404, "Parent Bet not found!");
+                }
+                const { data: betDetailsIds, possibleWinningAmount, player: playerId } = parentBet;
+                yield Promise.all(betDetailsIds.map((betDetailId) => betModel_1.BetDetail.findByIdAndUpdate(betDetailId, { status: status })));
+                const updatedBet = yield betModel_1.default.findByIdAndUpdate(betId, { status: status }, { new: true });
+                if (status === "won") {
+                    const player = yield playerModel_1.default.findById(playerId);
+                    if (!player) {
+                        throw (0, http_errors_1.default)(404, "Player not found");
+                    }
+                    player.credits += possibleWinningAmount;
+                    yield player.save();
+                }
+                return res.status(200).json({ message: "Bet resolved successfully", updatedBet });
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
 }
 exports.default = new BetController();

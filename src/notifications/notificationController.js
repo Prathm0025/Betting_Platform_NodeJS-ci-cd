@@ -17,7 +17,7 @@ const http_errors_1 = __importDefault(require("http-errors"));
 const userModel_1 = __importDefault(require("../users/userModel"));
 const notificationModel_1 = __importDefault(require("./notificationModel"));
 class NotificationController {
-    createNotification(initiatorId, type, message, reference, referenceId, action) {
+    createNotification(initiatorId, targetId, type, message, reference, referenceId, action) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const user = (yield userModel_1.default.findById(initiatorId)) ||
@@ -26,21 +26,13 @@ class NotificationController {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
                 const initiatorModel = user.role !== "player" ? 'User' : 'Player';
-                let targetId;
                 let targetModel;
-                if (user.role !== "admin") {
-                    targetId = user.createdBy;
-                    const targetUser = (yield userModel_1.default.findById(targetId)) ||
-                        (yield playerModel_1.default.findById(targetId));
-                    if (!targetUser) {
-                        throw (0, http_errors_1.default)(401, "Target User not found");
-                    }
-                    targetModel = targetUser.role === "player" ? 'Player' : 'User';
+                const targetUser = (yield userModel_1.default.findById(targetId)) ||
+                    (yield playerModel_1.default.findById(targetId));
+                if (!targetUser) {
+                    throw (0, http_errors_1.default)(401, "Target User not found");
                 }
-                else {
-                    targetId = null;
-                    targetModel = null;
-                }
+                targetModel = targetUser.role === "player" ? 'Player' : 'User';
                 const newNotification = new notificationModel_1.default({
                     initiatorId,
                     targetId,
@@ -88,7 +80,12 @@ class NotificationController {
                 if (!notifications) {
                     throw (0, http_errors_1.default)(404, "No notifications found for user");
                 }
-                return res.status(200).json(notifications);
+                const userNotifications = notifications.filter(notification => notification.initiatorModel === "User");
+                const playerNotifications = notifications.filter(notification => notification.initiatorModel === "Player");
+                const populatedUserNotifications = yield notificationModel_1.default.populate(userNotifications, { path: 'initiatorId', select: 'username', model: userModel_1.default });
+                const populatedPlayerNotifications = yield notificationModel_1.default.populate(playerNotifications, { path: 'initiatorId', select: 'username', model: playerModel_1.default });
+                const allPopulatedNotifications = [...populatedUserNotifications, ...populatedPlayerNotifications];
+                return res.status(200).json(allPopulatedNotifications);
             }
             catch (error) {
                 next(error);
