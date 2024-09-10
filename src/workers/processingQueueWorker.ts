@@ -79,24 +79,22 @@ async function processBets(sportKeys, bets) {
 // and remove all the bets associated with it from waiting queue and processing queue 
 
 async function processCompletedBet(betDetailId, gameData) {
-  const maxRetries = 3; // Set the maximum number of retries
+  const maxRetries = 3;
   let retryCount = 0;
+  let currentBetDetail;
 
   while (retryCount < maxRetries) {
-
     try {
-      // Log the game data for this bet
       console.log("Associated game data:", JSON.stringify(gameData, null, 2));
 
       // Find the current BetDetail
-      let currentBetDetail = await BetDetail.findById(betDetailId);
+      currentBetDetail = await BetDetail.findById(betDetailId);
       if (!currentBetDetail) {
         console.error("BetDetail not found:", betDetailId);
         return;
       }
 
       console.log("CURRENT BET : ", currentBetDetail);
-
 
       // Find the parent Bet associated with the BetDetail
       const parentBet = await Bet.findById(currentBetDetail.key);
@@ -107,11 +105,10 @@ async function processCompletedBet(betDetailId, gameData) {
 
       console.log("PARENT : ", parentBet);
 
-
       // Process the current bet result
       const result = checkIfPlayerWonBet(currentBetDetail, gameData);
       if (["won", "lost", "draw"].includes(result)) {
-        // Update the BetDetail status and save it
+        // Update the BetDetail status
         currentBetDetail.status = result;
         await currentBetDetail.save();
         console.log(`BetDetail with ID ${currentBetDetail._id} updated to '${result}'`);
@@ -123,24 +120,32 @@ async function processCompletedBet(betDetailId, gameData) {
 
       // After updating the current BetDetail, check the status of all BetDetails
       const updatedBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
+
+      // Log the updated details
       console.log("UPDATED BET : ", updatedBetDetails);
 
-
-      // Check if any BetDetail is lost
+      // Check if any BetDetail is lost or failed
       const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
+      const anyBetFailed = updatedBetDetails.some(detail => detail.status === 'failed');
 
-      // If any bet is lost, immediately mark the parent bet as lost
+      // If any bet is lost, mark the parent bet as lost and stop further processing
       if (anyBetLost) {
         await Bet.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
         console.log(`Parent Bet with ID ${parentBet._id} updated to 'lost'`);
-        return; // Stop further processing since the combo is lost
+        return;  // Stop processing other bet details under this parent
+      }
+
+      // If any bet fails, mark the parent bet as failed and stop further processing
+      if (anyBetFailed) {
+        await Bet.findByIdAndUpdate(parentBet._id, { status: 'failed', isResolved: false });
+        console.log(`Parent Bet with ID ${parentBet._id} updated to 'failed' due to one or more failed bets.`);
+        return;  // Stop processing other bet details under this parent
       }
 
       // Check if all BetDetails are won
       const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
 
       console.log("ALL WON : ", allBetsWon);
-
 
       // If all BetDetails are won, mark the parent bet as won and award the winnings
       if (allBetsWon) {
@@ -153,29 +158,38 @@ async function processCompletedBet(betDetailId, gameData) {
         console.log(`Parent Bet with ID ${parentBet._id} has been resolved.`);
       }
 
-      break; // Exit retry loop on success
+      break;
 
     } catch (error) {
-      console.error("Error during transaction, retrying...", error);
+      console.error("Error during processing, retrying...", error);
 
-      // Retry only on specific transient errors like WriteConflict
-      if (error.codeName === "WriteConflict" || error.errorLabels?.includes("TransientTransactionError")) {
-        retryCount++;
-        if (retryCount >= maxRetries) {
-          console.error("Max retries reached. Aborting transaction.");
-          throw error;
+      // If an error occurs, mark the BetDetail as 'failed' and set isResolved to false
+      if (currentBetDetail) {
+        await BetDetail.findByIdAndUpdate(betDetailId, {
+          status: 'failed',
+          isResolved: false,
+        });
+        console.log(`BetDetail with ID ${betDetailId} marked as 'failed' due to error.`);
+      }
+
+      retryCount++;
+      if (retryCount >= maxRetries) {
+        console.error("Max retries reached. Aborting processing.");
+        // Mark the parent bet as failed due to a processing issue
+        if (currentBetDetail) {
+          await Bet.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+          console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
         }
-      } else {
-        // For other errors, don't retry, just abort the transaction
         throw error;
       }
-    } finally {
     }
   }
 }
 
 
 function checkIfPlayerWonBet(betDetail, gameData) {
+
+
   // check if the game is completed
   if (!gameData.completed) {
     console.log("Game is not yet completed.");
