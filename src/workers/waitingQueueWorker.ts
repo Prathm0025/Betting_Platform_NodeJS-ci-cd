@@ -86,7 +86,7 @@ const bets = [
 
 ]
 
-async function getAllBetsForPlayer(playerId) {
+async function getAllBetsForPlayerAndUpdateStatus(playerId) {
   try {
     // Ensure the provided playerId is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(playerId)) {
@@ -106,9 +106,23 @@ async function getAllBetsForPlayer(playerId) {
       return [];
     }
 
-    return bets;
+    // Update each BetDetail and the parent Bet
+    for (const bet of bets) {
+      const betDetailsIds = bet.data.map(detail => detail._id);
+
+      // Update all bet details to status 'pending' and isResolved 'false'
+      await BetDetail.updateMany(
+        { _id: { $in: betDetailsIds } },
+        { $set: { status: 'pending', isResolved: false } }
+      );
+
+      // Update the parent bet to status 'pending'
+      await Bet.findByIdAndUpdate(bet._id, { status: 'pending', isResolved: false });
+    }
+
+    return bets; // Return the bets with updated status for further use
   } catch (error) {
-    console.error(`Error retrieving bets for player with ID ${playerId}:`, error);
+    console.error(`Error retrieving or updating bets for player with ID ${playerId}:`, error);
     throw error; // Rethrow the error to handle it in the calling function
   }
 }
@@ -149,10 +163,12 @@ function extractDataField(betsArray) {
 
 parentPort.on('message', async (message) => {
   if (message === "start") {
-    startWorker();
+    // startWorker();
 
-    // const bets = await getAllBetsForPlayer('66dc1327033fa0a4866e3ddf')
+    // const bets = await getAllBetsForPlayerAndUpdateStatus('66dee5b9cae56250cc64b370')
     // const data = extractDataField(bets)
+    // console.log(data);
+
 
 
     // await addMultipleBetsToProcessingQueue(data)

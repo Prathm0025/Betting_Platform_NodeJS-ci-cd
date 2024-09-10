@@ -30,8 +30,8 @@ const BetDetailSchema: Schema = new Schema({
     enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
-  isResolved:{
-    type:Boolean,
+  isResolved: {
+    type: Boolean,
     default: false,  // Default value if required
 
   }
@@ -49,6 +49,7 @@ const BetSchema: Schema = new Schema({
   },
   retryCount: { type: Number, default: 0 },
   betType: { type: String, enum: ["single", "combo"], required: true },
+  isResolved: { type: Boolean, default: false },
 });
 
 export const BetDetail = mongoose.model<IBetDetail>(
