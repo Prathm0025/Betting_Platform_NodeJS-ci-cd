@@ -10,11 +10,11 @@ import { AuthRequest } from "../utils/utils";
 class NotificationController {
   public async createNotification(
     initiatorId: mongoose.Types.ObjectId,
-    targetId: mongoose.Types.ObjectId,
+    targetId: mongoose.Schema.Types.ObjectId,
     type: "error" | "success",
     message: string,
     reference: "bet" | "transaction",
-    referenceId: mongoose.Types.ObjectId,
+    referenceId: mongoose.Schema.Types.ObjectId,
     action: string
   ): Promise<void> {
     try {

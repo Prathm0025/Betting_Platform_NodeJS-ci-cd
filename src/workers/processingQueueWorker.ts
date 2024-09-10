@@ -5,6 +5,8 @@ import Bet, { BetDetail } from "../bets/betModel";
 import { dequeue, getAll, removeItem, size } from "../utils/ProcessingQueue";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
+import notificationController from "../notifications/notificationController";
+import { IPlayer } from "../players/playerType";
 
 
 async function connectDB() {
@@ -64,6 +66,7 @@ async function processBets(sportKeys, bets) {
                 console.error(`Parent bet not found for bet detail ID ${bet._id}.`);
               }
 
+              await removeItem(JSON.stringify(bet))
             }
           }
         }
@@ -72,6 +75,7 @@ async function processBets(sportKeys, bets) {
     }
   } catch (error) {
     console.error("Error during bet processing:", error);
+
   }
 }
 
@@ -88,7 +92,7 @@ async function processCompletedBet(betDetailId, gameData) {
       console.log("Associated game data:", JSON.stringify(gameData, null, 2));
 
       // Find the current BetDetail
-      currentBetDetail = await BetDetail.findById(betDetailId);
+      currentBetDetail = await BetDetail.findById(betDetailId).lean();
       if (!currentBetDetail) {
         console.error("BetDetail not found:", betDetailId);
         return;
@@ -163,6 +167,7 @@ async function processCompletedBet(betDetailId, gameData) {
     } catch (error) {
       console.error("Error during processing, retrying...", error);
 
+
       // If an error occurs, mark the BetDetail as 'failed' and set isResolved to false
       if (currentBetDetail) {
         await BetDetail.findByIdAndUpdate(betDetailId, {
@@ -175,9 +180,22 @@ async function processCompletedBet(betDetailId, gameData) {
       retryCount++;
       if (retryCount >= maxRetries) {
         console.error("Max retries reached. Aborting processing.");
+
+        // Remove the failed bet from the processing queue
+        await removeItem(JSON.stringify(currentBetDetail));
+        console.log(`Removed BetDetail with ID ${currentBetDetail._id} from processing queue.`);
+
+
         // Mark the parent bet as failed due to a processing issue
         if (currentBetDetail) {
-          await Bet.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+          const parentBet = await Bet.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+          const player = await Player.findById(parentBet.player);
+
+          const targetId = player.createdBy as mongoose.Schema.Types.ObjectId;
+          const parentBetId = parentBet._id as mongoose.Schema.Types.ObjectId;
+
+          notificationController.createNotification(player._id, targetId, 'error', `Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`, "bet", parentBetId, "refund");
+
           console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
         }
         throw error;
@@ -188,7 +206,6 @@ async function processCompletedBet(betDetailId, gameData) {
 
 
 function checkIfPlayerWonBet(betDetail, gameData) {
-
 
   // check if the game is completed
   if (!gameData.completed) {
