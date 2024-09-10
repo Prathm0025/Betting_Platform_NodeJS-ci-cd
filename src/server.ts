@@ -13,6 +13,7 @@ import transactionRoutes from "./transactions/transactionRoutes";
 import storeRoutes from "./store/storeRoutes";
 import betRoutes from "./bets/betRoutes"
 import { config } from "./config/config";
+import notificationRoutes from "./notifications/notificationRoutes";
 
 const app = express();
 
@@ -31,7 +32,7 @@ app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
-
+app.use ("/api/notifications", checkUser,  notificationRoutes);
 
 app.get("/", (req, res, next) => {
   const health = {
