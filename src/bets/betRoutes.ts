@@ -20,5 +20,7 @@ betRoutes.put(
   checkBetCommision,
   betController.redeemPlayerBet
 );
+betRoutes.put("/resolve/:betId", checkUser, betController.resolveBet)
+
 
 export default betRoutes;

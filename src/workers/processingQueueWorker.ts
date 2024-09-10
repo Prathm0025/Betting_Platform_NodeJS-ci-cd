@@ -189,7 +189,6 @@ async function processCompletedBet(betDetailId, gameData) {
 
 function checkIfPlayerWonBet(betDetail, gameData) {
 
-  throw new Error("Not implemented");
 
   // check if the game is completed
   if (!gameData.completed) {

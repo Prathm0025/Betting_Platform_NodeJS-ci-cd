@@ -590,6 +590,40 @@ class BetController {
   }
 
 
+  // UPADTE OR RESOLVE BET
+  async resolveBet(req:Request, res: Response, next: NextFunction){
+    try {
+      const { betId } = req.params;
+      const  { status } = req.body;
+      const parentBet = await Bet.findById(betId);
+      if(!parentBet){
+        throw createHttpError(404, "Parent Bet not found!")
+      }
+      const { data: betDetailsIds, possibleWinningAmount, player: playerId } = parentBet;
+      await Promise.all(
+        betDetailsIds.map((betDetailId) => 
+          BetDetail.findByIdAndUpdate(betDetailId, { status: status })
+        )
+      );
+  
+      const updatedBet = await Bet.findByIdAndUpdate(betId, { status: status }, { new: true });
+      
+      if(status === "won"){
+        const player = await PlayerModel.findById(playerId);
+        if(!player){
+          throw createHttpError(404, "Player not found")
+        }
+        player.credits+=possibleWinningAmount;
+        await player.save();
+      }
+
+      return res.status(200).json({ message: "Bet resolved successfully", updatedBet });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+
 }
 
 export default new BetController();
