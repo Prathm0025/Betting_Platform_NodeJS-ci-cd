@@ -42,6 +42,7 @@ const betModel_1 = __importStar(require("../bets/betModel"));
 const ProcessingQueue_1 = require("../utils/ProcessingQueue");
 const config_1 = require("../config/config");
 const playerModel_1 = __importDefault(require("../players/playerModel"));
+const notificationController_1 = __importDefault(require("../notifications/notificationController"));
 function connectDB() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -91,6 +92,7 @@ function processBets(sportKeys, bets) {
                                 else {
                                     console.error(`Parent bet not found for bet detail ID ${bet._id}.`);
                                 }
+                                yield (0, ProcessingQueue_1.removeItem)(JSON.stringify(bet));
                             }
                         }
                     }
@@ -113,7 +115,7 @@ function processCompletedBet(betDetailId, gameData) {
             try {
                 console.log("Associated game data:", JSON.stringify(gameData, null, 2));
                 // Find the current BetDetail
-                currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId);
+                currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId).lean();
                 if (!currentBetDetail) {
                     console.error("BetDetail not found:", betDetailId);
                     return;
@@ -185,9 +187,16 @@ function processCompletedBet(betDetailId, gameData) {
                 retryCount++;
                 if (retryCount >= maxRetries) {
                     console.error("Max retries reached. Aborting processing.");
+                    // Remove the failed bet from the processing queue
+                    yield (0, ProcessingQueue_1.removeItem)(JSON.stringify(currentBetDetail));
+                    console.log(`Removed BetDetail with ID ${currentBetDetail._id} from processing queue.`);
                     // Mark the parent bet as failed due to a processing issue
                     if (currentBetDetail) {
-                        yield betModel_1.default.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+                        const parentBet = yield betModel_1.default.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+                        const player = yield playerModel_1.default.findById(parentBet.player);
+                        const targetId = player.createdBy;
+                        const parentBetId = parentBet._id;
+                        notificationController_1.default.createNotification(player._id, targetId, 'error', `Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`, "bet", parentBetId, "refund");
                         console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
                     }
                     throw error;
