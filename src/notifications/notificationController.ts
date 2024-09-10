@@ -102,6 +102,7 @@ class NotificationController {
             next(error);
         }
     };
+    
     async resolveNotification(req:Request, res:Response, next:NextFunction){
       try {
         const  { notificationId } = req.params;
