@@ -517,24 +517,40 @@ class BetController {
     resolveBet(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { betId } = req.params;
+                const { betDetailId } = req.params;
                 const { status } = req.body;
-                const parentBet = yield betModel_1.default.findById(betId);
-                if (!parentBet) {
-                    throw (0, http_errors_1.default)(404, "Parent Bet not found!");
+                const updatedBetDetails = yield betModel_1.BetDetail.findByIdAndUpdate(betDetailId, {
+                    status: status
+                }, { new: true });
+                if (!updatedBetDetails) {
+                    throw (0, http_errors_1.default)(404, "Bet detail not found");
                 }
-                const { data: betDetailsIds, possibleWinningAmount, player: playerId } = parentBet;
-                yield Promise.all(betDetailsIds.map((betDetailId) => betModel_1.BetDetail.findByIdAndUpdate(betDetailId, { status: status })));
-                const updatedBet = yield betModel_1.default.findByIdAndUpdate(betId, { status: status }, { new: true });
-                if (status === "won") {
+                const parentBetId = updatedBetDetails.key;
+                const parentBet = yield betModel_1.default.findById(parentBetId);
+                if (!parentBet) {
+                    throw (0, http_errors_1.default)(404, "Parent bet not found");
+                }
+                const parentBetStatus = parentBet.status;
+                if (parentBetStatus === "lost") {
+                    res.status(200).json({ mesage: "Bet detail Updated, Combo bet lost" });
+                }
+                if (status !== "won") {
+                    parentBet.status === "lost";
+                    yield parentBet.save();
+                    res.status(200).json({ mesage: "Bet detail Updated, Combo bet lost" });
+                }
+                const allBetDetails = yield betModel_1.BetDetail.find({ _id: { $in: parentBet.data } });
+                const hasNotWon = allBetDetails.some(detail => detail.status !== 'won');
+                if (!hasNotWon && parentBet.status !== "won") {
+                    const playerId = parentBet.player;
+                    const possibleWinningAmount = parentBet.possibleWinningAmount;
                     const player = yield playerModel_1.default.findById(playerId);
-                    if (!player) {
-                        throw (0, http_errors_1.default)(404, "Player not found");
-                    }
                     player.credits += possibleWinningAmount;
                     yield player.save();
+                    parentBet.status = "won";
+                    yield parentBet.save();
                 }
-                return res.status(200).json({ message: "Bet resolved successfully", updatedBet });
+                res.status(200).json({ message: "Bet Detail Status Updated" });
             }
             catch (error) {
                 next(error);
