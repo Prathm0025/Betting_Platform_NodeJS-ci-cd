@@ -165,7 +165,7 @@ parentPort.on('message', async (message) => {
   if (message === "start") {
     startWorker();
 
-    // const bets = await getAllBetsForPlayerAndUpdateStatus('66dee5b9cae56250cc64b370')
+    // const bets = await getAllBetsForPlayerAndUpdateStatus('66dc523111f2ab2408f0041b')
     // const data = extractDataField(bets)
     // console.log(data);
 

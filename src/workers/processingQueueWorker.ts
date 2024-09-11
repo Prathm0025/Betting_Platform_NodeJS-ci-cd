@@ -92,7 +92,7 @@ async function processCompletedBet(betDetailId, gameData) {
       console.log("Associated game data:", JSON.stringify(gameData, null, 2));
 
       // Find the current BetDetail
-      currentBetDetail = await BetDetail.findById(betDetailId).lean();
+      currentBetDetail = await BetDetail.findById(betDetailId)
       if (!currentBetDetail) {
         console.error("BetDetail not found:", betDetailId);
         return;
