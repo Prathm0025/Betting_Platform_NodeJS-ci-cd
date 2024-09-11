@@ -47,26 +47,26 @@ class UserController {
 
   async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const { username, password, captchaToken, captcha } = req.body;
+      const { username, password } = req.body;
       const sanitizedUsername = sanitizeInput(username);
       console.log(sanitizedUsername, "username");
 
       const sanitizedPassword = sanitizeInput(password);
-      const sanitizedcaptachaToken = sanitizeInput(captchaToken);
-      const sanitizedCaptcha = sanitizeInput(captcha);
+      // const sanitizedcaptachaToken = sanitizeInput(captchaToken);
+      // const sanitizedCaptcha = sanitizeInput(captcha);
 
-      if (!sanitizedUsername || !sanitizedPassword || !sanitizedcaptachaToken || !sanitizedCaptcha) {
-        throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
-      }
-      const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
-      const expectedCaptcha = captchaStore[decoded.captchaId];
+      // if (!sanitizedUsername || !sanitizedPassword || !sanitizedcaptachaToken || !sanitizedCaptcha) {
+      //   throw createHttpError(400, "Username, password, CAPTCHA, and token are required");
+      // }
+      // const decoded = jwt.verify(captchaToken, config.jwtSecret) as { captchaId: string };
+      // const expectedCaptcha = captchaStore[decoded.captchaId];
 
-      if (captcha !== expectedCaptcha) {
-        throw createHttpError(400, "Invalid CAPTCHA");
-      }
+      // if (captcha !== expectedCaptcha) {
+      //   throw createHttpError(400, "Invalid CAPTCHA");
+      // }
 
 
-      delete captchaStore[decoded.captchaId];
+      // delete captchaStore[decoded.captchaId];
 
       const user =
         (await User.findOne({ username: sanitizedUsername })) ||
