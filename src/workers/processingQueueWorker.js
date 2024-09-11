@@ -115,7 +115,7 @@ function processCompletedBet(betDetailId, gameData) {
             try {
                 console.log("Associated game data:", JSON.stringify(gameData, null, 2));
                 // Find the current BetDetail
-                currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId).lean();
+                currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId);
                 if (!currentBetDetail) {
                     console.error("BetDetail not found:", betDetailId);
                     return;
