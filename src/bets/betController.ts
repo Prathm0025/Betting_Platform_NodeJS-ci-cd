@@ -593,31 +593,45 @@ class BetController {
   // UPADTE OR RESOLVE BET
   async resolveBet(req:Request, res: Response, next: NextFunction){
     try {
-      const { betId } = req.params;
-      const  { status } = req.body;
-      const parentBet = await Bet.findById(betId);
-      if(!parentBet){
-        throw createHttpError(404, "Parent Bet not found!")
+       
+      const { betDetailId } = req.params;
+      const { status } = req.body;
+
+      const updatedBetDetails = await BetDetail.findByIdAndUpdate(betDetailId,{
+        status: status
+      }, {new:true} );
+
+      if(!updatedBetDetails){
+        throw createHttpError(404,"Bet detail not found");
       }
-      const { data: betDetailsIds, possibleWinningAmount, player: playerId } = parentBet;
-      await Promise.all(
-        betDetailsIds.map((betDetailId) => 
-          BetDetail.findByIdAndUpdate(betDetailId, { status: status })
-        )
-      );
-  
-      const updatedBet = await Bet.findByIdAndUpdate(betId, { status: status }, { new: true });
+      const parentBetId =updatedBetDetails.key;
+      const parentBet = await Bet.findById(parentBetId);
       
-      if(status === "won"){
+      if(!parentBet){
+        throw createHttpError(404, "Parent bet not found")
+      }
+      const parentBetStatus = parentBet.status;
+
+      if(parentBetStatus === "lost"){
+        res.status(200).json({mesage:"Bet detail Updated, Combo bet lost"})
+      }
+      if(status !== "won" ){
+        parentBet.status === "lost"
+        await parentBet.save();
+        res.status(200).json({mesage:"Bet detail Updated, Combo bet lost"})
+      }
+      const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
+      const hasNotWon = allBetDetails.some(detail => detail.status !== 'won');
+      if(!hasNotWon && parentBet.status !=="won"){
+        const playerId = parentBet.player;
+        const possibleWinningAmount = parentBet.possibleWinningAmount;
         const player = await PlayerModel.findById(playerId);
-        if(!player){
-          throw createHttpError(404, "Player not found")
-        }
         player.credits+=possibleWinningAmount;
         await player.save();
+        parentBet.status = "won"
+        await parentBet.save();
       }
-
-      return res.status(200).json({ message: "Bet resolved successfully", updatedBet });
+       res.status(200).json({message:"Bet Detail Status Updated"})  
     } catch (error) {
       next(error);
     }
