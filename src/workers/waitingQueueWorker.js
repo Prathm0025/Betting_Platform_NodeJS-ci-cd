@@ -175,7 +175,7 @@ function extractDataField(betsArray) {
 worker_threads_1.parentPort.on('message', (message) => __awaiter(void 0, void 0, void 0, function* () {
     if (message === "start") {
         startWorker();
-        // const bets = await getAllBetsForPlayerAndUpdateStatus('66dc523111f2ab2408f0041b')
+        // const bets = await getAllBetsForPlayerAndUpdateStatus('66dee5decae56250cc64b376')
         // const data = extractDataField(bets)
         // console.log(data);
         // await addMultipleBetsToProcessingQueue(data)
