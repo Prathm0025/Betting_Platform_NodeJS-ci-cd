@@ -91,6 +91,7 @@ async function processCompletedBet(betDetailId, gameData) {
     try {
       console.log("Associated game data:", JSON.stringify(gameData, null, 2));
 
+
       // Find the current BetDetail
       currentBetDetail = await BetDetail.findById(betDetailId)
       if (!currentBetDetail) {
@@ -194,7 +195,7 @@ async function processCompletedBet(betDetailId, gameData) {
           const targetId = player.createdBy as mongoose.Schema.Types.ObjectId;
           const parentBetId = parentBet._id as mongoose.Schema.Types.ObjectId;
 
-          notificationController.createNotification(player._id, targetId, 'error', `Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`, "bet", parentBetId, "refund");
+          notificationController.createNotification(player._id, targetId, 'error', ` Bet failed during processing : {${currentBetDetail._id}}`, "bet", parentBetId, "refund");
 
           console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
         }
