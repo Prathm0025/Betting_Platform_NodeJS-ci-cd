@@ -196,7 +196,7 @@ function processCompletedBet(betDetailId, gameData) {
                         const player = yield playerModel_1.default.findById(parentBet.player);
                         const targetId = player.createdBy;
                         const parentBetId = parentBet._id;
-                        notificationController_1.default.createNotification(player._id, targetId, 'error', `Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`, "bet", parentBetId, "refund");
+                        notificationController_1.default.createNotification(player._id, targetId, 'error', ` Bet failed during processing : {${currentBetDetail._id}}`, "bet", parentBetId, "refund");
                         console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
                     }
                     throw error;

@@ -519,6 +519,7 @@ class BetController {
             try {
                 const { betDetailId } = req.params;
                 const { status } = req.body;
+                console.log("RESOLVE BET : ", status);
                 const updatedBetDetails = yield betModel_1.BetDetail.findByIdAndUpdate(betDetailId, {
                     status: status
                 }, { new: true });
@@ -532,12 +533,13 @@ class BetController {
                 }
                 const parentBetStatus = parentBet.status;
                 if (parentBetStatus === "lost") {
-                    res.status(200).json({ mesage: "Bet detail Updated, Combo bet lost" });
+                    return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" });
                 }
                 if (status !== "won") {
                     parentBet.status === "lost";
                     yield parentBet.save();
-                    res.status(200).json({ mesage: "Bet detail Updated, Combo bet lost" });
+                    console.log("log :", status);
+                    return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" });
                 }
                 const allBetDetails = yield betModel_1.BetDetail.find({ _id: { $in: parentBet.data } });
                 const hasNotWon = allBetDetails.some(detail => detail.status !== 'won');
@@ -549,6 +551,10 @@ class BetController {
                     yield player.save();
                     parentBet.status = "won";
                     yield parentBet.save();
+                    const playerSocket = socket_1.users.get(player.username);
+                    if (playerSocket) {
+                        playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+                    }
                 }
                 res.status(200).json({ message: "Bet Detail Status Updated" });
             }
