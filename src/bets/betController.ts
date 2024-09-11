@@ -175,11 +175,10 @@ class BetController {
 
       let responseMessage;
       if (betType === "single") {
-        responseMessage = `Single bet on ${
-          betDetails[0].bet_on === "home_team"
-            ? betDetails[0].home_team.name
-            : betDetails[0].away_team.name
-        } placed successfully!`;
+        responseMessage = `Single bet on ${betDetails[0].bet_on === "home_team"
+          ? betDetails[0].home_team.name
+          : betDetails[0].away_team.name
+          } placed successfully!`;
       } else {
         responseMessage = "Combo bet placed sccessfully!";
       }
@@ -591,47 +590,57 @@ class BetController {
 
 
   // UPADTE OR RESOLVE BET
-  async resolveBet(req:Request, res: Response, next: NextFunction){
+  async resolveBet(req: Request, res: Response, next: NextFunction) {
     try {
-       
+
       const { betDetailId } = req.params;
       const { status } = req.body;
 
-      const updatedBetDetails = await BetDetail.findByIdAndUpdate(betDetailId,{
-        status: status
-      }, {new:true} );
+      console.log("RESOLVE BET : ", status);
 
-      if(!updatedBetDetails){
-        throw createHttpError(404,"Bet detail not found");
+
+      const updatedBetDetails = await BetDetail.findByIdAndUpdate(betDetailId, {
+        status: status
+      }, { new: true });
+
+      if (!updatedBetDetails) {
+        throw createHttpError(404, "Bet detail not found");
       }
-      const parentBetId =updatedBetDetails.key;
+      const parentBetId = updatedBetDetails.key;
       const parentBet = await Bet.findById(parentBetId);
-      
-      if(!parentBet){
+
+      if (!parentBet) {
         throw createHttpError(404, "Parent bet not found")
       }
       const parentBetStatus = parentBet.status;
 
-      if(parentBetStatus === "lost"){
-        res.status(200).json({mesage:"Bet detail Updated, Combo bet lost"})
+      if (parentBetStatus === "lost") {
+        return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" })
       }
-      if(status !== "won" ){
+      if (status !== "won") {
         parentBet.status === "lost"
         await parentBet.save();
-        res.status(200).json({mesage:"Bet detail Updated, Combo bet lost"})
+        console.log("log :", status);
+
+        return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" })
       }
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
       const hasNotWon = allBetDetails.some(detail => detail.status !== 'won');
-      if(!hasNotWon && parentBet.status !=="won"){
+      if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
         const possibleWinningAmount = parentBet.possibleWinningAmount;
         const player = await PlayerModel.findById(playerId);
-        player.credits+=possibleWinningAmount;
+        player.credits += possibleWinningAmount;
         await player.save();
         parentBet.status = "won"
         await parentBet.save();
+
+        const playerSocket = users.get(player.username);
+        if (playerSocket) {
+          playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+        }
       }
-       res.status(200).json({message:"Bet Detail Status Updated"})  
+      res.status(200).json({ message: "Bet Detail Status Updated" })
     } catch (error) {
       next(error);
     }
