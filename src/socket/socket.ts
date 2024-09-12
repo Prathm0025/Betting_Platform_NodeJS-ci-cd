@@ -58,7 +58,7 @@ const socketController = (io: Server) => {
         io
       );
       users.set(username, newUser);
-      console.log(`Player ${username} entered the platform.`);
+      // console.log(`Player ${username} entered the platform.`);
      await userActivityController.createActiviySession(username, new Date(Date.now()))
     }
 
@@ -68,12 +68,12 @@ const socketController = (io: Server) => {
         const room = player.currentRoom;
         player.currentRoom = ""; 
         users.delete(username); 
-        console.log(`Player ${username} left the platform.`);
+        // console.log(`Player ${username} left the platform.`);
   
         const clients = io.sockets.adapter.rooms.get(room);
         if (!clients || clients.size === 0) {
           activeRooms.delete(room); 
-          console.log(`Room ${room} removed from activeRooms.`);
+          // console.log(`Room ${room} removed from activeRooms.`);
         }
         await userActivityController.endSession(username, new Date(Date.now()));
 
