@@ -5,6 +5,12 @@ import NotificationModel from "./notificationModel";
 
 
 class NotificationService {
+
+    constructor() {
+        this.create = this.create.bind(this);
+        this.get = this.get.bind(this);
+        this.update = this.update.bind(this);
+    }
     async create(type: "alert" | "info" | "message", payload: any, recipientId: string) {
         try {
             const recipient = await UserModel.findById(recipientId) || await PlayerModel.findById(recipientId);

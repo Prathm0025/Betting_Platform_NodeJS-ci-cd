@@ -32,7 +32,7 @@ app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
-app.use ("/api/notifications", checkUser,  notificationRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res, next) => {
   const health = {
