@@ -615,14 +615,12 @@ class BetController {
       const parentBetStatus = parentBet.status;
 
       if (parentBetStatus === "lost") {
-        return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" })
+        return res.status(200).json({ message: "Bet detail Updated" })
       }
       if (status !== "won") {
-        parentBet.status === "lost"
+        parentBet.status = "lost"
         await parentBet.save();
-        console.log("log :", status);
-
-        return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" })
+        return res.status(200).json({ message: "Bet detail Updated" })
       }
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
       const hasNotWon = allBetDetails.some(detail => detail.status !== 'won');
@@ -649,4 +647,4 @@ class BetController {
 
 }
 
-export default new BetController()
+export default new BetController();
