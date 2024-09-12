@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { verifySocketToken } from "./socketMiddleware";
 import Player from "../players/playerSocket";
+import userActivityController from "../userActivity/userActivityController";
 
 export let users: Map<string, Player> = new Map();
 export const activeRooms: Set<string> = new Set();
@@ -58,9 +59,10 @@ const socketController = (io: Server) => {
       );
       users.set(username, newUser);
       console.log(`Player ${username} entered the platform.`);
+     await userActivityController.createActiviySession(username, new Date(Date.now()))
     }
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async() => {
       const player = users.get(username);
       if (player) {
         const room = player.currentRoom;
@@ -73,7 +75,11 @@ const socketController = (io: Server) => {
           activeRooms.delete(room); 
           console.log(`Room ${room} removed from activeRooms.`);
         }
+        await userActivityController.endSession(username, new Date(Date.now()));
+
+        
       }
+
     });
   });
 

@@ -613,13 +613,13 @@ class BetController {
       const parentBetStatus = parentBet.status;
   
       if (parentBetStatus === "lost") {
-        return res.status(200).json({ message: "Bet detail updated, Combo bet lost" });
+        return res.status(200).json({ message: "Bet detail Updated" })
       }
   
       if (status !== "won") {
-        parentBet.status = "lost";
+        parentBet.status = "lost"
         await parentBet.save();
-        return res.status(200).json({ message: "Bet detail updated, Combo bet lost" });
+        return res.status(200).json({ message: "Bet detail Updated" })
       }
   
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
