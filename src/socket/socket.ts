@@ -5,7 +5,8 @@ import Player from "../players/playerSocket";
 export let users: Map<string, Player> = new Map();
 export const activeRooms: Set<string> = new Set();
 
-const socketController = (io: Server) => {
+
+const socketController = async (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
@@ -64,20 +65,19 @@ const socketController = (io: Server) => {
       const player = users.get(username);
       if (player) {
         const room = player.currentRoom;
-        player.currentRoom = ""; 
-        users.delete(username); 
+        player.currentRoom = "";
+        users.delete(username);
         console.log(`Player ${username} left the platform.`);
-  
+
         const clients = io.sockets.adapter.rooms.get(room);
         if (!clients || clients.size === 0) {
-          activeRooms.delete(room); 
+          activeRooms.delete(room);
           console.log(`Room ${room} removed from activeRooms.`);
         }
       }
     });
   });
 
-  
 };
 
 export default socketController;

@@ -7,6 +7,7 @@ import { config } from "../config/config";
 import Player from "../players/playerModel";
 import notificationController from "../notifications/notificationController";
 import { IPlayer } from "../players/playerType";
+import { redisClient } from "../redisclient";
 
 
 async function connectDB() {
@@ -40,7 +41,7 @@ async function processBets(sportKeys, bets) {
       }
 
       const { completedGames } = scoresData;
-      console.log("COMPLETED GAMES : ", scoresData);
+      // console.log("COMPLETED GAMES : ", scoresData);
 
 
       for (const game of completedGames) {
@@ -89,7 +90,7 @@ async function processCompletedBet(betDetailId, gameData) {
 
   while (retryCount < maxRetries) {
     try {
-      console.log("Associated game data:", JSON.stringify(gameData, null, 2));
+      // console.log("Associated game data:", JSON.stringify(gameData, null, 2));
 
 
       // Find the current BetDetail
@@ -99,7 +100,7 @@ async function processCompletedBet(betDetailId, gameData) {
         return;
       }
 
-      console.log("CURRENT BET : ", currentBetDetail);
+      // console.log("CURRENT BET : ", currentBetDetail);
 
       // Find the parent Bet associated with the BetDetail
       const parentBet = await Bet.findById(currentBetDetail.key);
@@ -108,7 +109,7 @@ async function processCompletedBet(betDetailId, gameData) {
         return;
       }
 
-      console.log("PARENT : ", parentBet);
+      // console.log("PARENT : ", parentBet);
 
       // Process the current bet result
       const result = checkIfPlayerWonBet(currentBetDetail, gameData);
@@ -121,13 +122,13 @@ async function processCompletedBet(betDetailId, gameData) {
 
       // Fetch the updated BetDetail to ensure status change
       currentBetDetail = await BetDetail.findById(currentBetDetail._id).lean();
-      console.log("UPDATED BET DETAIL: ", currentBetDetail);
+      // console.log("UPDATED BET DETAIL: ", currentBetDetail);
 
       // After updating the current BetDetail, check the status of all BetDetails
       const updatedBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
 
       // Log the updated details
-      console.log("UPDATED BET : ", updatedBetDetails);
+      // console.log("UPDATED BET : ", updatedBetDetails);
 
       // Check if any BetDetail is lost or failed
       const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
@@ -150,7 +151,7 @@ async function processCompletedBet(betDetailId, gameData) {
       // Check if all BetDetails are won
       const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
 
-      console.log("ALL WON : ", allBetsWon);
+      // console.log("ALL WON : ", allBetsWon);
 
       // If all BetDetails are won, mark the parent bet as won and award the winnings
       if (allBetsWon) {
@@ -297,9 +298,9 @@ const processBetsFromQueue = async () => {
       }
 
       const sportKeys = Array.from(sports);
-      console.log(sportKeys, "sports key array");
+      // console.log(sportKeys, "sports key array");
 
-      console.log("Bets data after dequeuing:", bets);
+      // console.log("Bets data after dequeuing:", bets);
 
       if (bets.length > 0) {
         await processBets(sportKeys, bets); // Process bets if data exists
@@ -317,9 +318,21 @@ const processBetsFromQueue = async () => {
 
 async function startWorker() {
   console.log("Processing Queue Worker Started")
+
+  let tick = 0
+
   setInterval(async () => {
     try {
       console.log("Processing Bet.........");
+      if (tick === 0) {
+        ++tick
+        //NOTE: implemented pub sub to tell main thread to broadcast to client for ~live update(60s)
+        redisClient.publish('live-update', 'true')
+
+      } else {
+        tick = 0
+      }
+
       await processBetsFromQueue();
     } catch (error) {
       console.error("Error in setInterval Waiting Queue Worker:", error);
