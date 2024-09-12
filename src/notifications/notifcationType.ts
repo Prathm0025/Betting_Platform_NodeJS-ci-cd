@@ -1,17 +1,12 @@
 import mongoose from "mongoose";
 
-export interface INotification extends Document {
-  _id: mongoose.Types.ObjectId;
-  initiatorId: mongoose.Schema.Types.ObjectId;
-  targetId: mongoose.Schema.Types.ObjectId;
-  initiatorModel: "User" | "Player";
-  targetModel: "User" | "Player";
-  type: "error" | "success";
-  message: string;
-  reference: "bet" | "transaction";
-  referenceId: mongoose.Schema.Types.ObjectId;
-  status: "pending" | "sent";
-  action: "refund";
+interface INotification extends Document {
+  type: "alert" | "info" | "message",
+  payload: any;
+  recipient: mongoose.Schema.Types.ObjectId;
+  viewed: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+export default INotification

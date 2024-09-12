@@ -5,8 +5,7 @@ import Bet, { BetDetail } from "../bets/betModel";
 import { dequeue, getAll, removeItem, size } from "../utils/ProcessingQueue";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
-import notificationController from "../notifications/notificationController";
-import { IPlayer } from "../players/playerType";
+import Notification from "../notifications/notificationController";
 
 
 async function connectDB() {
@@ -89,8 +88,6 @@ async function processCompletedBet(betDetailId, gameData) {
 
   while (retryCount < maxRetries) {
     try {
-      console.log("Associated game data:", JSON.stringify(gameData, null, 2));
-
 
       // Find the current BetDetail
       currentBetDetail = await BetDetail.findById(betDetailId)
@@ -99,16 +96,12 @@ async function processCompletedBet(betDetailId, gameData) {
         return;
       }
 
-      console.log("CURRENT BET : ", currentBetDetail);
-
       // Find the parent Bet associated with the BetDetail
       const parentBet = await Bet.findById(currentBetDetail.key);
       if (!parentBet) {
         console.error("Parent Bet not found for betDetail:", currentBetDetail._id);
         return;
       }
-
-      console.log("PARENT : ", parentBet);
 
       // Process the current bet result
       const result = checkIfPlayerWonBet(currentBetDetail, gameData);
@@ -121,13 +114,10 @@ async function processCompletedBet(betDetailId, gameData) {
 
       // Fetch the updated BetDetail to ensure status change
       currentBetDetail = await BetDetail.findById(currentBetDetail._id).lean();
-      console.log("UPDATED BET DETAIL: ", currentBetDetail);
 
       // After updating the current BetDetail, check the status of all BetDetails
       const updatedBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
 
-      // Log the updated details
-      console.log("UPDATED BET : ", updatedBetDetails);
 
       // Check if any BetDetail is lost or failed
       const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
@@ -192,10 +182,13 @@ async function processCompletedBet(betDetailId, gameData) {
           const parentBet = await Bet.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
           const player = await Player.findById(parentBet.player);
 
-          const targetId = player.createdBy as mongoose.Schema.Types.ObjectId;
-          const parentBetId = parentBet._id as mongoose.Schema.Types.ObjectId;
+          const playerMessage = `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`;
 
-          notificationController.createNotification(player._id, targetId, 'error', ` Bet failed during processing : {${currentBetDetail._id}}`, "bet", parentBetId, "refund");
+          const agentMessage = `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
+
+          await Notification.createNotification("alert", { message: playerMessage, betId: currentBetDetail._id }, player._id.toString());
+
+          await Notification.createNotification("alert", { message: agentMessage, betId: currentBetDetail._id }, player.createdBy.toString());
 
           console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
         }
@@ -207,6 +200,8 @@ async function processCompletedBet(betDetailId, gameData) {
 
 
 function checkIfPlayerWonBet(betDetail, gameData) {
+
+  throw new Error("Not implemented");
 
   // check if the game is completed
   if (!gameData.completed) {
