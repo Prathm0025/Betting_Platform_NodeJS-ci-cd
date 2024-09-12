@@ -5,6 +5,7 @@ import { config } from "../config/config";
 import cloudinary from "cloudinary";
 import Banner from "./bannerModel";
 import mongoose from "mongoose";
+import storeController from "../store/storeController";
 
 cloudinary.v2.config({
   cloud_name: config.cloud_name,
@@ -19,9 +20,23 @@ interface BannerRequest extends Request {
 }
 
 class BannerController {
+  public async getCategory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await storeController.getCategories();
+      const categoryData = data.map((item) => item.category);
+      res.status(200).json(categoryData);
+    } catch (err) {
+      next(err);
+    }
+  }
   public async getBanners(req: Request, res: Response, next: NextFunction) {
     try {
-      const banners = await Banner.find();
+      const { category, status } = req.query;
+      console.log(req.query);
+      const banners = await Banner.find({
+        category: category,
+        status: status === "active" ? true : false,
+      });
       res.status(200).json({ banners: banners });
     } catch (err) {
       next(err);
@@ -36,7 +51,7 @@ class BannerController {
     try {
       let bannerUploadResult: cloudinary.UploadApiResponse | undefined;
       const bannerBuffer = req.files.banner[0].buffer;
-      const { category } = req.body;
+      const { category, title } = req.body;
 
       bannerUploadResult = await new Promise<cloudinary.UploadApiResponse>(
         (resolve, reject) => {
@@ -62,9 +77,9 @@ class BannerController {
         url: bannerUploadResult.secure_url,
         category: category,
         status: true,
+        title: title,
       });
       await newBanner.save();
-
       res.status(200).json({
         message: "Banner uploaded and saved successfully",
       });

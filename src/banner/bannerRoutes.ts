@@ -7,17 +7,21 @@ const bannerRoutes = express.Router();
 const bannerController = new BannerController();
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 * 1024 },
 });
-
-bannerRoutes.get("/", verifyRole(["admin"]), bannerController.getBanners);
 bannerRoutes.post(
   "/",
   verifyRole(["admin"]),
   upload.fields([{ name: "banner" }]),
   bannerController.addBanner
 );
+bannerRoutes.get("/", verifyRole(["admin"]), bannerController.getBanners);
 bannerRoutes.put("/", verifyRole(["admin"]), bannerController.updateBanner);
 bannerRoutes.delete("/", verifyRole(["admin"]), bannerController.deleteBanner);
+bannerRoutes.get(
+  "/category",
+  verifyRole(["admin"]),
+  bannerController.getCategory
+);
 
 export default bannerRoutes;

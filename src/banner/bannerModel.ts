@@ -14,6 +14,10 @@ const bannerSchema: Schema = new Schema({
     type: Boolean,
     require: true,
   },
+  title: {
+    type: String,
+    required: true,
+  },
 });
 
 const Banner = mongoose.model<IBanner>("Banners", bannerSchema);
