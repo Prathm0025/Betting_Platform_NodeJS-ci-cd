@@ -153,6 +153,14 @@ export default class Player {
             this.joinRoom(res.payload.sport);
             break;
 
+          case "SEARCH EVENT":
+            const searchEventData = await Store.searchEvent(
+              res.payload.sport,
+              res.payload.query
+            )
+            this.sendData({ type: "SEARCH EVENT", data: searchEventData });
+            break;
+
           case "GET event odds":
             const eventOddsData = await Store.getEventOdds(
               res.payload.sport,
