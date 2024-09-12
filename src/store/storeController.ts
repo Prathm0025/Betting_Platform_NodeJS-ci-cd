@@ -3,7 +3,6 @@ import axios from "axios";
 import StoreService from "./storeServices";
 import { activeRooms } from "../socket/socket";
 import { io } from "../server";
-import { promisify } from "util";
 import { redisClient } from "../../src/redisclient";
 
 class Store {
@@ -85,7 +84,7 @@ class Store {
     sport: string,
     daysFrom: string | undefined,
     dateFormat: string | undefined
-  ){
+  ) {
     const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
     const scoresResponse = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/scores`,
@@ -106,11 +105,11 @@ class Store {
       const commenceTime = new Date(game.commence_time);
       return commenceTime > endOfToday && !game.completed;
     });
-   return {
-    futureUpcomingGames,
-    completedGames
-   }
-  } 
+    return {
+      futureUpcomingGames,
+      completedGames
+    }
+  }
 
   // HANDLE ODDS
   public async getOdds(
@@ -171,7 +170,7 @@ class Store {
         };
       });
 
-      
+
       const liveGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return commenceTime <= now && !game.completed;
@@ -213,7 +212,7 @@ class Store {
 
   public async getOddsForProcessing(
     sport: string,
-  ){
+  ) {
     const cacheKey = `odds_${sport}_h2h_us`;
 
     const oddsResponse = await this.fetchFromApi(
@@ -225,7 +224,7 @@ class Store {
       },
       cacheKey
     );
-   return oddsResponse
+    return oddsResponse
 
   }
   public getEvents(sport: string, dateFormat?: string): Promise<any> {
@@ -236,7 +235,6 @@ class Store {
       cacheKey
     );
   }
-
   public async getEventOdds(
     sport: string,
     eventId: string,
@@ -269,6 +267,41 @@ class Store {
       markets: selectBookmakers.markets,
       selected: selectBookmakers?.key,
     };
+  }
+
+  //search event from getOdds
+  public async searchEvent(
+    sport: string,
+    query: string
+  ): Promise<any> {
+    //using getEvents with sportname 
+    const events = await this.getOdds(sport);
+    let filteredEvents = []
+    events.live_games.forEach((event: any) => {
+      if (
+        event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
+        event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
+      ) {
+        filteredEvents.push(event)
+      }
+    })
+    events.todays_upcoming_games.forEach((event: any) => {
+      if (
+        event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
+        event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
+      ) {
+        filteredEvents.push(event)
+      }
+    })
+    events.future_upcoming_games.forEach((event: any) => {
+      if (
+        event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
+        event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
+      ) {
+        filteredEvents.push(event)
+      }
+    })
+    return filteredEvents
   }
 
   public async getCategories(): Promise<
