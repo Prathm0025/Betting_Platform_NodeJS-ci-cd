@@ -120,7 +120,6 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
@@ -276,13 +275,18 @@ class Store {
   ): Promise<any> {
     //using getEvents with sportname 
     const events = await this.getOdds(sport);
-    let filteredEvents = []
+    if (query === "") return events
+    let filteredEvents = {
+      live_games: [],
+      todays_upcoming_games: [],
+      future_upcoming_games: [],
+    }
     events.live_games.forEach((event: any) => {
       if (
         event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
         event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
       ) {
-        filteredEvents.push(event)
+        filteredEvents.live_games.push(event)
       }
     })
     events.todays_upcoming_games.forEach((event: any) => {
@@ -290,7 +294,7 @@ class Store {
         event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
         event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
       ) {
-        filteredEvents.push(event)
+        filteredEvents.todays_upcoming_games.push(event)
       }
     })
     events.future_upcoming_games.forEach((event: any) => {
@@ -298,7 +302,7 @@ class Store {
         event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
         event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
       ) {
-        filteredEvents.push(event)
+        filteredEvents.future_upcoming_games.push(event)
       }
     })
     return filteredEvents
@@ -361,19 +365,26 @@ class Store {
     }
   }
 
-  public async updateLiveData(livedata: any) {
-    const currentActive = this.removeInactiveRooms();
+  public async updateLiveData() {
+    const currentActive = Array.from(activeRooms);
+    console.log("currentActive", currentActive);
 
     for (const sport of currentActive) {
-      const liveGamesForSport = livedata.live_games.filter(
-        (game: any) => game.sport_key === sport
-      );
-      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
-        (game: any) => game.sport_key === sport
-      );
-      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
-        (game: any) => game.sport_key === sport
-      );
+      const liveData = await this.getOdds(sport);
+      // console.log("livedata", liveData);
+
+      const liveGamesForSport = liveData.live_games;
+      const todaysUpcomingGamesForSport = liveData.todays_upcoming_games;
+      const futureUpcomingGamesForSport = liveData.future_upcoming_games;
+      // const liveGamesForSport = livedata.live_games.filter(
+      //   (game: any) => game.sport_key === sport
+      // );
+      // const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
+      //   (game: any) => game.sport_key === sport
+      // );
+      // const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
+      //   (game: any) => game.sport_key === sport
+      // );
 
       // Check if there's any data for the current sport before emitting
       if (
