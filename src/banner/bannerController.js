@@ -62,7 +62,7 @@ class BannerController {
                 console.log("data", req.body);
                 bannerUploadResult = yield new Promise((resolve, reject) => {
                     cloudinary_1.default.v2.uploader
-                        .upload_stream({ resource_type: "image", folder: "Banner" }, (error, result) => {
+                        .upload_stream({ resource_type: "image", folder: config_1.config.cloud_folder }, (error, result) => {
                         if (error) {
                             return reject(error);
                         }
@@ -121,7 +121,7 @@ class BannerController {
                         throw (0, http_errors_1.default)(404, "Banner not found in database");
                     }
                     const imageId = (_a = bannerData.url.split("/").pop()) === null || _a === void 0 ? void 0 : _a.split(".")[0];
-                    const publicId = `Banner/${imageId}`;
+                    const publicId = `${config_1.config.cloud_folder}/${imageId}`;
                     const cloudinaryResult = yield new Promise((resolve, reject) => {
                         cloudinary_1.default.v2.uploader.destroy(publicId, (destroyError, result) => {
                             if (destroyError) {
