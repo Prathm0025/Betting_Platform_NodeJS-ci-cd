@@ -11,16 +11,19 @@ import socketController from "./socket/socket";
 import playerRoutes from "./players/playerRoutes";
 import transactionRoutes from "./transactions/transactionRoutes";
 import storeRoutes from "./store/storeRoutes";
-import betRoutes from "./bets/betRoutes"
+import betRoutes from "./bets/betRoutes";
 import { config } from "./config/config";
 import notificationRoutes from "./notifications/notificationRoutes";
+import bannerRoutes from "./banner/bannerRoutes";
 
 
 const app = express();
 
-app.use(cors({
-  origin: [`*.${config.hosted_url_cors}`]
-}));
+app.use(
+  cors({
+    origin: [`*.${config.hosted_url_cors}`],
+  })
+);
 
 app.use(express.json());
 
@@ -34,8 +37,12 @@ app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 app.use("/api/notifications", checkUser, notificationRoutes);
+<<<<<<< dev-a-redis
+app.use("/api/banner", checkUser, bannerRoutes);
+=======
 
 
+>>>>>>> dev-g
 
 app.get("/", (req, res, next) => {
   const health = {
@@ -59,5 +66,5 @@ socketController(io);
 
 app.use(globalErrorHandler);
 
-export { io }
+export { io };
 export default server;
