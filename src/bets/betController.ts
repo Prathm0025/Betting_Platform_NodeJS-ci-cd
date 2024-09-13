@@ -191,9 +191,9 @@ class BetController {
       const agentNotification = await Notification.createNotification("alert", { message: agentResponseMessage, betId: bet._id }, player.createdBy.toString())
 
       if (playerSocket && playerSocket.socket.connected) {
-        playerSocket.sendMessage({
-          type: "BET",
-          data: playerResponseMessage,
+        playerSocket.sendAlert({
+          type: "NOTIFICATION",
+          payload: playerNotification,
         })
 
         await Notification.markNotificationAsViewed(playerNotification._id);
