@@ -20,7 +20,7 @@ betRoutes.put(
   checkBetCommision,
   betController.redeemPlayerBet
 );
-betRoutes.put("/resolve/:betDetailId", checkUser, betController.resolveBet)
+betRoutes.put("/resolve/:betDetailId", verifyRole(["admin","agent"]), betController.resolveBet)
 
 
 export default betRoutes;

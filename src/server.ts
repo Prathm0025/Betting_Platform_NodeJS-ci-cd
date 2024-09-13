@@ -35,6 +35,7 @@ app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 app.use("/api/notifications", checkUser, notificationRoutes);
 
+
 app.get("/", (req, res, next) => {
   const health = {
     uptime: process.uptime(),

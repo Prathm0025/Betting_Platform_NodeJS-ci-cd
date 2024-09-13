@@ -1,65 +1,32 @@
-import mongoose, { Document, Schema } from "mongoose";
-import { INotification } from "./notifcationType";
+import mongoose, { Schema } from "mongoose";
+import INotification from "./notifcationType";
 
-const notificationSchema: Schema = new Schema(
-  {
-    initiatorId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      refPath: "initiatorModel", 
-    },
-    targetId: {
-      type: Schema.Types.ObjectId,
-    //   required: true,
-      refPath: "targetModel", 
-    },
-    initiatorModel: {
-      type: String,
-      required: true,
-      enum: ["User", "Player"], 
-    },
-    targetModel: {
-      type: String,
-      required: true,
-      enum: ["User", "Player"], 
-    },
-    type: {
-      type: String,
-      enum: ["error", "success"],
-      required: true,
-    },
-    message: {
-      type: String,
-      required: true,
-    },
-    reference: {
-      type: String,
-      enum: ["bet", "transaction"],
-      required: true,
-    },
-    referenceId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["pending", "sent"],
-      default: "pending",
-    },
-    action: {
-      type: String,
-      enum: ["refund"],
-      required: true,
-    },
+const notificationSchema = new Schema<INotification>({
+  type: {
+    type: String,
+    enum: ["alert", "info", "message"],
+    required: true
   },
-  {
-    timestamps: true,
+  payload: {
+    type: Schema.Types.Mixed
+  },
+  recipient: {
+    type: Schema.Types.ObjectId,
+    ref: "User" || "Player",
+    required: true
+  },
+  viewed: {
+    type: Boolean,
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-);
+});
 
-const Notification = mongoose.model<INotification>(
-  "Notification",
-  notificationSchema
-);
-
-export default Notification;
+export default mongoose.model("Notification", notificationSchema);
