@@ -11,16 +11,19 @@ import socketController from "./socket/socket";
 import playerRoutes from "./players/playerRoutes";
 import transactionRoutes from "./transactions/transactionRoutes";
 import storeRoutes from "./store/storeRoutes";
-import betRoutes from "./bets/betRoutes"
+import betRoutes from "./bets/betRoutes";
 import { config } from "./config/config";
 import notificationRoutes from "./notifications/notificationRoutes";
-import { Redis } from "ioredis";
+import userActivityRoutes from "./userActivity/userActivityRoutes";
+import bannerRoutes from "./banner/bannerRoutes";
 
 const app = express();
 
-app.use(cors({
-  origin: [`*.${config.hosted_url_cors}`]
-}));
+app.use(
+  cors({
+    origin: [`*.${config.hosted_url_cors}`],
+  })
+);
 
 app.use(express.json());
 
@@ -33,7 +36,10 @@ app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
+app.use("/api/userActivities",checkUser,  userActivityRoutes);
 app.use("/api/notifications", checkUser, notificationRoutes);
+app.use("/api/banner", checkUser, bannerRoutes);
+
 
 app.get("/", (req, res, next) => {
   const health = {
@@ -79,5 +85,5 @@ app.get('/api/notif', (req, res) => {
 });
 app.use(globalErrorHandler);
 
-export { io }
+export { io };
 export default server;

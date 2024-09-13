@@ -18,7 +18,10 @@ const _config = {
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   awsRegion: process.env.AWS_REGION,
   emailSource: process.env.EMAIL_SOURCE,
-  hosted_url_cors: process.env.HOSTED_URL_CORS
+  hosted_url_cors: process.env.HOSTED_URL_CORS,
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_NAME_API_KEY,
+  api_secret: process.env.CLOUDINARY_NAME_API_SECRET,
 };
 
 export const config = Object.freeze(_config);

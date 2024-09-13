@@ -12,7 +12,6 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
-import Notification from "../notifications/notificationModel";
 
 class BetController {
   public async placeBet(
@@ -50,15 +49,6 @@ class BetController {
       if (amount === 0) {
         throw new Error("Betting amount can't be zero");
       }
-
-      //combo from same event and market
-      // if (betType === "combo") {
-      //   const combinedKeys = betDetails.map((bet) => `${bet.event_id}-${bet.market}`);
-      //   const uniqueCombinedKeys = new Set(combinedKeys);
-      //   if (combinedKeys.length !== uniqueCombinedKeys.size) {
-      //     throw new Error("Invalid combo!");
-      //   }
-      // }
 
       // Check if the player already has a pending bet on the same team
       for (const betDetailData of betDetails) {
@@ -173,19 +163,37 @@ class BetController {
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
 
-      let responseMessage;
+      const selectedTeamName = betDetails[0].bet_on === "home_team"
+        ? betDetails[0].home_team.name
+        : betDetails[0].away_team.name;
+
+      const selectedOdds = betDetails[0].bet_on === "home_team"
+        ? betDetails[0].home_team.odds
+        : betDetails[0].away_team.odds;
+
+      let playerResponseMessage;
+      let agentResponseMessage;
+
       if (betType === "single") {
-        responseMessage = `Single bet on ${betDetails[0].bet_on === "home_team"
-          ? betDetails[0].home_team.name
-          : betDetails[0].away_team.name
-          } placed successfully!`;
+        playerResponseMessage = `Placed a bet on ${selectedTeamName} with odds of ${selectedOdds}. Bet amount: $${amount}.`;
+        agentResponseMessage = `Player ${player.username} placed a bet of $${amount} on ${selectedTeamName} with odds of ${selectedOdds}. `;
+
       } else {
-        responseMessage = "Combo bet placed sccessfully!";
+        playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;;
+        agentResponseMessage = `Player ${player.username} placed a combo bet of $${amount}.`;
       }
-      playerSocket.sendMessage({
-        type: "BET",
-        data: responseMessage,
-      });
+
+      redisClient.publish("bet-notifications", JSON.stringify({
+        type: "BET_PLACED",
+        player: {
+          _id: player._id.toString(),
+          username: player.username
+        },
+        agent: player.createdBy.toString(),
+        betId: bet._id.toString(),
+        playerMessage: playerResponseMessage,
+        agentMessage: agentResponseMessage
+      }))
 
       // Commit the transaction
       await session.commitTransaction();
@@ -594,47 +602,47 @@ class BetController {
     try {
       const { betDetailId } = req.params;
       const { status } = req.body; // won - lost
-  
+
       const updatedBetDetails = await BetDetail.findByIdAndUpdate(betDetailId, {
         status: status,
       }, { new: true });
-  
-      if(!updatedBetDetails){
-        throw createHttpError(404,"Bet detail not found");
+
+      if (!updatedBetDetails) {
+        throw createHttpError(404, "Bet detail not found");
       }
-  
+
       const parentBetId = updatedBetDetails.key;
       const parentBet = await Bet.findById(parentBetId);
-  
-      if(!parentBet){
+
+      if (!parentBet) {
         throw createHttpError(404, "Parent bet not found")
       }
-  
+
       const parentBetStatus = parentBet.status;
-  
+
       if (parentBetStatus === "lost") {
-        return res.status(200).json({ message: "Bet detail updated, Combo bet lost" });
+        return res.status(200).json({ message: "Bet detail Updated" })
       }
-  
+
       if (status !== "won") {
-        parentBet.status = "lost";
+        parentBet.status = "lost"
         await parentBet.save();
-        return res.status(200).json({ message: "Bet detail updated, Combo bet lost" });
+        return res.status(200).json({ message: "Bet detail Updated" })
       }
-  
+
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
       const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
-  
+
       if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
         const possibleWinningAmount = parentBet.possibleWinningAmount;
         const player = await PlayerModel.findById(playerId);
-  
+
         if (player) {
           player.credits += possibleWinningAmount;
           await player.save();
         }
-  
+
         parentBet.status = "won";
         await parentBet.save();
 
@@ -643,13 +651,13 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
       }
-  
+
       return res.status(200).json({ message: "Bet detail status updated" });
     } catch (error) {
       next(error);
     }
   }
-  
+
 
 }
 
