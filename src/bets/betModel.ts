@@ -35,7 +35,7 @@ const BetDetailSchema: Schema = new Schema({
     default: false,  // Default value if required
 
   }
-});
+}, { timestamps: true });
 
 const BetSchema: Schema = new Schema({
   player: { type: Schema.Types.ObjectId, ref: "Player", required: true },
@@ -50,7 +50,7 @@ const BetSchema: Schema = new Schema({
   retryCount: { type: Number, default: 0 },
   betType: { type: String, enum: ["single", "combo"], required: true },
   isResolved: { type: Boolean, default: false },
-});
+}, { timestamps: true });
 
 export const BetDetail = mongoose.model<IBetDetail>(
   "BetDetail",

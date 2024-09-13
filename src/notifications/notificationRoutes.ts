@@ -3,6 +3,6 @@ import notificationController from "./notificationController";
 
 const notificationRoutes = express.Router();
 
-notificationRoutes.get("/", notificationController.getUserNotification)
+notificationRoutes.get("/", notificationController.getNotifications);
 
 export default notificationRoutes;

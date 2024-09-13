@@ -3,7 +3,6 @@ import axios from "axios";
 import StoreService from "./storeServices";
 import { activeRooms } from "../socket/socket";
 import { io } from "../server";
-import { promisify } from "util";
 import { redisClient } from "../../src/redisclient";
 
 class Store {
@@ -85,7 +84,7 @@ class Store {
     sport: string,
     daysFrom: string | undefined,
     dateFormat: string | undefined
-  ){
+  ) {
     const cacheKey = `scores_${sport}_${daysFrom}_${dateFormat || "iso"}`;
     const scoresResponse = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/scores`,
@@ -106,11 +105,11 @@ class Store {
       const commenceTime = new Date(game.commence_time);
       return commenceTime > endOfToday && !game.completed;
     });
-   return {
-    futureUpcomingGames,
-    completedGames
-   }
-  } 
+    return {
+      futureUpcomingGames,
+      completedGames
+    }
+  }
 
   // HANDLE ODDS
   public async getOdds(
@@ -121,7 +120,6 @@ class Store {
   ): Promise<any> {
     try {
       const cacheKey = `odds_${sport}_h2h_us`;
-
       // Fetch data from the API
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
@@ -171,7 +169,7 @@ class Store {
         };
       });
 
-      
+
       const liveGames = processedData.filter((game: any) => {
         const commenceTime = new Date(game.commence_time);
         return commenceTime <= now && !game.completed;
@@ -213,7 +211,7 @@ class Store {
 
   public async getOddsForProcessing(
     sport: string,
-  ){
+  ) {
     const cacheKey = `odds_${sport}_h2h_us`;
 
     const oddsResponse = await this.fetchFromApi(
@@ -225,7 +223,7 @@ class Store {
       },
       cacheKey
     );
-   return oddsResponse
+    return oddsResponse
 
   }
   public getEvents(sport: string, dateFormat?: string): Promise<any> {
@@ -236,7 +234,6 @@ class Store {
       cacheKey
     );
   }
-
   public async getEventOdds(
     sport: string,
     eventId: string,
@@ -269,6 +266,46 @@ class Store {
       markets: selectBookmakers.markets,
       selected: selectBookmakers?.key,
     };
+  }
+
+  //search event from getOdds
+  public async searchEvent(
+    sport: string,
+    query: string
+  ): Promise<any> {
+    //using getEvents with sportname 
+    const events = await this.getOdds(sport);
+    if (query === "") return events
+    let filteredEvents = {
+      live_games: [],
+      todays_upcoming_games: [],
+      future_upcoming_games: [],
+    }
+    events.live_games.forEach((event: any) => {
+      if (
+        event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
+        event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
+      ) {
+        filteredEvents.live_games.push(event)
+      }
+    })
+    events.todays_upcoming_games.forEach((event: any) => {
+      if (
+        event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
+        event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
+      ) {
+        filteredEvents.todays_upcoming_games.push(event)
+      }
+    })
+    events.future_upcoming_games.forEach((event: any) => {
+      if (
+        event?.home_team?.toLowerCase()?.includes(query?.toLowerCase()) ||
+        event?.away_team?.toLowerCase()?.includes(query?.toLowerCase())
+      ) {
+        filteredEvents.future_upcoming_games.push(event)
+      }
+    })
+    return filteredEvents
   }
 
   public async getCategories(): Promise<
@@ -328,19 +365,26 @@ class Store {
     }
   }
 
-  public async updateLiveData(livedata: any) {
-    const currentActive = this.removeInactiveRooms();
+  public async updateLiveData() {
+    const currentActive = Array.from(activeRooms);
+    console.log("currentActive", currentActive);
 
     for (const sport of currentActive) {
-      const liveGamesForSport = livedata.live_games.filter(
-        (game: any) => game.sport_key === sport
-      );
-      const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
-        (game: any) => game.sport_key === sport
-      );
-      const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
-        (game: any) => game.sport_key === sport
-      );
+      const liveData = await this.getOdds(sport);
+      // console.log("livedata", liveData);
+
+      const liveGamesForSport = liveData.live_games;
+      const todaysUpcomingGamesForSport = liveData.todays_upcoming_games;
+      const futureUpcomingGamesForSport = liveData.future_upcoming_games;
+      // const liveGamesForSport = livedata.live_games.filter(
+      //   (game: any) => game.sport_key === sport
+      // );
+      // const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
+      //   (game: any) => game.sport_key === sport
+      // );
+      // const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
+      //   (game: any) => game.sport_key === sport
+      // );
 
       // Check if there's any data for the current sport before emitting
       if (
