@@ -7,7 +7,7 @@ const notificationSchema = new Schema<INotification>({
     enum: ["alert", "info", "message"],
     required: true
   },
-  payload: {
+  data: {
     type: Schema.Types.Mixed
   },
   recipient: {

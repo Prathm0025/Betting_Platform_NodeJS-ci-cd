@@ -2,6 +2,8 @@ import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 import NotificationService from "./notificationServices";
 
+import { AuthRequest } from "../utils/utils";
+
 class NotificationController {
   private notificationService: NotificationService;
 
@@ -11,7 +13,8 @@ class NotificationController {
 
   // Using arrow functions to preserve `this` context
   public getNotifications = async (req: Request, res: Response, next: NextFunction) => {
-    const { recipientId } = req.params;
+    const _req = req as AuthRequest;
+    const { userId: recipientId } = _req.user;
 
     try {
       if (!recipientId) {

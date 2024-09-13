@@ -1,12 +1,56 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import { activeRooms } from "../socket/socket";
+import { activeRooms, users } from "../socket/socket";
 import { startWorkers } from "../workers/initWorker";
-import notificationController from "../notifications/notificationController";
-import { ObjectId } from "mongodb";
+import { Redis } from "ioredis";
+import Store from "../store/storeController";
+import Notification from "../notifications/notificationController";
+
 
 const connectDB = async () => {
   try {
+
+    (async () => {
+      try {
+        const redisForSub = new Redis(config.redisUrl);
+        await redisForSub.subscribe("live-update");
+        await redisForSub.subscribe("bet-notifications")
+
+        redisForSub.on("message", async (channel, message) => {
+
+          if (channel === "bet-notifications") {
+            try {
+              const notificationData = JSON.parse(message);
+              const { type, player, agent, betId, playerMessage, agentMessage } = notificationData;
+
+              const playerNotification = await Notification.createNotification('alert', { message: playerMessage, betId: betId }, player._id);
+
+              const agentNotification = await Notification.createNotification('alert', { message: agentMessage, betId: betId }, agent);
+
+              const playerSocket = users.get(player.username);
+
+              if (playerSocket && playerSocket.socket.connected) {
+                playerSocket.sendAlert({
+                  type: "NOTIFICATION",
+                  payload: playerNotification
+                })
+              }
+              console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
+
+            } catch (error) {
+              console.error('Error processing notification:', error);
+            }
+          }
+          else {
+            await Store.updateLiveData();
+          }
+        });
+      } catch (err) {
+        console.log(err)
+      }
+    })()
+
+
     mongoose.connection.on("connected", async () => {
       console.log("Connected to database successfully");
     });
@@ -19,7 +63,6 @@ const connectDB = async () => {
 
     const activeRoomsData = Array.from(activeRooms);
     console.log(activeRoomsData, activeRooms);
-    // notificationController.createNotification(new ObjectId("66cd981c91d869aec34302db"), "error",  "An error Occured","bet",  new ObjectId("66dfc865131e4336ec269fe3"),  "refund" )
     startWorkers()
 
   } catch (err) {
@@ -27,5 +70,9 @@ const connectDB = async () => {
     process.exit(1);
   }
 };
+
+
+
+
 
 export default connectDB;
