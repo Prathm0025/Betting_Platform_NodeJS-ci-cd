@@ -14,6 +14,7 @@ import storeRoutes from "./store/storeRoutes";
 import betRoutes from "./bets/betRoutes"
 import { config } from "./config/config";
 import notificationRoutes from "./notifications/notificationRoutes";
+import { Redis } from "ioredis";
 
 const app = express();
 
@@ -32,7 +33,8 @@ app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
-app.use("/api/notifications", notificationRoutes);
+app.use("/api/notifications", checkUser, notificationRoutes);
+
 
 app.get("/", (req, res, next) => {
   const health = {
@@ -52,6 +54,7 @@ const io = new Server(server, {
   },
 });
 socketController(io);
+
 
 app.use(globalErrorHandler);
 
