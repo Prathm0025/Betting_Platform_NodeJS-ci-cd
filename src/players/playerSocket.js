@@ -140,6 +140,10 @@ class Player {
                         this.sendData({ type: "ODDS", data: oddsData });
                         this.joinRoom(res.payload.sport);
                         break;
+                    case "SEARCH EVENT":
+                        const searchEventData = yield storeController_1.default.searchEvent(res.payload.sport, res.payload.query);
+                        this.sendData({ type: "SEARCH EVENT", data: searchEventData });
+                        break;
                     case "GET event odds":
                         const eventOddsData = yield storeController_1.default.getEventOdds(res.payload.sport, res.payload.eventId, res.payload.markets, res.payload.regions, res.payload.oddsFormat, res.payload.dateFormat);
                         const { bookmakers } = eventOddsData, data = __rest(eventOddsData, ["bookmakers"]);

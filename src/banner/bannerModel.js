@@ -24,31 +24,23 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const notificationSchema = new mongoose_1.Schema({
-    type: {
+const bannerSchema = new mongoose_1.Schema({
+    url: {
         type: String,
-        enum: ["alert", "info", "message"],
-        required: true
+        required: true,
     },
-    data: {
-        type: mongoose_1.Schema.Types.Mixed
+    category: {
+        type: [String],
+        required: true,
     },
-    recipient: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "User" || "Player",
-        required: true
-    },
-    viewed: {
+    status: {
         type: Boolean,
-        default: false
+        require: true,
     },
-    createdAt: {
-        type: Date,
-        default: Date.now
+    title: {
+        type: String,
+        required: true,
     },
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    }
 });
-exports.default = mongoose_1.default.model("Notification", notificationSchema);
+const Banner = mongoose_1.default.model("Banners", bannerSchema);
+exports.default = Banner;

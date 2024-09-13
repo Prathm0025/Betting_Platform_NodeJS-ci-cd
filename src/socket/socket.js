@@ -15,9 +15,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activeRooms = exports.users = void 0;
 const socketMiddleware_1 = require("./socketMiddleware");
 const playerSocket_1 = __importDefault(require("../players/playerSocket"));
+const userActivityController_1 = __importDefault(require("../userActivity/userActivityController"));
 exports.users = new Map();
 exports.activeRooms = new Set();
-const socketController = (io) => {
+const socketController = (io) => __awaiter(void 0, void 0, void 0, function* () {
     // socket authentication middleware
     io.use((socket, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
@@ -60,9 +61,10 @@ const socketController = (io) => {
         else {
             const newUser = new playerSocket_1.default(socket, decoded.userId, username, decoded.credits, io);
             exports.users.set(username, newUser);
-            console.log(`Player ${username} entered the platform.`);
+            // console.log(`Player ${username} entered the platform.`);
+            yield userActivityController_1.default.createActiviySession(username, new Date(Date.now()));
         }
-        socket.on("disconnect", () => {
+        socket.on("disconnect", () => __awaiter(void 0, void 0, void 0, function* () {
             const player = exports.users.get(username);
             if (player) {
                 const room = player.currentRoom;
@@ -74,8 +76,9 @@ const socketController = (io) => {
                     exports.activeRooms.delete(room);
                     console.log(`Room ${room} removed from activeRooms.`);
                 }
+                yield userActivityController_1.default.endSession(username, new Date(Date.now()));
             }
-        });
+        }));
     }));
-};
+});
 exports.default = socketController;

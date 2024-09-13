@@ -189,6 +189,42 @@ class Store {
             return Object.assign(Object.assign({}, data), { markets: selectBookmakers.markets, selected: selectBookmakers === null || selectBookmakers === void 0 ? void 0 : selectBookmakers.key });
         });
     }
+    //search event from getOdds
+    searchEvent(sport, query) {
+        return __awaiter(this, void 0, void 0, function* () {
+            //using getEvents with sportname 
+            const events = yield this.getOdds(sport);
+            if (query === "")
+                return events;
+            let filteredEvents = {
+                live_games: [],
+                todays_upcoming_games: [],
+                future_upcoming_games: [],
+            };
+            events.live_games.forEach((event) => {
+                var _a, _b, _c, _d;
+                if (((_b = (_a = event === null || event === void 0 ? void 0 : event.home_team) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === null || _b === void 0 ? void 0 : _b.includes(query === null || query === void 0 ? void 0 : query.toLowerCase())) ||
+                    ((_d = (_c = event === null || event === void 0 ? void 0 : event.away_team) === null || _c === void 0 ? void 0 : _c.toLowerCase()) === null || _d === void 0 ? void 0 : _d.includes(query === null || query === void 0 ? void 0 : query.toLowerCase()))) {
+                    filteredEvents.live_games.push(event);
+                }
+            });
+            events.todays_upcoming_games.forEach((event) => {
+                var _a, _b, _c, _d;
+                if (((_b = (_a = event === null || event === void 0 ? void 0 : event.home_team) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === null || _b === void 0 ? void 0 : _b.includes(query === null || query === void 0 ? void 0 : query.toLowerCase())) ||
+                    ((_d = (_c = event === null || event === void 0 ? void 0 : event.away_team) === null || _c === void 0 ? void 0 : _c.toLowerCase()) === null || _d === void 0 ? void 0 : _d.includes(query === null || query === void 0 ? void 0 : query.toLowerCase()))) {
+                    filteredEvents.todays_upcoming_games.push(event);
+                }
+            });
+            events.future_upcoming_games.forEach((event) => {
+                var _a, _b, _c, _d;
+                if (((_b = (_a = event === null || event === void 0 ? void 0 : event.home_team) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === null || _b === void 0 ? void 0 : _b.includes(query === null || query === void 0 ? void 0 : query.toLowerCase())) ||
+                    ((_d = (_c = event === null || event === void 0 ? void 0 : event.away_team) === null || _c === void 0 ? void 0 : _c.toLowerCase()) === null || _d === void 0 ? void 0 : _d.includes(query === null || query === void 0 ? void 0 : query.toLowerCase()))) {
+                    filteredEvents.future_upcoming_games.push(event);
+                }
+            });
+            return filteredEvents;
+        });
+    }
     getCategories() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -231,13 +267,25 @@ class Store {
             }
         });
     }
-    updateLiveData(livedata) {
+    updateLiveData() {
         return __awaiter(this, void 0, void 0, function* () {
-            const currentActive = this.removeInactiveRooms();
+            const currentActive = Array.from(socket_1.activeRooms);
+            console.log("currentActive", currentActive);
             for (const sport of currentActive) {
-                const liveGamesForSport = livedata.live_games.filter((game) => game.sport_key === sport);
-                const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter((game) => game.sport_key === sport);
-                const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter((game) => game.sport_key === sport);
+                const liveData = yield this.getOdds(sport);
+                // console.log("livedata", liveData);
+                const liveGamesForSport = liveData.live_games;
+                const todaysUpcomingGamesForSport = liveData.todays_upcoming_games;
+                const futureUpcomingGamesForSport = liveData.future_upcoming_games;
+                // const liveGamesForSport = livedata.live_games.filter(
+                //   (game: any) => game.sport_key === sport
+                // );
+                // const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
+                //   (game: any) => game.sport_key === sport
+                // );
+                // const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
+                //   (game: any) => game.sport_key === sport
+                // );
                 // Check if there's any data for the current sport before emitting
                 if (liveGamesForSport.length > 0 ||
                     todaysUpcomingGamesForSport.length > 0 ||

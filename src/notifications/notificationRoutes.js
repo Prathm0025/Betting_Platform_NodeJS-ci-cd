@@ -6,5 +6,5 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const notificationController_1 = __importDefault(require("./notificationController"));
 const notificationRoutes = express_1.default.Router();
-notificationRoutes.get("/", notificationController_1.default.getUserNotification);
+notificationRoutes.get("/", notificationController_1.default.getNotifications);
 exports.default = notificationRoutes;
