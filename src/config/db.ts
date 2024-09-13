@@ -1,23 +1,49 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import { activeRooms } from "../socket/socket";
+import { activeRooms, users } from "../socket/socket";
 import { startWorkers } from "../workers/initWorker";
 import { Redis } from "ioredis";
-import { io } from "../server";
 import Store from "../store/storeController";
+import Notification from "../notifications/notificationController";
+
 
 const connectDB = async () => {
   try {
 
-    //TODO: implement live update
-    //Subscribe to live-update 
     (async () => {
       try {
         const redisForSub = new Redis(config.redisUrl);
         await redisForSub.subscribe("live-update");
+        await redisForSub.subscribe("bet-notifications")
+
         redisForSub.on("message", async (channel, message) => {
-          console.log(channel, message, "subss");
-          await Store.updateLiveData()
+
+          if (channel === "bet-notifications") {
+            try {
+              const notificationData = JSON.parse(message);
+              const { type, player, agent, betId, playerMessage, agentMessage } = notificationData;
+
+              const playerNotification = await Notification.createNotification('alert', { message: playerMessage, betId: betId }, player._id);
+
+              const agentNotification = await Notification.createNotification('alert', { message: agentMessage, betId: betId }, agent);
+
+              const playerSocket = users.get(player.username);
+
+              if (playerSocket && playerSocket.socket.connected) {
+                playerSocket.sendAlert({
+                  type: "NOTIFICATION",
+                  payload: playerNotification
+                })
+              }
+              console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
+
+            } catch (error) {
+              console.error('Error processing notification:', error);
+            }
+          }
+          else {
+            await Store.updateLiveData();
+          }
         });
       } catch (err) {
         console.log(err)
@@ -39,13 +65,14 @@ const connectDB = async () => {
     console.log(activeRoomsData, activeRooms);
     startWorkers()
 
-
-
-
   } catch (err) {
     console.error("Failed to connect to database.", err);
     process.exit(1);
   }
 };
+
+
+
+
 
 export default connectDB;
