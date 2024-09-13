@@ -27,15 +27,15 @@ const BetDetailSchema: Schema = new Schema({
   oddsFormat: { type: String, required: true },
   status: {
     type: String,
-    enum: ["won", "lost", "pending", "locked", "retry", "redeem", "failed"],
+    enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
-  isResolved:{
-    type:Boolean,
+  isResolved: {
+    type: Boolean,
     default: false,  // Default value if required
 
   }
-});
+}, { timestamps: true });
 
 const BetSchema: Schema = new Schema({
   player: { type: Schema.Types.ObjectId, ref: "Player", required: true },
@@ -44,12 +44,13 @@ const BetSchema: Schema = new Schema({
   possibleWinningAmount: { type: Number, required: true },
   status: {
     type: String,
-    enum: ["won", "lost", "pending", "locked", "retry", "redeem", "failed"],
+    enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
   retryCount: { type: Number, default: 0 },
   betType: { type: String, enum: ["single", "combo"], required: true },
-});
+  isResolved: { type: Boolean, default: false },
+}, { timestamps: true });
 
 export const BetDetail = mongoose.model<IBetDetail>(
   "BetDetail",
