@@ -16,6 +16,7 @@ import { config } from "./config/config";
 import notificationRoutes from "./notifications/notificationRoutes";
 import bannerRoutes from "./banner/bannerRoutes";
 
+
 const app = express();
 
 app.use(
@@ -36,7 +37,12 @@ app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 app.use("/api/notifications", checkUser, notificationRoutes);
+<<<<<<< dev-a-redis
 app.use("/api/banner", checkUser, bannerRoutes);
+=======
+
+
+>>>>>>> dev-g
 
 app.get("/", (req, res, next) => {
   const health = {
@@ -56,6 +62,7 @@ const io = new Server(server, {
   },
 });
 socketController(io);
+
 
 app.use(globalErrorHandler);
 

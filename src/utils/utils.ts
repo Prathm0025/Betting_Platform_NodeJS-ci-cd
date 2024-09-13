@@ -30,19 +30,19 @@ export const hasPermission = async (
 
   const requestingUser = await User.findById(requestingUserId);
   if (!requestingUser) return false;
- console.log( requestingUser, "requesting user");
- 
- const targetUserQuery = requestingUserRole === 'admin' 
- ? { _id: targetUserId } 
- : { _id: targetUserId, createdBy: requestingUserId };
+  console.log(requestingUser, "requesting user");
 
-const targetUser = await User.findOne(targetUserQuery);
-if (!targetUser) return false;
+  const targetUserQuery = requestingUserRole === 'admin'
+    ? { _id: targetUserId }
+    : { _id: targetUserId, createdBy: requestingUserId };
+
+  const targetUser = await User.findOne(targetUserQuery);
+  if (!targetUser) return false;
   console.log(targetUser, "targetUser");
   if (!targetUser) return false;
   const allowedRoles = rolesHierarchy[requestingUserRole] || [];
   console.log(allowedRoles, "allowedroles");
-  
+
   return allowedRoles.includes(targetUser.role);
 };
 
@@ -77,3 +77,4 @@ export interface SearchQuery {
   username?: string;
   amount?: number;
 }
+
