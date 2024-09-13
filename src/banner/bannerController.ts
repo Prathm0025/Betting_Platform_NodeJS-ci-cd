@@ -52,6 +52,9 @@ class BannerController {
       let bannerUploadResult: cloudinary.UploadApiResponse | undefined;
       const bannerBuffer = req.files.banner[0].buffer;
       const { category, title } = req.body;
+      const categories = JSON.parse(category);
+
+      console.log("data", req.body);
 
       bannerUploadResult = await new Promise<cloudinary.UploadApiResponse>(
         (resolve, reject) => {
@@ -75,7 +78,7 @@ class BannerController {
 
       const newBanner = new Banner({
         url: bannerUploadResult.secure_url,
-        category: category,
+        category: categories,
         status: true,
         title: title,
       });
@@ -89,13 +92,15 @@ class BannerController {
   }
   public async updateBanner(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id, status } = req.body;
-      const bannerId = new mongoose.Types.ObjectId(id);
-      const updateBanner = await Banner.findByIdAndUpdate(bannerId, {
-        status: status,
-      });
-      if (!updateBanner) {
-        throw createHttpError(400, "Can't find the banner to update");
+      const { banners, status } = req.body;
+      for (const banner of banners) {
+        const bannerId = new mongoose.Types.ObjectId(banner);
+        const updateBanner = await Banner.findByIdAndUpdate(bannerId, {
+          status: status === "active" ? true : false,
+        });
+        if (!updateBanner) {
+          throw createHttpError(400, "Can't find the banner to update");
+        }
       }
       res.status(200).json({ message: "Banner updated succesfully" });
     } catch (err) {
@@ -104,25 +109,37 @@ class BannerController {
   }
   public async deleteBanner(req: Request, res: Response, next: NextFunction) {
     try {
-      const { url } = req.body;
-      let publicId = "Banner/";
-      const imageId = url.split("/").pop()?.split(".")[0];
-      publicId += imageId;
-      const deletedBanner = await Banner.findOneAndDelete({ url: url });
-      if (!deletedBanner) {
-        throw createHttpError(400, "Banner not found");
-      }
-      if (!publicId) {
-        throw createHttpError(400, "Invalid URL format");
-      }
+      const { banners } = req.body;
 
-      await cloudinary.v2.uploader.destroy(publicId, (destroyError, result) => {
-        if (destroyError) {
-          throw createHttpError(400, "Error deleting image");
-        } else {
-          res.status(200).json({ message: "Banner deleted successfully" });
+      for (const banner of banners) {
+        const bannerId = new mongoose.Types.ObjectId(banner);
+        const bannerData = await Banner.findById(bannerId);
+
+        if (!bannerData) {
+          throw createHttpError(404, "Banner not found in database");
         }
-      });
+
+        const imageId = bannerData.url.split("/").pop()?.split(".")[0];
+        const publicId = `Banner/${imageId}`;
+
+        const cloudinaryResult = await new Promise((resolve, reject) => {
+          cloudinary.v2.uploader.destroy(publicId, (destroyError, result) => {
+            if (destroyError) {
+              return reject(
+                createHttpError(400, "Error deleting image from Cloudinary")
+              );
+            }
+            resolve(result);
+          });
+        });
+
+        const deletedBanner = await Banner.findByIdAndDelete(bannerId);
+
+        if (!deletedBanner) {
+          throw createHttpError(400, "Banner not found in database");
+        }
+      }
+      res.status(200).json({ message: "Banners deleted successfully" });
     } catch (err) {
       next(err);
     }
