@@ -60,7 +60,7 @@ class BannerController {
         (resolve, reject) => {
           cloudinary.v2.uploader
             .upload_stream(
-              { resource_type: "image", folder: "Banner" },
+              { resource_type: "image", folder: config.cloud_folder },
               (error, result) => {
                 if (error) {
                   return reject(error);
@@ -120,7 +120,7 @@ class BannerController {
         }
 
         const imageId = bannerData.url.split("/").pop()?.split(".")[0];
-        const publicId = `Banner/${imageId}`;
+        const publicId = `${config.cloud_folder}/${imageId}`;
 
         const cloudinaryResult = await new Promise((resolve, reject) => {
           cloudinary.v2.uploader.destroy(publicId, (destroyError, result) => {
