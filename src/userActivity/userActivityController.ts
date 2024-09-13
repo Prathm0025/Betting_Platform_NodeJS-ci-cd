@@ -194,6 +194,51 @@ class UserActivityController {
 
 
 
+
+
+async getActivitiesByDate(req: Request, res: Response, next:NextFunction) {
+    try {
+      const { date } = req.query;
+
+      if (!date) {
+        throw createHttpError(400, "Date query parameter is required" )
+      }
+        const activities = await DailyActivity.find({
+            date: {
+                $eq: new Date(date as string) 
+            }
+        })
+        .populate({
+            path: 'actvity', 
+            model: 'Activity'
+        })
+        .populate({
+            path: 'player', 
+            model: 'Player'
+        });
+
+        return res.status(200).json(activities);
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+async getAllDailyActivitiesOfAPlayer(req: Request, res: Response, next:NextFunction){
+  try {
+      const { player } = req.params;
+      const playerDetails = await Player.findOne({username:player});
+      if(!playerDetails){
+        throw createHttpError(404, "Player not found")
+      }
+      const getAllDailyActivitiesOfAPlayer = await DailyActivity.find({player:playerDetails._id})
+      console.log(getAllDailyActivitiesOfAPlayer, playerDetails._id);
+      
+      return res.status(200).json(getAllDailyActivitiesOfAPlayer);
+  } catch (error) {
+     next(error)
+  }
+}
 }
 
 export default new UserActivityController()
