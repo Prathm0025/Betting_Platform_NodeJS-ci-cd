@@ -8,6 +8,7 @@ import Player from "../players/playerModel";
 import { IPlayer } from "../players/playerType";
 import { redisClient } from "../redisclient";
 import Notification from "../notifications/notificationController";
+import { users } from "../socket/socket";
 
 
 async function connectDB() {
@@ -103,7 +104,7 @@ async function processCompletedBet(betDetailId, gameData) {
         console.error("Parent Bet not found for betDetail:", currentBetDetail._id);
         return;
       }
-      
+
       // Process the current bet result
       const result = checkIfPlayerWonBet(currentBetDetail, gameData);
       if (["won", "lost", "draw"].includes(result)) {
@@ -147,6 +148,8 @@ async function processCompletedBet(betDetailId, gameData) {
         await Bet.findByIdAndUpdate(parentBet._id, { status: 'won', isResolved: true });
         await awardWinningsToPlayer(parentBet.player, parentBet.possibleWinningAmount);
         console.log(`Parent Bet with ID ${parentBet._id} won and winnings awarded.`);
+
+
       } else {
         // If all bets are resolved (either won or lost), mark the parent Bet as resolved
         await Bet.findByIdAndUpdate(parentBet._id, { isResolved: true });
@@ -190,6 +193,12 @@ async function processCompletedBet(betDetailId, gameData) {
 
           await Notification.createNotification("alert", { message: agentMessage, betId: currentBetDetail._id }, player.createdBy.toString());
 
+
+          const playerSocket = users.get(player.username);
+          if (playerSocket && playerSocket.socket.connected) {
+            playerSocket.sendData({ type: "BET", data: playerMessage })
+            await Notification.markNotificationAsViewed(currentBetDetail._id);
+          }
           console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
         }
         throw error;
@@ -200,8 +209,6 @@ async function processCompletedBet(betDetailId, gameData) {
 
 
 function checkIfPlayerWonBet(betDetail, gameData) {
-
-  throw new Error("Not implemented");
 
   // check if the game is completed
   if (!gameData.completed) {

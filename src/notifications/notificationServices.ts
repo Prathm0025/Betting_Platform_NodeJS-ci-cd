@@ -11,7 +11,7 @@ class NotificationService {
         this.get = this.get.bind(this);
         this.update = this.update.bind(this);
     }
-    async create(type: "alert" | "info" | "message", payload: any, recipientId: string) {
+    async create(type: "alert" | "info" | "message", data: any, recipientId: string) {
         try {
             const recipient = await UserModel.findById(recipientId) || await PlayerModel.findById(recipientId);
 
@@ -21,7 +21,7 @@ class NotificationService {
 
             const newNotification = new NotificationModel({
                 type,
-                payload,
+                data,
                 recipient: recipientId,
                 viewed: false
             });
