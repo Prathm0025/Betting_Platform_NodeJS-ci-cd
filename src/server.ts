@@ -55,6 +55,28 @@ const io = new Server(server, {
 socketController(io);
 
 
+//WARN: For testing purposes only
+// app.options('*', cors());  // Enable preflight across all routes
+// SSE route to stream notifications to clients
+app.get('/api/notif', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin)
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  // Set the headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Subscribe to the 'notifications' channel
+
+  // Listen for messages on the Redis channel
+  // Send notification as SSE
+  res.write(`data: ${JSON.stringify({ message: 'hi' })}\n\n`);
+  // Clean up when the connection is closed
+  req.on('close', () => {
+    res.end();
+  });
+});
 app.use(globalErrorHandler);
 
 export { io }

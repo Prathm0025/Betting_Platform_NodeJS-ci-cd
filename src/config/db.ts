@@ -6,6 +6,7 @@ import { Redis } from "ioredis";
 import { io } from "../server";
 import Store from "../store/storeController";
 
+
 const connectDB = async () => {
   try {
 
@@ -16,7 +17,7 @@ const connectDB = async () => {
         const redisForSub = new Redis(config.redisUrl);
         await redisForSub.subscribe("live-update");
         redisForSub.on("message", async (channel, message) => {
-          console.log(channel, message, "subss");
+          // console.log(channel, message, "subss");
           await Store.updateLiveData()
         });
       } catch (err) {
