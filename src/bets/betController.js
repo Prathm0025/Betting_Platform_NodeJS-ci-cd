@@ -68,14 +68,6 @@ class BetController {
                 if (amount === 0) {
                     throw new Error("Betting amount can't be zero");
                 }
-                //combo from same event and market
-                // if (betType === "combo") {
-                //   const combinedKeys = betDetails.map((bet) => `${bet.event_id}-${bet.market}`);
-                //   const uniqueCombinedKeys = new Set(combinedKeys);
-                //   if (combinedKeys.length !== uniqueCombinedKeys.size) {
-                //     throw new Error("Invalid combo!");
-                //   }
-                // }
                 // Check if the player already has a pending bet on the same team
                 for (const betDetailData of betDetails) {
                     const existingBetDetails = yield betModel_1.BetDetail.find({
@@ -166,19 +158,34 @@ class BetController {
                     },
                 });
                 playerSocket.sendData({ type: "MYBETS", bets: playerBets });
-                let responseMessage;
+                const selectedTeamName = betDetails[0].bet_on === "home_team"
+                    ? betDetails[0].home_team.name
+                    : betDetails[0].away_team.name;
+                const selectedOdds = betDetails[0].bet_on === "home_team"
+                    ? betDetails[0].home_team.odds
+                    : betDetails[0].away_team.odds;
+                let playerResponseMessage;
+                let agentResponseMessage;
                 if (betType === "single") {
-                    responseMessage = `Single bet on ${betDetails[0].bet_on === "home_team"
-                        ? betDetails[0].home_team.name
-                        : betDetails[0].away_team.name} placed successfully!`;
+                    playerResponseMessage = `Placed a bet on ${selectedTeamName} with odds of ${selectedOdds}. Bet amount: $${amount}.`;
+                    agentResponseMessage = `Player ${player.username} placed a bet of $${amount} on ${selectedTeamName} with odds of ${selectedOdds}. `;
                 }
                 else {
-                    responseMessage = "Combo bet placed sccessfully!";
+                    playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;
+                    ;
+                    agentResponseMessage = `Player ${player.username} placed a combo bet of $${amount}.`;
                 }
-                playerSocket.sendMessage({
-                    type: "BET",
-                    data: responseMessage,
-                });
+                redisclient_1.redisClient.publish("bet-notifications", JSON.stringify({
+                    type: "BET_PLACED",
+                    player: {
+                        _id: player._id.toString(),
+                        username: player.username
+                    },
+                    agent: player.createdBy.toString(),
+                    betId: bet._id.toString(),
+                    playerMessage: playerResponseMessage,
+                    agentMessage: agentResponseMessage
+                }));
                 // Commit the transaction
                 yield session.commitTransaction();
                 session.endSession();
@@ -518,10 +525,9 @@ class BetController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { betDetailId } = req.params;
-                const { status } = req.body;
-                console.log("RESOLVE BET : ", status);
+                const { status } = req.body; // won - lost
                 const updatedBetDetails = yield betModel_1.BetDetail.findByIdAndUpdate(betDetailId, {
-                    status: status
+                    status: status,
                 }, { new: true });
                 if (!updatedBetDetails) {
                     throw (0, http_errors_1.default)(404, "Bet detail not found");
@@ -533,22 +539,23 @@ class BetController {
                 }
                 const parentBetStatus = parentBet.status;
                 if (parentBetStatus === "lost") {
-                    return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" });
+                    return res.status(200).json({ message: "Bet detail Updated" });
                 }
                 if (status !== "won") {
-                    parentBet.status === "lost";
+                    parentBet.status = "lost";
                     yield parentBet.save();
-                    console.log("log :", status);
-                    return res.status(200).json({ message: "Bet detail Updated, Combo bet lost" });
+                    return res.status(200).json({ message: "Bet detail Updated" });
                 }
                 const allBetDetails = yield betModel_1.BetDetail.find({ _id: { $in: parentBet.data } });
-                const hasNotWon = allBetDetails.some(detail => detail.status !== 'won');
+                const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
                 if (!hasNotWon && parentBet.status !== "won") {
                     const playerId = parentBet.player;
                     const possibleWinningAmount = parentBet.possibleWinningAmount;
                     const player = yield playerModel_1.default.findById(playerId);
-                    player.credits += possibleWinningAmount;
-                    yield player.save();
+                    if (player) {
+                        player.credits += possibleWinningAmount;
+                        yield player.save();
+                    }
                     parentBet.status = "won";
                     yield parentBet.save();
                     const playerSocket = socket_1.users.get(player.username);
@@ -556,7 +563,7 @@ class BetController {
                         playerSocket.sendData({ type: "CREDITS", credits: player.credits });
                     }
                 }
-                res.status(200).json({ message: "Bet Detail Status Updated" });
+                return res.status(200).json({ message: "Bet detail status updated" });
             }
             catch (error) {
                 next(error);

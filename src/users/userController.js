@@ -52,13 +52,16 @@ class UserController {
     login(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { username, password, captchaToken, captcha } = req.body;
+                const { username, password, captcha, captchaToken } = req.body;
                 const sanitizedUsername = (0, utils_1.sanitizeInput)(username);
                 console.log(sanitizedUsername, "username");
                 const sanitizedPassword = (0, utils_1.sanitizeInput)(password);
                 const sanitizedcaptachaToken = (0, utils_1.sanitizeInput)(captchaToken);
                 const sanitizedCaptcha = (0, utils_1.sanitizeInput)(captcha);
-                if (!sanitizedUsername || !sanitizedPassword || !sanitizedcaptachaToken || !sanitizedCaptcha) {
+                if (!sanitizedUsername ||
+                    !sanitizedPassword ||
+                    !sanitizedcaptachaToken ||
+                    !sanitizedCaptcha) {
                     throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
                 }
                 const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
@@ -82,7 +85,12 @@ class UserController {
                 }
                 user.lastLogin = new Date();
                 yield user.save();
-                const token = jsonwebtoken_1.default.sign({ userId: user._id, username: user.username, role: user.role, credits: user.credits }, config_1.config.jwtSecret, { expiresIn: "24h" });
+                const token = jsonwebtoken_1.default.sign({
+                    userId: user._id,
+                    username: user.username,
+                    role: user.role,
+                    credits: user.credits,
+                }, config_1.config.jwtSecret, { expiresIn: "24h" });
                 res.cookie("userToken", token, {
                     maxAge: 1000 * 60 * 60 * 24 * 7,
                     httpOnly: true,
@@ -143,15 +151,15 @@ class UserController {
                 let periodStart;
                 let periodEnd;
                 switch (period) {
-                    case 'week':
+                    case "week":
                         periodStart = startOfWeek;
                         periodEnd = today;
                         break;
-                    case 'month':
+                    case "month":
                         periodStart = startOfMonth;
                         periodEnd = today;
                         break;
-                    case 'today':
+                    case "today":
                     default:
                         periodStart = startOfDay;
                         periodEnd = endOfDay;
@@ -168,13 +176,15 @@ class UserController {
     }
     getPeriodSummary(startPeriod, endPeriod, limitBets, limitTransactions, user) {
         return __awaiter(this, void 0, void 0, function* () {
-            const [lastTransactions, transactionTotals, subordinateCounts, totalRecharged, totalRedeemed, playerCounts] = yield Promise.all([
+            const [lastTransactions, transactionTotals, subordinateCounts, totalRecharged, totalRedeemed, playerCounts,] = yield Promise.all([
                 this.getLastTransactions(limitTransactions, user),
                 this.getTransactionTotals(startPeriod, endPeriod, user),
                 this.getSubordinateCounts(startPeriod, endPeriod, user),
                 this.getTotalRecharged(startPeriod, endPeriod, user),
                 this.getTotalRedeemed(startPeriod, endPeriod, user),
-                (user.role === 'agent' || user.role === 'admin') ? this.getPlayerCounts(startPeriod, endPeriod, user) : undefined,
+                user.role === "agent" || user.role === "admin"
+                    ? this.getPlayerCounts(startPeriod, endPeriod, user)
+                    : undefined,
             ]);
             const result = {
                 lastTransactions,
@@ -183,7 +193,7 @@ class UserController {
                 totalRecharged: totalRecharged[0] || {},
                 totalRedeemed: totalRedeemed[0] || {},
             };
-            if (user.role === 'agent' || user.role === 'admin') {
+            if (user.role === "agent" || user.role === "admin") {
                 const lastBets = yield this.getLastBets(limitBets, user);
                 result.lastBets = lastBets;
                 result.betTotals = yield this.getBetTotals(startPeriod, endPeriod, user);
@@ -194,13 +204,11 @@ class UserController {
     }
     getLastBets(limit, user) {
         return __awaiter(this, void 0, void 0, function* () {
-            const query = user.role === 'admin'
-                ? {}
-                : { player: { $in: user.players } };
+            const query = user.role === "admin" ? {} : { player: { $in: user.players } };
             return betModel_1.default.find(query)
                 .sort({ date: -1 })
                 .limit(limit)
-                .populate('player', 'username _id')
+                .populate("player", "username _id")
                 .populate({
                 path: "data",
                 populate: {
@@ -215,20 +223,20 @@ class UserController {
         return __awaiter(this, void 0, void 0, function* () {
             const query = {};
             let userId = user._id;
-            if (user.role !== 'admin') {
+            if (user.role !== "admin") {
                 query.$or = [
                     { sender: userId },
                     { receiver: userId },
                     { sender: { $in: user.subordinates } },
-                    { receiver: { $in: user.subordinates } }
+                    { receiver: { $in: user.subordinates } },
                 ];
             }
             return transactionModel_1.default.find(query)
                 .sort({ date: -1 })
                 .limit(limit)
-                .select('+senderModel +receiverModel')
-                .populate('sender', 'username')
-                .populate('receiver', 'username')
+                .select("+senderModel +receiverModel")
+                .populate("sender", "username")
+                .populate("receiver", "username")
                 .exec();
         });
     }
@@ -237,7 +245,7 @@ class UserController {
             const matchCriteria = {
                 updatedAt: { $gte: startPeriod, $lt: endPeriod },
             };
-            if (user.role === 'agent') {
+            if (user.role === "agent") {
                 matchCriteria.player = { $in: user.players };
             }
             return betModel_1.default.aggregate([
@@ -245,7 +253,7 @@ class UserController {
                 {
                     $group: {
                         _id: null,
-                        totalPeriod: { $sum: '$amount' },
+                        totalPeriod: { $sum: "$amount" },
                         countPeriod: { $sum: 1 },
                     },
                 },
@@ -259,7 +267,7 @@ class UserController {
             };
             console.log(startPeriod, endPeriod);
             let userId = user._id;
-            if (user.role !== 'admin') {
+            if (user.role !== "admin") {
                 matchCriteria.$or = [
                     { sender: { $in: user.subordinates } },
                     { receiver: { $in: user.subordinates } },
@@ -272,7 +280,7 @@ class UserController {
                 {
                     $group: {
                         _id: null,
-                        totalPeriod: { $sum: '$amount' },
+                        totalPeriod: { $sum: "$amount" },
                         countPeriod: { $sum: 1 },
                     },
                 },
@@ -283,9 +291,9 @@ class UserController {
         return __awaiter(this, void 0, void 0, function* () {
             const matchCriteria = {
                 createdAt: { $gte: startPeriod, $lt: endPeriod },
-                role: { $in: ['distributor', 'subdistributor', 'agent'] },
+                role: { $in: ["distributor", "subdistributor", "agent"] },
             };
-            if (user.role !== 'admin') {
+            if (user.role !== "admin") {
                 matchCriteria.createdBy = user._id;
             }
             return userModel_1.default.aggregate([
@@ -302,11 +310,16 @@ class UserController {
     getTotalRecharged(startPeriod, endPeriod, user) {
         return __awaiter(this, void 0, void 0, function* () {
             return transactionModel_1.default.aggregate([
-                { $match: { type: 'recharge', date: { $gte: startPeriod, $lt: endPeriod } } },
+                {
+                    $match: {
+                        type: "recharge",
+                        date: { $gte: startPeriod, $lt: endPeriod },
+                    },
+                },
                 {
                     $group: {
                         _id: null,
-                        totalRecharged: { $sum: '$amount' },
+                        totalRecharged: { $sum: "$amount" },
                     },
                 },
             ]).exec();
@@ -315,11 +328,13 @@ class UserController {
     getTotalRedeemed(startPeriod, endPeriod, user) {
         return __awaiter(this, void 0, void 0, function* () {
             return transactionModel_1.default.aggregate([
-                { $match: { type: 'redeem', date: { $gte: startPeriod, $lt: endPeriod } } },
+                {
+                    $match: { type: "redeem", date: { $gte: startPeriod, $lt: endPeriod } },
+                },
                 {
                     $group: {
                         _id: null,
-                        totalRedeemed: { $sum: '$amount' },
+                        totalRedeemed: { $sum: "$amount" },
                     },
                 },
             ]).exec();
@@ -330,7 +345,7 @@ class UserController {
             const matchCriteria = {
                 createdAt: { $gte: startPeriod, $lt: endPeriod },
             };
-            if (user.role === 'agent') {
+            if (user.role === "agent") {
                 matchCriteria.createdBy = user._id;
             }
             return playerModel_1.default.aggregate([

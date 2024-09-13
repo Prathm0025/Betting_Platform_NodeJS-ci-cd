@@ -42,7 +42,7 @@ const betModel_1 = __importStar(require("../bets/betModel"));
 const ProcessingQueue_1 = require("../utils/ProcessingQueue");
 const config_1 = require("../config/config");
 const playerModel_1 = __importDefault(require("../players/playerModel"));
-const notificationController_1 = __importDefault(require("../notifications/notificationController"));
+const redisclient_1 = require("../redisclient");
 function connectDB() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -70,7 +70,6 @@ function processBets(sportKeys, bets) {
                     continue;
                 }
                 const { completedGames } = scoresData;
-                console.log("COMPLETED GAMES : ", scoresData);
                 for (const game of completedGames) {
                     const betsToBeProcess = bets.filter((b) => b.event_id === game.id);
                     if (betsToBeProcess.length > 0) {
@@ -80,8 +79,6 @@ function processBets(sportKeys, bets) {
                                 yield (0, ProcessingQueue_1.removeItem)(JSON.stringify(bet));
                             }
                             catch (error) {
-                                // In case of error, mark the parent bet as unresolved
-                                console.error(`Error during processing of bet detail with ID ${bet._id}:`, error);
                                 // Retrieve the parent bet of the current bet detail
                                 const parentBet = yield betModel_1.default.findById(bet.key); // Assuming `key` references the parent bet
                                 if (parentBet) {
@@ -104,8 +101,6 @@ function processBets(sportKeys, bets) {
         }
     });
 }
-// If any bet is lost then mark it as unresolved
-// and remove all the bets associated with it from waiting queue and processing queue 
 function processCompletedBet(betDetailId, gameData) {
     return __awaiter(this, void 0, void 0, function* () {
         const maxRetries = 3;
@@ -113,21 +108,25 @@ function processCompletedBet(betDetailId, gameData) {
         let currentBetDetail;
         while (retryCount < maxRetries) {
             try {
-                console.log("Associated game data:", JSON.stringify(gameData, null, 2));
                 // Find the current BetDetail
                 currentBetDetail = yield betModel_1.BetDetail.findById(betDetailId);
                 if (!currentBetDetail) {
                     console.error("BetDetail not found:", betDetailId);
                     return;
                 }
-                console.log("CURRENT BET : ", currentBetDetail);
                 // Find the parent Bet associated with the BetDetail
                 const parentBet = yield betModel_1.default.findById(currentBetDetail.key);
                 if (!parentBet) {
                     console.error("Parent Bet not found for betDetail:", currentBetDetail._id);
                     return;
                 }
-                console.log("PARENT : ", parentBet);
+                const playerId = parentBet.player.toString();
+                const player = yield playerModel_1.default.findById(playerId);
+                if (!player) {
+                    console.error("Player not found:", playerId);
+                    return;
+                }
+                const agentId = player.createdBy.toString();
                 // Process the current bet result
                 const result = checkIfPlayerWonBet(currentBetDetail, gameData);
                 if (["won", "lost", "draw"].includes(result)) {
@@ -138,34 +137,60 @@ function processCompletedBet(betDetailId, gameData) {
                 }
                 // Fetch the updated BetDetail to ensure status change
                 currentBetDetail = yield betModel_1.BetDetail.findById(currentBetDetail._id).lean();
-                console.log("UPDATED BET DETAIL: ", currentBetDetail);
                 // After updating the current BetDetail, check the status of all BetDetails
                 const updatedBetDetails = yield betModel_1.BetDetail.find({ _id: { $in: parentBet.data } });
-                // Log the updated details
-                console.log("UPDATED BET : ", updatedBetDetails);
                 // Check if any BetDetail is lost or failed
                 const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
                 const anyBetFailed = updatedBetDetails.some(detail => detail.status === 'failed');
                 // If any bet is lost, mark the parent bet as lost and stop further processing
                 if (anyBetLost) {
                     yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
-                    console.log(`Parent Bet with ID ${parentBet._id} updated to 'lost'`);
-                    return; // Stop processing other bet details under this parent
+                    redisclient_1.redisClient.publish("bet-notifications", JSON.stringify({
+                        type: "BET_LOST",
+                        player: {
+                            _id: playerId,
+                            username: player.username
+                        },
+                        agent: agentId,
+                        betId: parentBet._id,
+                        playerMessage: `Unfortunately, you lost your bet (ID: ${parentBet._id}). Better luck next time!`,
+                        agentMessage: `A player's bet (ID: ${parentBet._id}) has lost. Please review the details.`
+                    }));
+                    return;
                 }
                 // If any bet fails, mark the parent bet as failed and stop further processing
                 if (anyBetFailed) {
                     yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'failed', isResolved: false });
-                    console.log(`Parent Bet with ID ${parentBet._id} updated to 'failed' due to one or more failed bets.`);
-                    return; // Stop processing other bet details under this parent
+                    redisclient_1.redisClient.publish("bet-notifications", JSON.stringify({
+                        type: "BET_FAILED",
+                        player: {
+                            _id: playerId,
+                            username: player.username
+                        },
+                        agent: agentId,
+                        betId: parentBet._id,
+                        playerMessage: `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
+                        agentMessage: `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
+                    }));
+                    return;
                 }
                 // Check if all BetDetails are won
                 const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
-                console.log("ALL WON : ", allBetsWon);
                 // If all BetDetails are won, mark the parent bet as won and award the winnings
                 if (allBetsWon) {
                     yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'won', isResolved: true });
                     yield awardWinningsToPlayer(parentBet.player, parentBet.possibleWinningAmount);
-                    console.log(`Parent Bet with ID ${parentBet._id} won and winnings awarded.`);
+                    redisclient_1.redisClient.publish("bet-notifications", JSON.stringify({
+                        type: "BET_WON",
+                        player: {
+                            _id: playerId,
+                            username: player.username
+                        },
+                        agentId,
+                        betId: parentBet._id,
+                        message: `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`,
+                        agentMessage: `Player ${player.username} has won the bet with ID ${parentBet._id}, and the winnings of $${parentBet.possibleWinningAmount} have been awarded.`
+                    }));
                 }
                 else {
                     // If all bets are resolved (either won or lost), mark the parent Bet as resolved
@@ -182,21 +207,26 @@ function processCompletedBet(betDetailId, gameData) {
                         status: 'failed',
                         isResolved: false,
                     });
-                    console.log(`BetDetail with ID ${betDetailId} marked as 'failed' due to error.`);
                 }
                 retryCount++;
                 if (retryCount >= maxRetries) {
-                    console.error("Max retries reached. Aborting processing.");
                     // Remove the failed bet from the processing queue
                     yield (0, ProcessingQueue_1.removeItem)(JSON.stringify(currentBetDetail));
-                    console.log(`Removed BetDetail with ID ${currentBetDetail._id} from processing queue.`);
                     // Mark the parent bet as failed due to a processing issue
                     if (currentBetDetail) {
                         const parentBet = yield betModel_1.default.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
                         const player = yield playerModel_1.default.findById(parentBet.player);
-                        const targetId = player.createdBy;
-                        const parentBetId = parentBet._id;
-                        notificationController_1.default.createNotification(player._id, targetId, 'error', ` Bet failed during processing : {${currentBetDetail._id}}`, "bet", parentBetId, "refund");
+                        redisclient_1.redisClient.publish("bet-notifications", JSON.stringify({
+                            type: "BET_FAILED",
+                            player: {
+                                _id: player._id,
+                                username: player.username
+                            },
+                            agent: player.createdBy,
+                            betId: parentBet._id,
+                            playerMessage: `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
+                            agentMessage: `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
+                        }));
                         console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
                     }
                     throw error;
@@ -280,8 +310,8 @@ const processBetsFromQueue = () => __awaiter(void 0, void 0, void 0, function* (
                 }
             }
             const sportKeys = Array.from(sports);
-            console.log(sportKeys, "sports key array");
-            console.log("Bets data after dequeuing:", bets);
+            // console.log(sportKeys, "sports key array");
+            // console.log("Bets data after dequeuing:", bets);
             if (bets.length > 0) {
                 yield processBets(sportKeys, bets); // Process bets if data exists
             }
@@ -300,9 +330,18 @@ const processBetsFromQueue = () => __awaiter(void 0, void 0, void 0, function* (
 function startWorker() {
     return __awaiter(this, void 0, void 0, function* () {
         console.log("Processing Queue Worker Started");
+        let tick = 0;
         setInterval(() => __awaiter(this, void 0, void 0, function* () {
             try {
                 console.log("Processing Bet.........");
+                if (tick === 0) {
+                    ++tick;
+                    //NOTE: implemented pub sub to tell main thread to broadcast to client for ~live update(60s)
+                    redisclient_1.redisClient.publish('live-update', 'true');
+                }
+                else {
+                    tick = 0;
+                }
                 yield processBetsFromQueue();
             }
             catch (error) {

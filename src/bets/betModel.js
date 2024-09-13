@@ -58,7 +58,7 @@ const BetDetailSchema = new mongoose_1.Schema({
         type: Boolean,
         default: false, // Default value if required
     }
-});
+}, { timestamps: true });
 const BetSchema = new mongoose_1.Schema({
     player: { type: mongoose_1.Schema.Types.ObjectId, ref: "Player", required: true },
     data: [{ type: mongoose_1.Schema.Types.ObjectId, ref: "BetDetail", required: true }],
@@ -72,7 +72,7 @@ const BetSchema = new mongoose_1.Schema({
     retryCount: { type: Number, default: 0 },
     betType: { type: String, enum: ["single", "combo"], required: true },
     isResolved: { type: Boolean, default: false },
-});
+}, { timestamps: true });
 exports.BetDetail = mongoose_1.default.model("BetDetail", BetDetailSchema);
 const Bet = mongoose_1.default.model("Bet", BetSchema);
 exports.default = Bet;

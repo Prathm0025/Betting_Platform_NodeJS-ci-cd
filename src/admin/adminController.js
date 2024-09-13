@@ -19,6 +19,12 @@ const userModel_1 = __importDefault(require("../users/userModel"));
 const config_1 = require("../config/config");
 const otp_1 = require("../utils/otp");
 const mongoose_1 = __importDefault(require("mongoose"));
+const cloudinary_1 = __importDefault(require("cloudinary"));
+cloudinary_1.default.v2.config({
+    cloud_name: config_1.config.cloud_name,
+    api_key: config_1.config.api_key,
+    api_secret: config_1.config.api_secret,
+});
 class AdminController {
     constructor() {
         this.requestOtp = this.requestOtp.bind(this);
@@ -27,22 +33,25 @@ class AdminController {
         return __awaiter(this, void 0, void 0, function* () {
             const { user } = req.body;
             if (!user) {
-                return next((0, http_errors_1.default)(400, 'User details are required'));
+                return next((0, http_errors_1.default)(400, "User details are required"));
             }
             const email = config_1.config.sentToMail;
             const otp = (0, otp_1.generateOtp)();
             // Store the OTP with and expiration time
-            AdminController.otpStore.set(email, { otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
-            console.log('OTP stored in memory: ', AdminController.otpStore);
+            AdminController.otpStore.set(email, {
+                otp,
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+            });
+            console.log("OTP stored in memory: ", AdminController.otpStore);
             try {
-                console.time('otp-sent');
+                console.time("otp-sent");
                 yield (0, otp_1.sendOtp)(email, otp);
-                console.timeEnd('otp-sent');
-                res.status(200).json({ message: 'OTP sent successfully' });
+                console.timeEnd("otp-sent");
+                res.status(200).json({ message: "OTP sent successfully" });
             }
             catch (error) {
-                console.error('Error sending OTP:', error);
-                next((0, http_errors_1.default)(500, 'Failed to send OTP'));
+                console.error("Error sending OTP:", error);
+                next((0, http_errors_1.default)(500, "Failed to send OTP"));
             }
         });
     }
@@ -52,13 +61,13 @@ class AdminController {
             const receiverEmail = config_1.config.sentToMail;
             const storedOtp = AdminController.otpStore.get(receiverEmail);
             if (!otp || !user) {
-                return next((0, http_errors_1.default)(400, 'OTP and user details are required'));
+                return next((0, http_errors_1.default)(400, "OTP and user details are required"));
             }
             if (!storedOtp || new Date() > storedOtp.expiresAt) {
-                return next((0, http_errors_1.default)(400, 'OTP expired'));
+                return next((0, http_errors_1.default)(400, "OTP expired"));
             }
             if (storedOtp.otp !== otp) {
-                return next((0, http_errors_1.default)(400, 'Invalid OTP'));
+                return next((0, http_errors_1.default)(400, "Invalid OTP"));
             }
             // Delete the OTP from the store
             AdminController.otpStore.delete(receiverEmail);
@@ -73,17 +82,24 @@ class AdminController {
                 if (!sanitizedUsername || !sanitizedPassword) {
                     throw (0, http_errors_1.default)(400, "Username, password are required");
                 }
-                const existingAdmin = yield userModel_1.default.findOne({ username: sanitizedUsername }).session(session);
+                const existingAdmin = yield userModel_1.default.findOne({
+                    username: sanitizedUsername,
+                }).session(session);
                 if (existingAdmin) {
                     throw (0, http_errors_1.default)(400, "Username already exists");
                 }
                 const hashedPassword = yield bcrypt_1.default.hash(sanitizedPassword, AdminController.saltRounds);
-                const newAdmin = new userModel_1.default({ username: sanitizedUsername, password: hashedPassword });
+                const newAdmin = new userModel_1.default({
+                    username: sanitizedUsername,
+                    password: hashedPassword,
+                });
                 newAdmin.credits = Infinity;
                 newAdmin.role = "admin";
                 yield newAdmin.save({ session });
                 yield session.commitTransaction();
-                res.status(201).json({ message: "Admin Created Succesfully", admin: newAdmin });
+                res
+                    .status(201)
+                    .json({ message: "Admin Created Succesfully", admin: newAdmin });
             }
             catch (error) {
                 yield session.abortTransaction();

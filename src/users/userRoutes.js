@@ -11,4 +11,5 @@ userRoutes.get("/", middleware_1.checkUser, userController_1.default.getCurrentU
 userRoutes.get("/captcha", userController_1.default.getCaptcha);
 userRoutes.post("/login", userController_1.default.login);
 userRoutes.get("/summary/:id", middleware_1.checkUser, (0, middleware_1.verifyRole)(["agent", "admin", "distributor", "subdistributor"]), userController_1.default.getSummary);
+// userRoutes.get("/notifications", checkUser, userController.getNotifications);
 exports.default = userRoutes;

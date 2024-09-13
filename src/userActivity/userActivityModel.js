@@ -23,32 +23,43 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Activity = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const notificationSchema = new mongoose_1.Schema({
-    type: {
-        type: String,
-        enum: ["alert", "info", "message"],
+const activitySchemaFileds = {
+    startTime: {
+        type: Date,
         required: true
     },
-    data: {
-        type: mongoose_1.Schema.Types.Mixed
-    },
-    recipient: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "User" || "Player",
-        required: true
-    },
-    viewed: {
-        type: Boolean,
-        default: false
-    },
-    createdAt: {
+    endTime: {
         type: Date,
-        default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
+        default: null
     }
+};
+const activitySchema = new mongoose_1.Schema(activitySchemaFileds, {
+    collection: 'activity',
+    timestamps: true
 });
-exports.default = mongoose_1.default.model("Notification", notificationSchema);
+exports.Activity = mongoose_1.default.model('Activity', activitySchema);
+const dailyActivityFields = {
+    date: {
+        type: Date,
+        required: true
+    },
+    player: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Player',
+        required: true
+    },
+    actvity: [
+        {
+            type: mongoose_1.Schema.Types.ObjectId,
+            ref: 'Activity'
+        }
+    ]
+};
+const dailyActivitySchema = new mongoose_1.Schema(dailyActivityFields, {
+    collection: 'dailyActivity',
+    timestamps: true
+});
+const DailyActivity = mongoose_1.default.model('DailyActivity', dailyActivitySchema);
+exports.default = DailyActivity;
