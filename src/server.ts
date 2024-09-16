@@ -37,12 +37,7 @@ app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 app.use("/api/notifications", checkUser, notificationRoutes);
-<<<<<<< dev-a-redis
 app.use("/api/banner", checkUser, bannerRoutes);
-=======
-
-
->>>>>>> dev-g
 
 app.get("/", (req, res, next) => {
   const health = {
