@@ -38,7 +38,7 @@ const connectDB = async () => {
                 })
               }
               const agentRes = agents.get(agent)
-              console.log(agentRes, "agentRes");
+              // console.log(agentRes, "agentRes");
               if (agentRes) {
                 agentRes.write(`data: ${JSON.stringify(agentNotification)}\n\n`);
               }
