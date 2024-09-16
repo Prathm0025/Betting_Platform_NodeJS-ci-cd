@@ -3,6 +3,7 @@ import notificationController from "./notificationController";
 import { config } from "../config/config";
 import jwt from "jsonwebtoken";
 import { agents } from "../utils/utils";
+import { checkUser } from "../utils/middleware";
 
 const notificationRoutes = express.Router();
 
@@ -29,5 +30,8 @@ notificationRoutes.get('/agent', (req, res) => {
     res.end();
   });
 });
+
+//another route to get notifications
+notificationRoutes.get("/get", checkUser, notificationController.getNotifications);
 
 export default notificationRoutes;
