@@ -5,6 +5,7 @@ import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 import Bet from "../bets/betModel";
 import Transaction from "../transactions/transactionModel";
+import mongoose from "mongoose";
 
 class UserActivityController {
 
@@ -84,11 +85,15 @@ class UserActivityController {
 
   async getBetsAndTransactionsInActivitySession(req:Request, res:Response , next:NextFunction) {
     try{
-    const {startTime, endTime} = req.body;
-    const betsAggregation = Bet.aggregate([
+      console.log("red");
+      
+      const { startTime, endTime, playerId } = req.body; 
+      const betsAggregation = Bet.aggregate([
       {
         $match: {
           createdAt: { $gte: startTime, $lte: endTime },
+          player: playerId, // Filter by playerId
+
         },
       },
       {
@@ -185,7 +190,8 @@ class UserActivityController {
 
     const [bets, transactions] = await Promise.all([betsAggregation, transactionsAggregation]);
 
-    return { bets, transactions };
+    return res.status(200).json(    { bets, transactions }
+    );
 
   }catch(error){
 
@@ -196,33 +202,49 @@ class UserActivityController {
 
 
 
-async getActivitiesByDate(req: Request, res: Response, next:NextFunction) {
+  async  getActivitiesByDate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { date } = req.query;
+        const { date, playerId } = req.query;
+        console.log(date, playerId);
+        
+        if (!date) {
+            throw createHttpError(400, "Date query parameter is required");
+        }
 
-      if (!date) {
-        throw createHttpError(400, "Date query parameter is required" )
-      }
-        const activities = await DailyActivity.find({
-            date: {
-                $eq: new Date(date as string) 
-            }
+        if (!playerId) {
+            throw createHttpError(400, "Player ID query parameter is required");
+        }
+
+        // Validate the date format
+        const parsedDate = new Date(date as string);
+        if (isNaN(parsedDate.getTime())) {
+            throw createHttpError(400, "Invalid date format");
+        }
+
+   
+        const playerObjectId = new mongoose.Types.ObjectId(playerId as string);
+
+        // Find activities by date and player
+        const activities = await DailyActivity.findOne({
+            date: parsedDate,
+            player: playerObjectId // Adjust this if playerId needs to be an ObjectId
         })
         .populate({
-            path: 'actvity', 
-            model: 'Activity'
+            path: 'actvity', // Check field name; assumed to be 'activity' based on context
         })
         .populate({
-            path: 'player', 
+            path: 'player',
             model: 'Player'
         });
+        const populatedActivities = activities.actvity;
 
-        return res.status(200).json(activities);
+        return res.status(200).json(populatedActivities);
     } catch (error) {
+      console.log(error);
+      
         next(error);
     }
-};
-
+}
 
 async getAllDailyActivitiesOfAPlayer(req: Request, res: Response, next:NextFunction){
   try {
@@ -231,10 +253,10 @@ async getAllDailyActivitiesOfAPlayer(req: Request, res: Response, next:NextFunct
       if(!playerDetails){
         throw createHttpError(404, "Player not found")
       }
-      const getAllDailyActivitiesOfAPlayer = await DailyActivity.find({player:playerDetails._id})
-      console.log(getAllDailyActivitiesOfAPlayer, playerDetails._id);
+      const getDailyActivitiesOfAPlayer = await DailyActivity.find({player:playerDetails._id})
+      console.log(getDailyActivitiesOfAPlayer, playerDetails._id);
       
-      return res.status(200).json(getAllDailyActivitiesOfAPlayer);
+      return res.status(200).json(getDailyActivitiesOfAPlayer);
   } catch (error) {
      next(error)
   }
