@@ -12,7 +12,6 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
-import Notification from "../notifications/notificationController";
 
 class BetController {
   public async placeBet(
@@ -177,27 +176,24 @@ class BetController {
 
       if (betType === "single") {
         playerResponseMessage = `Placed a bet on ${selectedTeamName} with odds of ${selectedOdds}. Bet amount: $${amount}.`;
-
         agentResponseMessage = `Player ${player.username} placed a bet of $${amount} on ${selectedTeamName} with odds of ${selectedOdds}. `;
 
       } else {
         playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;;
-
         agentResponseMessage = `Player ${player.username} placed a combo bet of $${amount}.`;
       }
-      playerSocket.sendMessage({
-        type: "BET",
-        data: playerResponseMessage,
-      });
 
-      const playerNotification = await Notification.createNotification("alert", { message: playerResponseMessage, betId: bet._id }, player._id.toString())
-
-
-      const agentNotification = await Notification.createNotification("alert", { message: agentResponseMessage, betId: bet._id }, player.createdBy.toString())
-
-      if (playerSocket.socket.connected) {
-        await Notification.markNotificationAsViewed(playerNotification._id);
-      }
+      redisClient.publish("bet-notifications", JSON.stringify({
+        type: "BET_PLACED",
+        player: {
+          _id: player._id.toString(),
+          username: player.username
+        },
+        agent: player.createdBy.toString(),
+        betId: bet._id.toString(),
+        playerMessage: playerResponseMessage,
+        agentMessage: agentResponseMessage
+      }))
 
       // Commit the transaction
       await session.commitTransaction();
