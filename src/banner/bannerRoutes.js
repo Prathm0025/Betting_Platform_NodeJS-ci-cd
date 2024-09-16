@@ -14,7 +14,7 @@ const upload = (0, multer_1.default)({
     limits: { fileSize: 50 * 1024 * 1024 * 1024 },
 });
 bannerRoutes.post("/", (0, middleware_1.verifyRole)(["admin"]), upload.fields([{ name: "banner" }]), bannerController.addBanner);
-bannerRoutes.get("/", (0, middleware_1.verifyRole)(["admin"]), bannerController.getBanners);
+bannerRoutes.get("/", middleware_1.checkUser, bannerController.getBanners);
 bannerRoutes.put("/", (0, middleware_1.verifyRole)(["admin"]), bannerController.updateBanner);
 bannerRoutes.delete("/", (0, middleware_1.verifyRole)(["admin"]), bannerController.deleteBanner);
 bannerRoutes.get("/category", (0, middleware_1.verifyRole)(["admin"]), bannerController.getCategory);

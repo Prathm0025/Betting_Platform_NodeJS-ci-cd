@@ -25,7 +25,8 @@ class NotificationService {
     create(type, data, recipientId) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const recipient = (yield userModel_1.default.findById(recipientId)) || (yield playerModel_1.default.findById(recipientId));
+                const recipient = (yield userModel_1.default.findById(recipientId)) ||
+                    (yield playerModel_1.default.findById(recipientId));
                 if (!recipient) {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
@@ -33,7 +34,7 @@ class NotificationService {
                     type,
                     data,
                     recipient: recipientId,
-                    viewed: false
+                    viewed: false,
                 });
                 yield newNotification.save();
                 return newNotification;
@@ -43,14 +44,15 @@ class NotificationService {
             }
         });
     }
-    get(recipientId) {
+    get(recipientId, viewedStatus) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const recipient = (yield playerModel_1.default.findById(recipientId)) || userModel_1.default.findById(recipientId);
+                const recipient = (yield playerModel_1.default.findById(recipientId)) ||
+                    userModel_1.default.findById(recipientId);
                 if (!recipient) {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
-                const notifications = yield notificationModel_1.default.find({ recipient: recipientId });
+                const notifications = yield notificationModel_1.default.find(Object.assign({ recipient: recipientId }, (viewedStatus === "false" ? { viewed: false } : {})));
                 return notifications;
             }
             catch (error) {

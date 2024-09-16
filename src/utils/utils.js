@@ -12,13 +12,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hasPermission = exports.rolesHierarchy = void 0;
+exports.hasPermission = exports.rolesHierarchy = exports.agents = void 0;
 exports.sanitizeInput = sanitizeInput;
 const validator_1 = __importDefault(require("validator"));
 const userModel_1 = __importDefault(require("../users/userModel"));
 function sanitizeInput(input) {
     return validator_1.default.escape(validator_1.default.trim(input));
 }
+exports.agents = new Map();
 //USERS HEIRARCHy OBJECT
 exports.rolesHierarchy = {
     admin: ["distributor", "subdistributor", "agent", "player"],
