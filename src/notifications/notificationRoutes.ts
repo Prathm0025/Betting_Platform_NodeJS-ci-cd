@@ -33,5 +33,6 @@ notificationRoutes.get('/agent', (req, res) => {
 
 //another route to get notifications
 notificationRoutes.get("/get", checkUser, notificationController.getNotifications);
+notificationRoutes.put("/viewed/:notifId", checkUser, notificationController.markNotificationAsViewed);
 
 export default notificationRoutes;

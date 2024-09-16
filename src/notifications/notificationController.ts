@@ -41,15 +41,19 @@ class NotificationController {
     }
   };
 
-  public markNotificationAsViewed = async (notificationId: string) => {
+  public markNotificationAsViewed = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      if (!notificationId) {
+      const { notifId } = req.params;
+      if (!notifId) {
         throw createHttpError(400, "Notification ID is required");
       }
 
-      await this.notificationService.update(notificationId);
+
+      await this.notificationService.update(notifId);
+      res.status(200).json({ message: "Notification marked as viewed" });
     } catch (error) {
-      return error;
+      console.error("Error marking notification as viewed:", error);
+      next(error);
     }
   };
 }
