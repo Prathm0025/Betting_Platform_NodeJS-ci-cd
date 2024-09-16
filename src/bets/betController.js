@@ -509,6 +509,18 @@ class BetController {
                     yield player.save();
                     bet.status = "redeem";
                     yield bet.save();
+                    //send redeem notification
+                    redisclient_1.redisClient.publish("bet-notifications", JSON.stringify({
+                        type: "BET_REDEEMED",
+                        player: {
+                            _id: player._id.toString(),
+                            username: player.username
+                        },
+                        agent: player.createdBy.toString(),
+                        betId: bet._id.toString(),
+                        playerMessage: `A Bet (ID: ${betId}) redeemed successfully!`,
+                        agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId})`
+                    }));
                     res.status(200).json({ message: "Bet Redeemed Successfully" });
                     if (playerSocket) {
                         playerSocket.sendData({ type: "CREDITS", credits: player.credits });

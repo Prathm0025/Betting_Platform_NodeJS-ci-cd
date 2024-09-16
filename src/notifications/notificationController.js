@@ -19,12 +19,40 @@ class NotificationController {
         // Using arrow functions to preserve `this` context
         this.getNotifications = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
             const _req = req;
-            const { userId: recipientId } = _req.user;
+            console.log(_req.user, "user");
+            const { userId: recipientId } = _req === null || _req === void 0 ? void 0 : _req.user;
+            const { viewedStatus } = req.query;
             try {
                 if (!recipientId) {
                     throw (0, http_errors_1.default)(400, "Recipient ID is required");
                 }
-                const notifications = yield this.notificationService.get(recipientId);
+                const notifications = yield this.notificationService.get(recipientId, viewedStatus);
+                res.status(200).json(notifications);
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+        this.markNotificationAsViewed = (notificationId) => __awaiter(this, void 0, void 0, function* () {
+            try {
+                if (!notificationId) {
+                    throw (0, http_errors_1.default)(400, "Notification ID is required");
+                }
+                yield this.notificationService.update(notificationId);
+            }
+            catch (error) {
+                return error;
+            }
+        });
+        this.markNotificationViewed = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
+            const _req = req;
+            const { userId: recipientId } = _req.user;
+            const { notificationId } = req.query;
+            try {
+                if (!recipientId) {
+                    throw (0, http_errors_1.default)(400, "Recipient ID is required");
+                }
+                const notifications = yield this.markNotificationAsViewed(notificationId);
                 res.status(200).json(notifications);
             }
             catch (error) {
@@ -38,17 +66,6 @@ class NotificationController {
                 }
                 const newNotification = yield this.notificationService.create(type, payload, recipientId);
                 return newNotification;
-            }
-            catch (error) {
-                return error;
-            }
-        });
-        this.markNotificationAsViewed = (notificationId) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                if (!notificationId) {
-                    throw (0, http_errors_1.default)(400, "Notification ID is required");
-                }
-                yield this.notificationService.update(notificationId);
             }
             catch (error) {
                 return error;

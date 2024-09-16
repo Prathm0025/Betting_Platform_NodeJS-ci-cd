@@ -19,6 +19,7 @@ const initWorker_1 = require("../workers/initWorker");
 const ioredis_1 = require("ioredis");
 const storeController_1 = __importDefault(require("../store/storeController"));
 const notificationController_1 = __importDefault(require("../notifications/notificationController"));
+const utils_1 = require("../utils/utils");
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         (() => __awaiter(void 0, void 0, void 0, function* () {
@@ -30,23 +31,32 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
                     if (channel === "bet-notifications") {
                         try {
                             const notificationData = JSON.parse(message);
-                            const { type, player, agent, betId, playerMessage, agentMessage } = notificationData;
-                            const playerNotification = yield notificationController_1.default.createNotification('alert', { message: playerMessage, betId: betId }, player._id);
-                            const agentNotification = yield notificationController_1.default.createNotification('alert', { message: agentMessage, betId: betId }, agent);
+                            const { type, player, agent, betId, playerMessage, agentMessage, } = notificationData;
+                            const playerNotification = yield notificationController_1.default.createNotification("alert", { message: playerMessage, betId: betId }, player._id);
+                            const agentNotification = yield notificationController_1.default.createNotification("alert", {
+                                message: agentMessage,
+                                betId: betId,
+                                player: player.username,
+                            }, agent);
                             const playerSocket = socket_1.users.get(player.username);
                             if (playerSocket && playerSocket.socket.connected) {
                                 playerSocket.sendAlert({
                                     type: "NOTIFICATION",
-                                    payload: playerNotification
+                                    payload: playerNotification,
                                 });
                             }
-                            console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
+                            const agentRes = utils_1.agents.get(agent);
+                            // console.log(agentRes, "agentRes");
+                            if (agentRes) {
+                                agentRes.write(`data: ${JSON.stringify(agentNotification)}\n\n`);
+                            }
+                            // console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
                         }
                         catch (error) {
-                            console.error('Error processing notification:', error);
+                            console.error("Error processing notification:", error);
                         }
                     }
-                    else {
+                    else if (channel === "live-update") {
                         yield storeController_1.default.updateLiveData();
                     }
                 }));

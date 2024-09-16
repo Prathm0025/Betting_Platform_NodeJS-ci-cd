@@ -5,6 +5,30 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const notificationController_1 = __importDefault(require("./notificationController"));
+const config_1 = require("../config/config");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const utils_1 = require("../utils/utils");
+const middleware_1 = require("../utils/middleware");
 const notificationRoutes = express_1.default.Router();
-notificationRoutes.get("/", notificationController_1.default.getNotifications);
+notificationRoutes.get("/", middleware_1.checkUser, notificationController_1.default.getNotifications);
+notificationRoutes.put("/", middleware_1.checkUser, notificationController_1.default.markNotificationViewed);
+//NOTE:
+// SSE route to stream notifications to agents
+notificationRoutes.get("/agent", (req, res) => {
+    var _a;
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    // Set the headers for SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    const token = (_a = req.headers.cookie) === null || _a === void 0 ? void 0 : _a.split("=")[1];
+    const decoded = jsonwebtoken_1.default.verify(token, config_1.config.jwtSecret);
+    utils_1.agents.set(decoded.userId, res);
+    // Clean up when the connection is closed
+    req.on("close", () => {
+        utils_1.agents.delete(decoded.userId);
+        res.end();
+    });
+});
 exports.default = notificationRoutes;
