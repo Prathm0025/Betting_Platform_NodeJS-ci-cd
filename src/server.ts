@@ -40,7 +40,6 @@ app.use("/api/userActivities", checkUser, userActivityRoutes);
 app.use("/api/notification", notificationRoutes);
 app.use("/api/banner", checkUser, bannerRoutes);
 
-
 app.get("/", (req, res, next) => {
   const health = {
     uptime: process.uptime(),

@@ -7,32 +7,33 @@ import { checkUser } from "../utils/middleware";
 
 const notificationRoutes = express.Router();
 
-notificationRoutes.get("/", notificationController.getNotifications);
+notificationRoutes.get("/", checkUser, notificationController.getNotifications);
+notificationRoutes.put(
+  "/",
+  checkUser,
+  notificationController.markNotificationViewed
+);
 
-//NOTE: 
+//NOTE:
 // SSE route to stream notifications to agents
-notificationRoutes.get('/agent', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin)
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+notificationRoutes.get("/agent", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
   // Set the headers for SSE
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
   const token = req.headers.cookie?.split("=")[1];
   const decoded = jwt.verify(token, config.jwtSecret!);
 
-  agents.set(decoded.userId, res)
+  agents.set(decoded.userId, res);
 
   // Clean up when the connection is closed
-  req.on('close', () => {
-    agents.delete(decoded.userId)
+  req.on("close", () => {
+    agents.delete(decoded.userId);
     res.end();
   });
 });
-
-//another route to get notifications
-notificationRoutes.get("/get", checkUser, notificationController.getNotifications);
-notificationRoutes.put("/viewed/:notifId", checkUser, notificationController.markNotificationAsViewed);
 
 export default notificationRoutes;

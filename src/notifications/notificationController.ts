@@ -12,48 +12,87 @@ class NotificationController {
   }
 
   // Using arrow functions to preserve `this` context
-  public getNotifications = async (req: Request, res: Response, next: NextFunction) => {
+  public getNotifications = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     const _req = req as AuthRequest;
-    const { userId: recipientId } = _req.user;
+    console.log(_req.user, "user");
+    const { userId: recipientId } = _req?.user;
+    const { viewedStatus } = req.query;
 
     try {
       if (!recipientId) {
         throw createHttpError(400, "Recipient ID is required");
       }
 
-      const notifications = await this.notificationService.get(recipientId);
+      const notifications = await this.notificationService.get(
+        recipientId,
+        viewedStatus as string
+      );
       res.status(200).json(notifications);
     } catch (error) {
       next(error);
     }
   };
 
-  public createNotification = async (type: "alert" | "info" | "message", payload: any, recipientId: string) => {
+  public markNotificationAsViewed = async (notificationId: string) => {
     try {
-      if (!type || !payload || !recipientId) {
-        throw createHttpError(400, "Type, payload, and recipientId are required");
+      if (!notificationId) {
+        throw createHttpError(400, "Notification ID is required");
       }
 
-      const newNotification = await this.notificationService.create(type, payload, recipientId);
-      return newNotification;
+      await this.notificationService.update(notificationId);
     } catch (error) {
       return error;
     }
   };
 
-  public markNotificationAsViewed = async (req: Request, res: Response, next: NextFunction) => {
+  public markNotificationViewed = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const _req = req as AuthRequest;
+    const { userId: recipientId } = _req.user;
+    const { notificationId } = req.query;
+
     try {
-      const { notifId } = req.params;
-      if (!notifId) {
-        throw createHttpError(400, "Notification ID is required");
+      if (!recipientId) {
+        throw createHttpError(400, "Recipient ID is required");
       }
 
-
-      await this.notificationService.update(notifId);
-      res.status(200).json({ message: "Notification marked as viewed" });
+      const notifications = await this.markNotificationAsViewed(
+        notificationId as string
+      );
+      res.status(200).json(notifications);
     } catch (error) {
-      console.error("Error marking notification as viewed:", error);
       next(error);
+    }
+  };
+
+  public createNotification = async (
+    type: "alert" | "info" | "message",
+    payload: any,
+    recipientId: string
+  ) => {
+    try {
+      if (!type || !payload || !recipientId) {
+        throw createHttpError(
+          400,
+          "Type, payload, and recipientId are required"
+        );
+      }
+
+      const newNotification = await this.notificationService.create(
+        type,
+        payload,
+        recipientId
+      );
+      return newNotification;
+    } catch (error) {
+      return error;
     }
   };
 }
