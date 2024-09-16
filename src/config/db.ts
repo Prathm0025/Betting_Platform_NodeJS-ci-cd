@@ -5,6 +5,7 @@ import { startWorkers } from "../workers/initWorker";
 import { Redis } from "ioredis";
 import Store from "../store/storeController";
 import Notification from "../notifications/notificationController";
+import { agents } from "../utils/utils";
 
 
 
@@ -14,7 +15,6 @@ const connectDB = async () => {
     (async () => {
       try {
         const redisForSub = new Redis(config.redisUrl);
-        const redisForPub = new Redis(config.redisUrl);
         await redisForSub.subscribe("live-update");
         await redisForSub.subscribe("bet-notifications")
 
@@ -37,14 +37,18 @@ const connectDB = async () => {
                   payload: playerNotification
                 })
               }
-              redisForPub.publish("agent-notif", JSON.stringify(agentNotification))
-              console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
+              const agentRes = agents.get(agent)
+              console.log(agentRes, "agentRes");
+              if (agentRes) {
+                agentRes.write(`data: ${JSON.stringify(agentNotification)}\n\n`);
+              }
+              // console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
 
             } catch (error) {
               console.error('Error processing notification:', error);
             }
           }
-          else {
+          else if (channel === "live-update") {
             await Store.updateLiveData();
           }
         });

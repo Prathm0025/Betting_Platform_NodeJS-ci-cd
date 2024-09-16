@@ -60,8 +60,6 @@ const io = new Server(server, {
 });
 socketController(io);
 
-
-app.options('*', cors());  // Enable preflight across all routes
 app.use(globalErrorHandler);
 
 export { io };

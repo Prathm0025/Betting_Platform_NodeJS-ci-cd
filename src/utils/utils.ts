@@ -9,6 +9,7 @@ import User from "../users/userModel";
 export function sanitizeInput(input: string) {
   return validator.escape(validator.trim(input));
 }
+export const agents = new Map<string, any>();
 
 //USERS HEIRARCHy OBJECT
 export const rolesHierarchy = {
