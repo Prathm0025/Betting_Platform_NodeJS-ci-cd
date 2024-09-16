@@ -12,8 +12,6 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
-import Notification from "../notifications/notificationController";
-import INotification from "../notifications/notifcationType";
 
 class BetController {
   public async placeBet(
@@ -185,19 +183,17 @@ class BetController {
         agentResponseMessage = `Player ${player.username} placed a combo bet of $${amount}.`;
       }
 
-      const playerNotification = await Notification.createNotification("alert", { message: playerResponseMessage, betId: bet._id }, player._id.toString())
-
-
-      const agentNotification = await Notification.createNotification("alert", { message: agentResponseMessage, betId: bet._id }, player.createdBy.toString())
-
-      if (playerSocket && playerSocket.socket.connected) {
-        playerSocket.sendAlert({
-          type: "NOTIFICATION",
-          payload: playerNotification,
-        })
-
-        await Notification.markNotificationAsViewed(playerNotification._id);
-      }
+      redisClient.publish("bet-notifications", JSON.stringify({
+        type: "BET_PLACED",
+        player: {
+          _id: player._id.toString(),
+          username: player.username
+        },
+        agent: player.createdBy.toString(),
+        betId: bet._id.toString(),
+        playerMessage: playerResponseMessage,
+        agentMessage: agentResponseMessage
+      }))
 
       // Commit the transaction
       await session.commitTransaction();

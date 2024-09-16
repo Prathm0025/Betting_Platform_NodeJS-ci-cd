@@ -133,7 +133,10 @@ async function processCompletedBet(betDetailId, gameData) {
 
         redisClient.publish("bet-notifications", JSON.stringify({
           type: "BET_LOST",
-          player: playerId,
+          player: {
+            _id: playerId,
+            username: player.username
+          },
           agent: agentId,
           betId: parentBet._id,
           playerMessage: `Unfortunately, you lost your bet (ID: ${parentBet._id}). Better luck next time!`,
@@ -148,7 +151,10 @@ async function processCompletedBet(betDetailId, gameData) {
 
         redisClient.publish("bet-notifications", JSON.stringify({
           type: "BET_FAILED",
-          player: playerId,
+          player: {
+            _id: playerId,
+            username: player.username
+          },
           agent: agentId,
           betId: parentBet._id,
           playerMessage: `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
@@ -167,7 +173,10 @@ async function processCompletedBet(betDetailId, gameData) {
 
         redisClient.publish("bet-notifications", JSON.stringify({
           type: "BET_WON",
-          playerId,
+          player: {
+            _id: playerId,
+            username: player.username
+          },
           agentId,
           betId: parentBet._id,
           message: `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`,
@@ -204,7 +213,10 @@ async function processCompletedBet(betDetailId, gameData) {
 
           redisClient.publish("bet-notifications", JSON.stringify({
             type: "BET_FAILED",
-            player: player._id,
+            player: {
+              _id: player._id,
+              username: player.username
+            },
             agent: player.createdBy,
             betId: parentBet._id,
             playerMessage: `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
