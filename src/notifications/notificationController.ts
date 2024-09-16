@@ -18,7 +18,8 @@ class NotificationController {
     next: NextFunction
   ) => {
     const _req = req as AuthRequest;
-    const { userId: recipientId } = _req.user;
+    console.log(_req.user, "user");
+    const { userId: recipientId } = _req?.user;
     const { viewedStatus } = req.query;
 
     try {

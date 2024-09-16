@@ -179,7 +179,7 @@ async function processCompletedBet(betDetailId, gameData) {
           },
           agentId,
           betId: parentBet._id,
-          message: `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`,
+          playerMessage: `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`,
           agentMessage: `Player ${player.username} has won the bet with ID ${parentBet._id}, and the winnings of $${parentBet.possibleWinningAmount} have been awarded.`
         }));
       } else {

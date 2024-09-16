@@ -36,8 +36,8 @@ app.use("/api/subordinates", checkUser, subordinateRoutes);
 app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
-app.use("/api/userActivities",checkUser,  userActivityRoutes);
-app.use("/api/notifications", checkUser, notificationRoutes);
+app.use("/api/userActivities", checkUser, userActivityRoutes);
+app.use("/api/notification", notificationRoutes);
 app.use("/api/banner", checkUser, bannerRoutes);
 
 app.get("/", (req, res, next) => {
@@ -58,7 +58,6 @@ const io = new Server(server, {
   },
 });
 socketController(io);
-
 
 app.use(globalErrorHandler);
 

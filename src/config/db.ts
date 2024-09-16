@@ -5,51 +5,72 @@ import { startWorkers } from "../workers/initWorker";
 import { Redis } from "ioredis";
 import Store from "../store/storeController";
 import Notification from "../notifications/notificationController";
-
+import { agents } from "../utils/utils";
 
 const connectDB = async () => {
   try {
-
     (async () => {
       try {
         const redisForSub = new Redis(config.redisUrl);
         await redisForSub.subscribe("live-update");
-        await redisForSub.subscribe("bet-notifications")
+        await redisForSub.subscribe("bet-notifications");
 
         redisForSub.on("message", async (channel, message) => {
-
           if (channel === "bet-notifications") {
             try {
               const notificationData = JSON.parse(message);
-              const { type, player, agent, betId, playerMessage, agentMessage } = notificationData;
+              const {
+                type,
+                player,
+                agent,
+                betId,
+                playerMessage,
+                agentMessage,
+              } = notificationData;
 
-              const playerNotification = await Notification.createNotification('alert', { message: playerMessage, betId: betId }, player._id);
+              const playerNotification = await Notification.createNotification(
+                "alert",
+                { message: playerMessage, betId: betId },
+                player._id
+              );
 
-              const agentNotification = await Notification.createNotification('alert', { message: agentMessage, betId: betId }, agent);
+              const agentNotification = await Notification.createNotification(
+                "alert",
+                {
+                  message: agentMessage,
+                  betId: betId,
+                  player: player.username,
+                },
+                agent
+              );
 
               const playerSocket = users.get(player.username);
 
               if (playerSocket && playerSocket.socket.connected) {
                 playerSocket.sendAlert({
                   type: "NOTIFICATION",
-                  payload: playerNotification
-                })
+                  payload: playerNotification,
+                });
               }
-              console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
-
+              const agentRes = agents.get(agent);
+              console.log(agentRes, "agentRes");
+              if (agentRes) {
+                agentRes.write(
+                  `data: ${JSON.stringify(agentNotification)}\n\n`
+                );
+              }
+              // console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
             } catch (error) {
-              console.error('Error processing notification:', error);
+              console.error("Error processing notification:", error);
             }
-          }
-          else {
+          } else if (channel === "live-update") {
             await Store.updateLiveData();
           }
         });
       } catch (err) {
-        console.log(err)
+        console.log(err);
       }
-    })()
-
+    })();
 
     mongoose.connection.on("connected", async () => {
       console.log("Connected to database successfully");
@@ -63,16 +84,11 @@ const connectDB = async () => {
 
     const activeRoomsData = Array.from(activeRooms);
     console.log(activeRoomsData, activeRooms);
-    startWorkers()
-
+    startWorkers();
   } catch (err) {
     console.error("Failed to connect to database.", err);
     process.exit(1);
   }
 };
-
-
-
-
 
 export default connectDB;
