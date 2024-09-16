@@ -14,6 +14,7 @@ const connectDB = async () => {
     (async () => {
       try {
         const redisForSub = new Redis(config.redisUrl);
+        const redisForPub = new Redis(config.redisUrl);
         await redisForSub.subscribe("live-update");
         await redisForSub.subscribe("bet-notifications")
 
@@ -36,6 +37,7 @@ const connectDB = async () => {
                   payload: playerNotification
                 })
               }
+              redisForPub.publish("agent-notif", JSON.stringify(agentNotification))
               console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
 
             } catch (error) {
