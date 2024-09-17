@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import createHttpError from "http-errors";
-import { Buffer } from "buffer";
 import { config } from "../config/config";
 import cloudinary from "cloudinary";
 import Banner from "./bannerModel";
