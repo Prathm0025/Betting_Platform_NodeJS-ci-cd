@@ -402,7 +402,7 @@ class BetController {
             selectedTeam = betDetails.home_team;
             break;
           case "away_team":
-            selectedTeam = betDetails.home_team;
+            selectedTeam = betDetails.away_team;
             break;
           case "Over":
             selectedTeam = betDetails.home_team;
@@ -510,7 +510,7 @@ class BetController {
             selectedTeam = betDetails.home_team;
             break;
           case "away_team":
-            selectedTeam = betDetails.home_team;
+            selectedTeam = betDetails.away_team;
             break;
           case "Over":
             selectedTeam = betDetails.home_team;
