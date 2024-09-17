@@ -37,7 +37,7 @@ app.use("/api/store", checkUser, storeRoutes);
 app.use("/api/transactions", checkUser, transactionRoutes);
 app.use("/api/bets", checkUser, betRoutes);
 app.use("/api/userActivities", checkUser, userActivityRoutes);
-app.use("/api/notification", notificationRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/banner", checkUser, bannerRoutes);
 
 app.get("/", (req, res, next) => {

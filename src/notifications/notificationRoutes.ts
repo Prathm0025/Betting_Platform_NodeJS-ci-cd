@@ -6,7 +6,11 @@ import { agents } from "../utils/utils";
 import { checkUser } from "../utils/middleware";
 
 const notificationRoutes = express.Router();
-
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://crm.bettingparadize.com",
+  "https://betting-crm-nextjs-dev.vercel.app",
+];
 notificationRoutes.get("/", checkUser, notificationController.getNotifications);
 notificationRoutes.put(
   "/",
@@ -16,8 +20,11 @@ notificationRoutes.put(
 
 //NOTE:
 // SSE route to stream notifications to agents
-notificationRoutes.get("/agent", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+notificationRoutes.get("/sse", (req, res) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
   // Set the headers for SSE

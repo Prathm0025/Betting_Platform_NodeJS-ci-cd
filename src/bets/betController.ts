@@ -13,6 +13,8 @@ import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
 
+import { removeFromWaitingQueue } from "../utils/WaitingQueue";
+
 class BetController {
   public async placeBet(
     playerRef: Player,
@@ -22,7 +24,6 @@ class BetController {
   ) {
     const session = await mongoose.startSession();
     session.startTransaction();
-
     try {
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
@@ -104,7 +105,7 @@ class BetController {
             selectedOdds = betDetailData.home_team.odds;
             break;
           case "away_team":
-            selectedOdds = betDetailData.home_team.odds;
+            selectedOdds = betDetailData.away_team.odds;
             break;
           case "Over":
             selectedOdds = betDetailData.home_team.odds;
@@ -163,13 +164,15 @@ class BetController {
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
 
-      const selectedTeamName = betDetails[0].bet_on === "home_team"
-        ? betDetails[0].home_team.name
-        : betDetails[0].away_team.name;
+      const selectedTeamName =
+        betDetails[0].bet_on === "home_team"
+          ? betDetails[0].home_team.name
+          : betDetails[0].away_team.name;
 
-      const selectedOdds = betDetails[0].bet_on === "home_team"
-        ? betDetails[0].home_team.odds
-        : betDetails[0].away_team.odds;
+      const selectedOdds =
+        betDetails[0].bet_on === "home_team"
+          ? betDetails[0].home_team.odds
+          : betDetails[0].away_team.odds;
 
       let playerResponseMessage;
       let agentResponseMessage;
@@ -177,23 +180,25 @@ class BetController {
       if (betType === "single") {
         playerResponseMessage = `Placed a bet on ${selectedTeamName} with odds of ${selectedOdds}. Bet amount: $${amount}.`;
         agentResponseMessage = `Player ${player.username} placed a bet of $${amount} on ${selectedTeamName} with odds of ${selectedOdds}. `;
-
       } else {
-        playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;;
+        playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;
         agentResponseMessage = `Player ${player.username} placed a combo bet of $${amount}.`;
       }
 
-      redisClient.publish("bet-notifications", JSON.stringify({
-        type: "BET_PLACED",
-        player: {
-          _id: player._id.toString(),
-          username: player.username
-        },
-        agent: player.createdBy.toString(),
-        betId: bet._id.toString(),
-        playerMessage: playerResponseMessage,
-        agentMessage: agentResponseMessage
-      }))
+      redisClient.publish(
+        "bet-notifications",
+        JSON.stringify({
+          type: "BET_PLACED",
+          player: {
+            _id: player._id.toString(),
+            username: player.username,
+          },
+          agent: player.createdBy.toString(),
+          betId: bet._id.toString(),
+          playerMessage: playerResponseMessage,
+          agentMessage: agentResponseMessage,
+        })
+      );
 
       // Commit the transaction
       await session.commitTransaction();
@@ -301,9 +306,11 @@ class BetController {
 
   //GET ALL BETS FOR ADMIN
 
+  
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
       const bets = await Bet.find()
+        .sort({ createdAt: -1 })
         .populate("player", "username _id")
         .populate({
           path: "data",
@@ -346,6 +353,7 @@ class BetController {
         ...(status === "combo" || status === "all" ? {} : { status }),
         ...(status === "combo" && { betType: "combo" }),
       })
+        .sort({ createdAt: -1 })
         .populate("player", "username _id")
         .populate({
           path: "data",
@@ -370,7 +378,6 @@ class BetController {
       let failed = false;
 
       const player = await PlayerModel.findById({ _id: userId });
-      console.log("PLAYERRRR", player);
 
       if (!player) {
         throw createHttpError(404, "Player not found");
@@ -402,7 +409,7 @@ class BetController {
             selectedTeam = betDetails.home_team;
             break;
           case "away_team":
-            selectedTeam = betDetails.home_team;
+            selectedTeam = betDetails.away_team;
             break;
           case "Over":
             selectedTeam = betDetails.home_team;
@@ -439,7 +446,6 @@ class BetController {
           const marketDetails = currentBookmakerData?.markets?.find(
             (item) => item.key === betDetails.market
           );
-
           const newOdds = marketDetails.outcomes.find((item) => {
             if (betDetails.market !== "totals") {
               return item.name === selectedTeam.name;
@@ -478,7 +484,6 @@ class BetController {
       let failed = false;
 
       const player = await PlayerModel.findById({ _id: userId });
-
       if (!player) {
         throw createHttpError(404, "Player not found");
       }
@@ -504,13 +509,19 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
+        //need to remove from waiting list 
+        const data = {
+          betId: betDetails._id.toString(),
+          commence_time: new Date(betDetails.commence_time),
+        };
+        removeFromWaitingQueue(JSON.stringify(data));
         let selectedTeam;
         switch (betDetails.bet_on) {
           case "home_team":
             selectedTeam = betDetails.home_team;
             break;
           case "away_team":
-            selectedTeam = betDetails.home_team;
+            selectedTeam = betDetails.away_team;
             break;
           case "Over":
             selectedTeam = betDetails.home_team;
@@ -564,6 +575,7 @@ class BetController {
           await bet.save();
         }
       }
+
       if (failed) {
         for (const betDetails of betDetailsArray) {
           betDetails.status = "failed";
@@ -576,6 +588,18 @@ class BetController {
         if (playerSocket) {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
+
+        redisClient.publish("bet-notifications", JSON.stringify({
+          type: "BET_REDEEMED_FAILED",
+          player: {
+            _id: player._id.toString(),
+            username: player.username
+          },
+          agent: player.createdBy.toString(),
+          betId: bet._id.toString(),
+          playerMessage: ` Bet (ID: ${betId}) redeemed failed!`,
+          agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`
+        }))
         throw createHttpError(400, "Bet failed!");
       } else {
         const amount = (totalNewOdds / totalOldOdds) * betAmount;
@@ -595,8 +619,8 @@ class BetController {
           },
           agent: player.createdBy.toString(),
           betId: bet._id.toString(),
-          playerMessage: `A Bet (ID: ${betId}) redeemed successfully!`,
-          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId})`
+          playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(2)}!`,
+          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(2)}`
         }))
         res.status(200).json({ message: "Bet Redeemed Successfully" });
         if (playerSocket) {
@@ -604,6 +628,7 @@ class BetController {
         }
       }
     } catch (error) {
+
       next(error);
     }
   }
@@ -615,9 +640,13 @@ class BetController {
       const { betDetailId } = req.params;
       const { status } = req.body; // won - lost
 
-      const updatedBetDetails = await BetDetail.findByIdAndUpdate(betDetailId, {
-        status: status,
-      }, { new: true });
+      const updatedBetDetails = await BetDetail.findByIdAndUpdate(
+        betDetailId,
+        {
+          status: status,
+        },
+        { new: true }
+      );
 
       if (!updatedBetDetails) {
         throw createHttpError(404, "Bet detail not found");
@@ -627,23 +656,27 @@ class BetController {
       const parentBet = await Bet.findById(parentBetId);
 
       if (!parentBet) {
-        throw createHttpError(404, "Parent bet not found")
+        throw createHttpError(404, "Parent bet not found");
       }
 
       const parentBetStatus = parentBet.status;
 
       if (parentBetStatus === "lost") {
-        return res.status(200).json({ message: "Bet detail Updated" })
+        return res.status(200).json({ message: "Bet detail Updated" });
       }
 
       if (status !== "won") {
-        parentBet.status = "lost"
+        parentBet.status = "lost";
         await parentBet.save();
+
         return res.status(200).json({ message: "Bet detail Updated" })
       }
 
-      const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
-      const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+      const allBetDetails = await BetDetail.find({
+        _id: { $in: parentBet.data },
+      });
+      const hasNotWon = allBetDetails.some((detail) => detail.status !== "won");
+
 
       if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
@@ -664,11 +697,84 @@ class BetController {
         }
       }
 
+      // remove from waiting queue on resolve 
+      allBetDetails.forEach((detail) => {
+        const data = {
+          betId: detail._id.toString(),
+          commence_time: new Date(detail.commence_time),
+        }
+
+        removeFromWaitingQueue(JSON.stringify(data));
+      })
       return res.status(200).json({ message: "Bet detail status updated" });
+
     } catch (error) {
       next(error);
     }
   }
+
+  
+
+   async updateBet(req: Request, res: Response, next: NextFunction) {
+  
+    try {
+      const { betId, betDetails, betData } = req.body;
+      console.log(JSON.stringify(req.body));
+      
+  
+      if (!betId || !betData) {
+         throw createHttpError(400, "Invalid Input")
+      }
+
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      const { detailId , ...updateData } = betDetails as any;
+
+   
+          await BetDetail.findByIdAndUpdate(detailId, updateData, { new: true }).session(session);
+    
+  
+      const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
+    
+      if (!updatedBet) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: "Bet not found" });
+      }
+  
+      await session.commitTransaction();
+      session.endSession();
+      const parentBet = await Bet.findById(updatedBet._id);
+      const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
+      const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+
+
+      if (!hasNotWon && parentBet.status !== "won") {
+        const playerId = parentBet.player;
+        const possibleWinningAmount = parentBet.possibleWinningAmount;
+        const player = await PlayerModel.findById(playerId);
+
+        if (player) {
+          player.credits += possibleWinningAmount;
+          await player.save();
+        }
+
+        parentBet.status = "won";
+        await parentBet.save();
+
+        const playerSocket = users.get(player.username);
+        if (playerSocket) {
+          playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+        }
+      }
+      res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
+    } catch (error) {
+      console.log(error);
+      
+        next(error);
+    }
+  }
+  
 
 
 }

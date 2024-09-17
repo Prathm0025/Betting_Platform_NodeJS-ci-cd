@@ -187,9 +187,7 @@ class TransactionController {
         },
       ];
   
-      const allTransactions = await Transaction.aggregate(pipeline);
-     console.log(allTransactions.length);
-     
+      const allTransactions = await Transaction.aggregate(pipeline).sort({date: -1});
       res.status(200).json(allTransactions);
     } catch (error) {
       console.log(error);
@@ -365,7 +363,7 @@ class TransactionController {
           },
         },
       ];
-      const transactions = await Transaction.aggregate(pipeline);
+      const transactions = await Transaction.aggregate(pipeline).sort({date: -1});
   
       res.status(200).json(transactions);
   
@@ -470,7 +468,7 @@ class TransactionController {
         throw createHttpError(400, 'Invalid type provided. Use "id" or "username".');
       }
   
-      const playerTransactions = await Transaction.find({ receiver: playerData._id })
+      const playerTransactions = await Transaction.find({ receiver: playerData._id }).sort({date: -1})
         .select('+senderModel +receiverModel')
         .populate({
           path: 'sender',

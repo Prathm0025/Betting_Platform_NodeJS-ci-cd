@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import validator from 'validator';
 import User from "../users/userModel";
+import { redisClient } from "../redisclient";
 
 export function sanitizeInput(input: string) {
   return validator.escape(validator.trim(input));
@@ -18,6 +19,8 @@ export const rolesHierarchy = {
   subdistributor: ["agent"],
   agent: ["player"],
 };
+
+
 
 //CHECKS PERMISSION TO PERFORM ACTIONS
 export const hasPermission = async (
