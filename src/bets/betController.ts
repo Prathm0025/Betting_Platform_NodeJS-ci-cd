@@ -164,13 +164,15 @@ class BetController {
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
 
-      const selectedTeamName = betDetails[0].bet_on === "home_team"
-        ? betDetails[0].home_team.name
-        : betDetails[0].away_team.name;
+      const selectedTeamName =
+        betDetails[0].bet_on === "home_team"
+          ? betDetails[0].home_team.name
+          : betDetails[0].away_team.name;
 
-      const selectedOdds = betDetails[0].bet_on === "home_team"
-        ? betDetails[0].home_team.odds
-        : betDetails[0].away_team.odds;
+      const selectedOdds =
+        betDetails[0].bet_on === "home_team"
+          ? betDetails[0].home_team.odds
+          : betDetails[0].away_team.odds;
 
       let playerResponseMessage;
       let agentResponseMessage;
@@ -178,23 +180,25 @@ class BetController {
       if (betType === "single") {
         playerResponseMessage = `Placed a bet on ${selectedTeamName} with odds of ${selectedOdds}. Bet amount: $${amount}.`;
         agentResponseMessage = `Player ${player.username} placed a bet of $${amount} on ${selectedTeamName} with odds of ${selectedOdds}. `;
-
       } else {
-        playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;;
+        playerResponseMessage = `Combo bet placed successfully!. Bet Amount: $${amount}`;
         agentResponseMessage = `Player ${player.username} placed a combo bet of $${amount}.`;
       }
 
-      redisClient.publish("bet-notifications", JSON.stringify({
-        type: "BET_PLACED",
-        player: {
-          _id: player._id.toString(),
-          username: player.username
-        },
-        agent: player.createdBy.toString(),
-        betId: bet._id.toString(),
-        playerMessage: playerResponseMessage,
-        agentMessage: agentResponseMessage
-      }))
+      redisClient.publish(
+        "bet-notifications",
+        JSON.stringify({
+          type: "BET_PLACED",
+          player: {
+            _id: player._id.toString(),
+            username: player.username,
+          },
+          agent: player.createdBy.toString(),
+          betId: bet._id.toString(),
+          playerMessage: playerResponseMessage,
+          agentMessage: agentResponseMessage,
+        })
+      );
 
       // Commit the transaction
       await session.commitTransaction();
@@ -305,7 +309,8 @@ class BetController {
   
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
-      const bets = await Bet.find().sort({createdAt: -1})
+      const bets = await Bet.find()
+        .sort({ createdAt: -1 })
         .populate("player", "username _id")
         .populate({
           path: "data",
@@ -347,7 +352,8 @@ class BetController {
         player: playerDoc._id,
         ...(status === "combo" || status === "all" ? {} : { status }),
         ...(status === "combo" && { betType: "combo" }),
-      }).sort({createdAt: -1})
+      })
+        .sort({ createdAt: -1 })
         .populate("player", "username _id")
         .populate({
           path: "data",
@@ -372,7 +378,6 @@ class BetController {
       let failed = false;
 
       const player = await PlayerModel.findById({ _id: userId });
-      console.log("PLAYERRRR", player);
 
       if (!player) {
         throw createHttpError(404, "Player not found");
@@ -441,7 +446,6 @@ class BetController {
           const marketDetails = currentBookmakerData?.markets?.find(
             (item) => item.key === betDetails.market
           );
-
           const newOdds = marketDetails.outcomes.find((item) => {
             if (betDetails.market !== "totals") {
               return item.name === selectedTeam.name;
@@ -571,6 +575,7 @@ class BetController {
           await bet.save();
         }
       }
+
       if (failed) {
         for (const betDetails of betDetailsArray) {
           betDetails.status = "failed";
@@ -635,9 +640,13 @@ class BetController {
       const { betDetailId } = req.params;
       const { status } = req.body; // won - lost
 
-      const updatedBetDetails = await BetDetail.findByIdAndUpdate(betDetailId, {
-        status: status,
-      }, { new: true });
+      const updatedBetDetails = await BetDetail.findByIdAndUpdate(
+        betDetailId,
+        {
+          status: status,
+        },
+        { new: true }
+      );
 
       if (!updatedBetDetails) {
         throw createHttpError(404, "Bet detail not found");
@@ -647,24 +656,26 @@ class BetController {
       const parentBet = await Bet.findById(parentBetId);
 
       if (!parentBet) {
-        throw createHttpError(404, "Parent bet not found")
+        throw createHttpError(404, "Parent bet not found");
       }
 
       const parentBetStatus = parentBet.status;
 
       if (parentBetStatus === "lost") {
-        return res.status(200).json({ message: "Bet detail Updated" })
+        return res.status(200).json({ message: "Bet detail Updated" });
       }
 
       if (status !== "won") {
-        parentBet.status = "lost"
+        parentBet.status = "lost";
         await parentBet.save();
 
         return res.status(200).json({ message: "Bet detail Updated" })
       }
 
-      const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
-      const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+      const allBetDetails = await BetDetail.find({
+        _id: { $in: parentBet.data },
+      });
+      const hasNotWon = allBetDetails.some((detail) => detail.status !== "won");
 
 
       if (!hasNotWon && parentBet.status !== "won") {

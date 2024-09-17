@@ -50,7 +50,7 @@ class NotificationService {
       const notifications = await NotificationModel.find({
         recipient: recipientId,
         ...(viewedStatus === "false" ? { viewed: false } : {}),
-      });
+      }).sort({ createdAt: -1 });
       return notifications;
     } catch (error) {
       console.error("Error fetching notifications:", error);
