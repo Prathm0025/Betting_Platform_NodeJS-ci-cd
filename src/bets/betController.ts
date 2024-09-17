@@ -301,6 +301,7 @@ class BetController {
 
   //GET ALL BETS FOR ADMIN
 
+  
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
       const bets = await Bet.find().sort({createdAt: -1})
