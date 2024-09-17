@@ -47,34 +47,40 @@ class UserController {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { username, password, captcha, captchaToken } = req.body;
+      const { origin } = req.query;
       const sanitizedUsername = sanitizeInput(username);
-      console.log(sanitizedUsername, "username");
-
       const sanitizedPassword = sanitizeInput(password);
-      const sanitizedcaptachaToken = sanitizeInput(captchaToken);
-      const sanitizedCaptcha = sanitizeInput(captcha);
+      if (origin === "platform") {
+        if (!sanitizedUsername || !sanitizedPassword) {
+          throw createHttpError(400, "Username and password are required");
+        }
+      } else if (origin === "crm") {
+        const sanitizedcaptachaToken = sanitizeInput(captchaToken);
+        const sanitizedCaptcha = sanitizeInput(captcha);
+        if (
+          !sanitizedUsername ||
+          !sanitizedPassword ||
+          !sanitizedcaptachaToken ||
+          !sanitizedCaptcha
+        ) {
+          throw createHttpError(
+            400,
+            "Username, password, CAPTCHA, and token are required"
+          );
+        }
+        const decoded = jwt.verify(captchaToken, config.jwtSecret) as {
+          captchaId: string;
+        };
+        const expectedCaptcha = captchaStore[decoded.captchaId];
 
-      if (
-        !sanitizedUsername ||
-        !sanitizedPassword ||
-        !sanitizedcaptachaToken ||
-        !sanitizedCaptcha
-      ) {
-        throw createHttpError(
-          400,
-          "Username, password, CAPTCHA, and token are required"
-        );
+        if (captcha !== expectedCaptcha) {
+          throw createHttpError(400, "Invalid CAPTCHA");
+        }
+
+        delete captchaStore[decoded.captchaId];
+      } else {
+        throw createHttpError(404, "Not a valid origin");
       }
-      const decoded = jwt.verify(captchaToken, config.jwtSecret) as {
-        captchaId: string;
-      };
-      const expectedCaptcha = captchaStore[decoded.captchaId];
-
-      if (captcha !== expectedCaptcha) {
-        throw createHttpError(400, "Invalid CAPTCHA");
-      }
-
-      delete captchaStore[decoded.captchaId];
 
       const user =
         (await User.findOne({ username: sanitizedUsername })) ||
