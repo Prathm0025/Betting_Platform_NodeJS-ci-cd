@@ -20,7 +20,7 @@ const BetDetailSchema: Schema = new Schema({
   market: { type: String, required: true },
   bet_on: {
     type: String,
-    enum: ["home_team", "away_team", "Over", "Under"],
+    // enum: ["home_team", "away_team", "Over", "Under"],
     required: true,
   },
   selected: { type: String, required: true },
@@ -32,7 +32,7 @@ const BetDetailSchema: Schema = new Schema({
   },
   isResolved: {
     type: Boolean,
-    default: false,  // Default value if required
+    default: false,  
 
   }
 }, { timestamps: true });
@@ -44,12 +44,11 @@ const BetSchema: Schema = new Schema({
   possibleWinningAmount: { type: Number, required: true },
   status: {
     type: String,
-    enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
+    // enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
     required: true,
   },
   retryCount: { type: Number, default: 0 },
   betType: { type: String, enum: ["single", "combo"], required: true },
-  isResolved: { type: Boolean, default: false },
 }, { timestamps: true });
 
 export const BetDetail = mongoose.model<IBetDetail>(
