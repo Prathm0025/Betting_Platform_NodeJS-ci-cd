@@ -301,9 +301,10 @@ class BetController {
 
   //GET ALL BETS FOR ADMIN
 
+  
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
-      const bets = await Bet.find()
+      const bets = await Bet.find().sort({createdAt: -1})
         .populate("player", "username _id")
         .populate({
           path: "data",
@@ -345,7 +346,7 @@ class BetController {
         player: playerDoc._id,
         ...(status === "combo" || status === "all" ? {} : { status }),
         ...(status === "combo" && { betType: "combo" }),
-      })
+      }).sort({createdAt: -1})
         .populate("player", "username _id")
         .populate({
           path: "data",
