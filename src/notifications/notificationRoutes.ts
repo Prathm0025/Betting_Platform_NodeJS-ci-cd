@@ -16,7 +16,7 @@ notificationRoutes.put(
 
 //NOTE:
 // SSE route to stream notifications to agents
-notificationRoutes.get("/agent", (req, res) => {
+notificationRoutes.get("/sse", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
