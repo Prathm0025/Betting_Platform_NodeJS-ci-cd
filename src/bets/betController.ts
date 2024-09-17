@@ -22,7 +22,6 @@ class BetController {
   ) {
     const session = await mongoose.startSession();
     session.startTransaction();
-
     try {
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
@@ -478,7 +477,6 @@ class BetController {
       let failed = false;
 
       const player = await PlayerModel.findById({ _id: userId });
-
       if (!player) {
         throw createHttpError(404, "Player not found");
       }
@@ -576,6 +574,18 @@ class BetController {
         if (playerSocket) {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
+
+        redisClient.publish("bet-notifications", JSON.stringify({
+          type: "BET_REDEEMED_FAILED",
+          player: {
+            _id: player._id.toString(),
+            username: player.username
+          },
+          agent: player.createdBy.toString(),
+          betId: bet._id.toString(),
+          playerMessage: ` Bet (ID: ${betId}) redeemed failed!`,
+          agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`
+        }))
         throw createHttpError(400, "Bet failed!");
       } else {
         const amount = (totalNewOdds / totalOldOdds) * betAmount;
@@ -595,8 +605,8 @@ class BetController {
           },
           agent: player.createdBy.toString(),
           betId: bet._id.toString(),
-          playerMessage: `A Bet (ID: ${betId}) redeemed successfully!`,
-          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId})`
+          playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout}!`,
+          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout}`
         }))
         res.status(200).json({ message: "Bet Redeemed Successfully" });
         if (playerSocket) {
@@ -604,6 +614,7 @@ class BetController {
         }
       }
     } catch (error) {
+
       next(error);
     }
   }
