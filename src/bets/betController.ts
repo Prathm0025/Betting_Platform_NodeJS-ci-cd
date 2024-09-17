@@ -12,6 +12,7 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
+import { removeFromWaitingQueue } from "../utils/WaitingQueue";
 
 class BetController {
   public async placeBet(
@@ -22,7 +23,6 @@ class BetController {
   ) {
     const session = await mongoose.startSession();
     session.startTransaction();
-
     try {
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
@@ -479,7 +479,6 @@ class BetController {
       let failed = false;
 
       const player = await PlayerModel.findById({ _id: userId });
-
       if (!player) {
         throw createHttpError(404, "Player not found");
       }
@@ -505,6 +504,12 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
+        //need to remove from waiting list 
+        const data = {
+          betId: betDetails._id.toString(),
+          commence_time: new Date(betDetails.commence_time),
+        };
+        removeFromWaitingQueue(JSON.stringify(data));
         let selectedTeam;
         switch (betDetails.bet_on) {
           case "home_team":
@@ -577,6 +582,18 @@ class BetController {
         if (playerSocket) {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
+
+        redisClient.publish("bet-notifications", JSON.stringify({
+          type: "BET_REDEEMED_FAILED",
+          player: {
+            _id: player._id.toString(),
+            username: player.username
+          },
+          agent: player.createdBy.toString(),
+          betId: bet._id.toString(),
+          playerMessage: ` Bet (ID: ${betId}) redeemed failed!`,
+          agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`
+        }))
         throw createHttpError(400, "Bet failed!");
       } else {
         const amount = (totalNewOdds / totalOldOdds) * betAmount;
@@ -596,8 +613,8 @@ class BetController {
           },
           agent: player.createdBy.toString(),
           betId: bet._id.toString(),
-          playerMessage: `A Bet (ID: ${betId}) redeemed successfully!`,
-          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId})`
+          playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(2)}!`,
+          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(2)}`
         }))
         res.status(200).json({ message: "Bet Redeemed Successfully" });
         if (playerSocket) {
@@ -605,6 +622,7 @@ class BetController {
         }
       }
     } catch (error) {
+
       next(error);
     }
   }
@@ -640,11 +658,13 @@ class BetController {
       if (status !== "won") {
         parentBet.status = "lost"
         await parentBet.save();
+
         return res.status(200).json({ message: "Bet detail Updated" })
       }
 
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
       const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+
 
       if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
@@ -665,7 +685,17 @@ class BetController {
         }
       }
 
+      // remove from waiting queue on resolve 
+      allBetDetails.forEach((detail) => {
+        const data = {
+          betId: detail._id.toString(),
+          commence_time: new Date(detail.commence_time),
+        }
+
+        removeFromWaitingQueue(JSON.stringify(data));
+      })
       return res.status(200).json({ message: "Bet detail status updated" });
+
     } catch (error) {
       next(error);
     }
