@@ -605,8 +605,8 @@ class BetController {
           },
           agent: player.createdBy.toString(),
           betId: bet._id.toString(),
-          playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout}!`,
-          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout}`
+          playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(2)}!`,
+          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(2)}`
         }))
         res.status(200).json({ message: "Bet Redeemed Successfully" });
         if (playerSocket) {
