@@ -12,6 +12,7 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
+
 import { removeFromWaitingQueue } from "../utils/WaitingQueue";
 
 class BetController {
@@ -700,6 +701,47 @@ class BetController {
       next(error);
     }
   }
+
+  
+
+   async updateBet(req: Request, res: Response, next: NextFunction) {
+  
+    try {
+      const { betId, betDetails, betData } = req.body;
+      console.log(JSON.stringify(req.body));
+      
+  
+      if (!betId || !betData) {
+         throw createHttpError(400, "Invalid Input")
+      }
+
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      const { detailId , ...updateData } = betDetails as any;
+
+   
+          await BetDetail.findByIdAndUpdate(detailId, updateData, { new: true }).session(session);
+    
+  
+      const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
+  
+      if (!updatedBet) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: "Bet not found" });
+      }
+  
+      await session.commitTransaction();
+      session.endSession();
+  
+      res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
+    } catch (error) {
+      console.log(error);
+      
+        next(error);
+    }
+  }
+  
 
 
 }
