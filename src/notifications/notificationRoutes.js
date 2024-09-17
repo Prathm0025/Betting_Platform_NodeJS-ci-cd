@@ -10,13 +10,21 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const utils_1 = require("../utils/utils");
 const middleware_1 = require("../utils/middleware");
 const notificationRoutes = express_1.default.Router();
+const allowedOrigins = [
+    "http://localhost:3000",
+    "https://crm.bettingparadize.com",
+    "https://betting-crm-nextjs-dev.vercel.app",
+];
 notificationRoutes.get("/", middleware_1.checkUser, notificationController_1.default.getNotifications);
 notificationRoutes.put("/", middleware_1.checkUser, notificationController_1.default.markNotificationViewed);
 //NOTE:
 // SSE route to stream notifications to agents
-notificationRoutes.get("/agent", (req, res) => {
+notificationRoutes.get("/sse", (req, res) => {
     var _a;
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+    }
     res.setHeader("Access-Control-Allow-Credentials", "true");
     // Set the headers for SSE
     res.setHeader("Content-Type", "text/event-stream");

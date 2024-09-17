@@ -28,27 +28,26 @@ const notificationSchema = new mongoose_1.Schema({
     type: {
         type: String,
         enum: ["alert", "info", "message"],
-        required: true
+        required: true,
     },
     data: {
-        type: mongoose_1.Schema.Types.Mixed
+        type: mongoose_1.Schema.Types.Mixed,
     },
     recipient: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: "User" || "Player",
-        required: true
+        required: true,
     },
     viewed: {
         type: Boolean,
-        default: false
+        default: false,
     },
     createdAt: {
         type: Date,
-        default: Date.now
+        default: Date.now,
     },
     updatedAt: {
         type: Date,
-        default: Date.now
-    }
+        default: Date.now,
+    },
 });
 exports.default = mongoose_1.default.model("Notification", notificationSchema);

@@ -175,8 +175,7 @@ class TransactionController {
                         },
                     },
                 ];
-                const allTransactions = yield transactionModel_1.default.aggregate(pipeline);
-                console.log(allTransactions.length);
+                const allTransactions = yield transactionModel_1.default.aggregate(pipeline).sort({ date: -1 });
                 res.status(200).json(allTransactions);
             }
             catch (error) {
@@ -347,7 +346,7 @@ class TransactionController {
                         },
                     },
                 ];
-                const transactions = yield transactionModel_1.default.aggregate(pipeline);
+                const transactions = yield transactionModel_1.default.aggregate(pipeline).sort({ date: -1 });
                 res.status(200).json(transactions);
             }
             catch (error) {
@@ -442,7 +441,7 @@ class TransactionController {
                 else {
                     throw (0, http_errors_1.default)(400, 'Invalid type provided. Use "id" or "username".');
                 }
-                const playerTransactions = yield transactionModel_1.default.find({ receiver: playerData._id })
+                const playerTransactions = yield transactionModel_1.default.find({ receiver: playerData._id }).sort({ date: -1 })
                     .select('+senderModel +receiverModel')
                     .populate({
                     path: 'sender',

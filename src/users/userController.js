@@ -53,23 +53,33 @@ class UserController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { username, password, captcha, captchaToken } = req.body;
+                const { origin } = req.query;
                 const sanitizedUsername = (0, utils_1.sanitizeInput)(username);
-                console.log(sanitizedUsername, "username");
                 const sanitizedPassword = (0, utils_1.sanitizeInput)(password);
-                const sanitizedcaptachaToken = (0, utils_1.sanitizeInput)(captchaToken);
-                const sanitizedCaptcha = (0, utils_1.sanitizeInput)(captcha);
-                if (!sanitizedUsername ||
-                    !sanitizedPassword ||
-                    !sanitizedcaptachaToken ||
-                    !sanitizedCaptcha) {
-                    throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
+                if (origin === "platform") {
+                    if (!sanitizedUsername || !sanitizedPassword) {
+                        throw (0, http_errors_1.default)(400, "Username and password are required");
+                    }
                 }
-                const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
-                const expectedCaptcha = captchaStore[decoded.captchaId];
-                if (captcha !== expectedCaptcha) {
-                    throw (0, http_errors_1.default)(400, "Invalid CAPTCHA");
+                else if (origin === "crm") {
+                    const sanitizedcaptachaToken = (0, utils_1.sanitizeInput)(captchaToken);
+                    const sanitizedCaptcha = (0, utils_1.sanitizeInput)(captcha);
+                    if (!sanitizedUsername ||
+                        !sanitizedPassword ||
+                        !sanitizedcaptachaToken ||
+                        !sanitizedCaptcha) {
+                        throw (0, http_errors_1.default)(400, "Username, password, CAPTCHA, and token are required");
+                    }
+                    const decoded = jsonwebtoken_1.default.verify(captchaToken, config_1.config.jwtSecret);
+                    const expectedCaptcha = captchaStore[decoded.captchaId];
+                    if (captcha !== expectedCaptcha) {
+                        throw (0, http_errors_1.default)(400, "Invalid CAPTCHA");
+                    }
+                    delete captchaStore[decoded.captchaId];
                 }
-                delete captchaStore[decoded.captchaId];
+                else {
+                    throw (0, http_errors_1.default)(404, "Not a valid origin");
+                }
                 const user = (yield userModel_1.default.findOne({ username: sanitizedUsername })) ||
                     (yield playerModel_1.default.findOne({ username: sanitizedUsername }));
                 if (!user) {

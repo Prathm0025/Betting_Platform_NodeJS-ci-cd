@@ -13,4 +13,5 @@ betRoutes.get("/:agentId", betController_1.default.getAgentBets);
 betRoutes.get("/:player/bets", betController_1.default.getBetForPlayer);
 betRoutes.put("/:betId", middleware_1.checkUser, middleware_1.checkBetCommision, betController_1.default.redeemPlayerBet);
 betRoutes.put("/resolve/:betDetailId", (0, middleware_1.verifyRole)(["admin", "agent"]), betController_1.default.resolveBet);
+betRoutes.put("/", (0, middleware_1.verifyRole)(["admin", "agent"]), betController_1.default.updateBet);
 exports.default = betRoutes;

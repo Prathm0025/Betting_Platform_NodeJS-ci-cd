@@ -52,7 +52,7 @@ class NotificationService {
                 if (!recipient) {
                     throw (0, http_errors_1.default)(401, "User not found");
                 }
-                const notifications = yield notificationModel_1.default.find(Object.assign({ recipient: recipientId }, (viewedStatus === "false" ? { viewed: false } : {})));
+                const notifications = yield notificationModel_1.default.find(Object.assign({ recipient: recipientId }, (viewedStatus === "false" ? { viewed: false } : {}))).sort({ createdAt: -1 });
                 return notifications;
             }
             catch (error) {
