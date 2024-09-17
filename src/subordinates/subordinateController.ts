@@ -246,7 +246,7 @@ class SubordinateController {
         }
       );
       // Perform aggregation
-      const results = await User.aggregate(pipeline);
+      const results = await User.aggregate(pipeline).sort({createdAt: -1});
   
       res.status(200).json(results);
     } catch (error) {

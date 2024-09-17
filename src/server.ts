@@ -61,10 +61,5 @@ socketController(io);
 
 app.use(globalErrorHandler);
 
-<<<<<<< HEAD
-export { io }
-export default server;
-=======
 export { io };
 export default server;
->>>>>>> d52d6d7e14a998a754a4a88a499b268155ce9727
