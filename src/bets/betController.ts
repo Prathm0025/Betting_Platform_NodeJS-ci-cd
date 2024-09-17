@@ -104,7 +104,7 @@ class BetController {
             selectedOdds = betDetailData.home_team.odds;
             break;
           case "away_team":
-            selectedOdds = betDetailData.home_team.odds;
+            selectedOdds = betDetailData.away_team.odds;
             break;
           case "Over":
             selectedOdds = betDetailData.home_team.odds;
@@ -402,7 +402,7 @@ class BetController {
             selectedTeam = betDetails.home_team;
             break;
           case "away_team":
-            selectedTeam = betDetails.home_team;
+            selectedTeam = betDetails.away_team;
             break;
           case "Over":
             selectedTeam = betDetails.home_team;
@@ -510,7 +510,7 @@ class BetController {
             selectedTeam = betDetails.home_team;
             break;
           case "away_team":
-            selectedTeam = betDetails.home_team;
+            selectedTeam = betDetails.away_team;
             break;
           case "Over":
             selectedTeam = betDetails.home_team;
