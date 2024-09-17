@@ -3,7 +3,7 @@ import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 
-import { AuthRequest, removeFromWaitingQueue, } from "../utils/utils";
+import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
 import Player from "../players/playerSocket";
@@ -12,6 +12,7 @@ import { users } from "../socket/socket";
 import User from "../users/userModel";
 import { config } from "../config/config";
 import { redisClient } from "../redisclient";
+import { removeFromWaitingQueue } from "../utils/WaitingQueue";
 
 class BetController {
   public async placeBet(
