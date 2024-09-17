@@ -3,7 +3,7 @@ import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 
-import { AuthRequest } from "../utils/utils";
+import { AuthRequest, removeFromWaitingQueue, } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
 import Player from "../players/playerSocket";
@@ -502,6 +502,12 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
+        //need to remove from waiting list 
+        const data = {
+          betId: betDetails._id.toString(),
+          commence_time: new Date(betDetails.commence_time),
+        };
+        removeFromWaitingQueue(JSON.stringify(data));
         let selectedTeam;
         switch (betDetails.bet_on) {
           case "home_team":
@@ -650,11 +656,13 @@ class BetController {
       if (status !== "won") {
         parentBet.status = "lost"
         await parentBet.save();
+
         return res.status(200).json({ message: "Bet detail Updated" })
       }
 
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
       const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+
 
       if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
@@ -675,7 +683,17 @@ class BetController {
         }
       }
 
+      // remove from waiting queue on resolve 
+      allBetDetails.forEach((detail) => {
+        const data = {
+          betId: detail._id.toString(),
+          commence_time: new Date(detail.commence_time),
+        }
+
+        removeFromWaitingQueue(JSON.stringify(data));
+      })
       return res.status(200).json({ message: "Bet detail status updated" });
+
     } catch (error) {
       next(error);
     }
