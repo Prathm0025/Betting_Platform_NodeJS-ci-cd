@@ -199,7 +199,7 @@ class SubordinateController {
                     }
                 });
                 // Perform aggregation
-                const results = yield userModel_1.default.aggregate(pipeline);
+                const results = yield userModel_1.default.aggregate(pipeline).sort({ createdAt: -1 });
                 res.status(200).json(results);
             }
             catch (error) {
