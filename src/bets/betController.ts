@@ -735,7 +735,7 @@ class BetController {
     
   
       const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
-  
+    
       if (!updatedBet) {
         await session.abortTransaction();
         session.endSession();
@@ -744,7 +744,29 @@ class BetController {
   
       await session.commitTransaction();
       session.endSession();
-  
+      const parentBet = await Bet.findById(updatedBet._id);
+      const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
+      const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+
+
+      if (!hasNotWon && parentBet.status !== "won") {
+        const playerId = parentBet.player;
+        const possibleWinningAmount = parentBet.possibleWinningAmount;
+        const player = await PlayerModel.findById(playerId);
+
+        if (player) {
+          player.credits += possibleWinningAmount;
+          await player.save();
+        }
+
+        parentBet.status = "won";
+        await parentBet.save();
+
+        const playerSocket = users.get(player.username);
+        if (playerSocket) {
+          playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+        }
+      }
       res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
     } catch (error) {
       console.log(error);
