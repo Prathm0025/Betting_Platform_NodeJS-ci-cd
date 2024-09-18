@@ -12,6 +12,7 @@ import mongoose from "mongoose";
 import Transaction from "../transactions/transactionModel";
 import Bet from "../bets/betModel";
 import { IUser } from "./userType";
+import { users } from "../socket/socket";
 
 const captchaStore: Record<string, string> = {};
 
@@ -54,6 +55,11 @@ class UserController {
         if (!sanitizedUsername || !sanitizedPassword) {
           throw createHttpError(400, "Username and password are required");
         }
+        if (users.get(sanitizedUsername))
+          throw createHttpError(
+            400,
+            "Your are already logged in from another device"
+          );
       } else if (origin === "crm") {
         const sanitizedcaptachaToken = sanitizeInput(captchaToken);
         const sanitizedCaptcha = sanitizeInput(captcha);
