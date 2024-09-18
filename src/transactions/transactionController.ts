@@ -8,7 +8,6 @@ import mongoose from "mongoose";
 import Transaction from "./transactionModel";
 
 class TransactionController {
-
   // TO RECORD TRANSACTIONS, RECHARGE AND REDEEM
 
   async transaction(req: Request, res: Response, next: NextFunction) {
@@ -25,7 +24,6 @@ class TransactionController {
         userId
       );
 
-
       if (receiverId == userId) {
         throw createHttpError(500, "Can't Recharge or redeem Yourself");
       }
@@ -39,25 +37,24 @@ class TransactionController {
       if (!reciever) throw createHttpError(404, "Reciever does not exist");
       if (role !== "admin") {
         if (reciever?.createdBy.toString() !== userId)
-          throw createHttpError(404, "You Are Not Authorised")
+          throw createHttpError(404, "You Are Not Authorised");
       }
       const senderModelName =
         sender instanceof User
           ? "User"
           : sender instanceof Player
-            ? "Player"
-            : (() => {
+          ? "Player"
+          : (() => {
               throw createHttpError(500, "Unknown sender model");
             })();
       const recieverModelName =
         reciever instanceof User
           ? "User"
           : reciever instanceof Player
-            ? "Player"
-            : (() => {
+          ? "Player"
+          : (() => {
               throw createHttpError(500, "Unknown reciever model");
             })();
-
 
       await TransactionService.performTransaction(
         newObjectId,
@@ -82,297 +79,328 @@ class TransactionController {
 
   async getAllTransactions(req: Request, res: Response, next: NextFunction) {
     try {
-      const { search } = req.query;
-  
+      const { search, date } = req.query;
+
       // Initial match conditions
       const matchConditions: Record<string, any>[] = [];
-  
+
       // Add search filters
       if (search) {
         if (!isNaN(Number(search))) {
           matchConditions.push({ amount: Number(search) });
         } else {
-          const regex = new RegExp(search as string, 'i');
+          const regex = new RegExp(search as string, "i");
           matchConditions.push({
             $or: [
-              { 'senderUser.username': { $regex: regex } },
-              { 'receiverUser.username': { $regex: regex } },
-              { 'senderPlayer.username': { $regex: regex } },
-              { 'receiverPlayer.username': { $regex: regex } },
+              { "senderUser.username": { $regex: regex } },
+              { "receiverUser.username": { $regex: regex } },
+              { "senderPlayer.username": { $regex: regex } },
+              { "receiverPlayer.username": { $regex: regex } },
               { type: { $regex: regex } },
             ],
           });
         }
       }
-  
+      if (date) {
+        const dateRange = new Date(date as string);
+        matchConditions.push({
+          date: {
+            $gte: new Date(dateRange.setHours(0, 0, 0, 0)),
+            $lt: new Date(dateRange.setHours(23, 59, 59, 999)),
+          },
+        });
+      }
+
       const pipeline = [
         {
           $lookup: {
-            from: 'users',
-            localField: 'sender',
-            foreignField: '_id',
-            as: 'senderUser',
+            from: "users",
+            localField: "sender",
+            foreignField: "_id",
+            as: "senderUser",
           },
         },
         {
           $lookup: {
-            from: 'players',
-            localField: 'sender',
-            foreignField: '_id',
-            as: 'senderPlayer',
+            from: "players",
+            localField: "sender",
+            foreignField: "_id",
+            as: "senderPlayer",
           },
         },
         {
           $lookup: {
-            from: 'users',
-            localField: 'receiver',
-            foreignField: '_id',
-            as: 'receiverUser',
+            from: "users",
+            localField: "receiver",
+            foreignField: "_id",
+            as: "receiverUser",
           },
         },
         {
           $lookup: {
-            from: 'players',
-            localField: 'receiver',
-            foreignField: '_id',
-            as: 'receiverPlayer',
+            from: "players",
+            localField: "receiver",
+            foreignField: "_id",
+            as: "receiverPlayer",
           },
         },
         {
           $unwind: {
-            path: '$senderUser',
+            path: "$senderUser",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $unwind: {
-            path: '$senderPlayer',
+            path: "$senderPlayer",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $unwind: {
-            path: '$receiverUser',
+            path: "$receiverUser",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $unwind: {
-            path: '$receiverPlayer',
+            path: "$receiverPlayer",
             preserveNullAndEmptyArrays: true,
           },
         },
-        ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+        ...(matchConditions.length > 0
+          ? [{ $match: { $and: matchConditions } }]
+          : []),
         {
           $project: {
             sender: {
               $cond: {
-                if: { $ifNull: ['$senderUser.username', false] },
-                then: '$senderUser.username',
-                else: '$senderPlayer.username',
+                if: { $ifNull: ["$senderUser.username", false] },
+                then: "$senderUser.username",
+                else: "$senderPlayer.username",
               },
             },
             receiver: {
               $cond: {
-                if: { $ifNull: ['$receiverUser.username', false] },
-                then: '$receiverUser.username',
-                else: '$receiverPlayer.username',
+                if: { $ifNull: ["$receiverUser.username", false] },
+                then: "$receiverUser.username",
+                else: "$receiverPlayer.username",
               },
             },
             amount: 1,
             type: 1,
             date: 1,
-           
           },
         },
       ];
-  
-      const allTransactions = await Transaction.aggregate(pipeline).sort({date: -1});
+
+      const allTransactions = await Transaction.aggregate(pipeline).sort({
+        date: -1,
+      });
       res.status(200).json(allTransactions);
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-  
 
   //SPECIFIC USER TRANSACTIONS
 
-  async getSpecificUserTransactions(req: Request, res: Response, next: NextFunction) {
+  async getSpecificUserTransactions(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { userId } = req.params;
 
       if (!userId) throw createHttpError(400, "User Id not Found");
       const transactionsOfAgent = await Transaction.find({
-        $or: [
-          { sender: userId },
-          { receiver: userId }
-        ]
-      }).select('+senderModel +receiverModel')
+        $or: [{ sender: userId }, { receiver: userId }],
+      })
+        .select("+senderModel +receiverModel")
         .populate({
-          path: 'sender',
-          select: '-password',
+          path: "sender",
+          select: "-password",
         })
         .populate({
-          path: 'receiver',
-          select: '-password',
+          path: "receiver",
+          select: "-password",
         });
-     
-      res.status(200).json(transactionsOfAgent );
 
+      res.status(200).json(transactionsOfAgent);
     } catch (error) {
       next(error);
     }
-
   }
 
   // //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
-  async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
+  async getSuperiorSubordinateTransaction(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { superior } = req.params;
-      const { type, search } = req.query;
-  
+      const { type, search, date } = req.query;
+
       let superiorUser: any;
-  
+
       // Fetching superior user based on type (id or username)
       if (type === "id") {
-        superiorUser = await User.findById(superior).select('_id subordinates players role');
+        superiorUser = await User.findById(superior).select(
+          "_id subordinates players role"
+        );
       } else if (type === "username") {
-        superiorUser = await User.findOne({ username: superior }).select('_id subordinates players role');
+        superiorUser = await User.findOne({ username: superior }).select(
+          "_id subordinates players role"
+        );
       } else {
         throw createHttpError(400, "User Id or Username not provided");
       }
-  
+
       if (!superiorUser) throw createHttpError(404, "User Not Found");
-  
-      const subordinateIds = superiorUser.role === "admin"
-        ? [
-            ...superiorUser.players.map(player => player._id),
-            ...superiorUser.subordinates.map(sub => sub._id)
-          ]
-        : superiorUser.role === "agent"
-          ? superiorUser.players.map(player => player._id)
-          : superiorUser.subordinates.map(sub => sub._id);
-  
+
+      const subordinateIds =
+        superiorUser.role === "admin"
+          ? [
+              ...superiorUser.players.map((player) => player._id),
+              ...superiorUser.subordinates.map((sub) => sub._id),
+            ]
+          : superiorUser.role === "agent"
+          ? superiorUser.players.map((player) => player._id)
+          : superiorUser.subordinates.map((sub) => sub._id);
+
       const matchConditions: Record<string, any>[] = [
         {
           $or: [
             { sender: { $in: subordinateIds } },
             { receiver: { $in: subordinateIds } },
             { sender: superiorUser._id },
-            { receiver: superiorUser._id }
-          ]
-        }
+            { receiver: superiorUser._id },
+          ],
+        },
       ];
-  
+
       if (search) {
         if (!isNaN(Number(search))) {
           matchConditions.push({ amount: Number(search) });
         } else {
-          const regex = new RegExp(search as string, 'i');
+          const regex = new RegExp(search as string, "i");
           matchConditions.push({
             $or: [
-              { 'senderUser.username': { $regex: regex } },
-              { 'receiverUser.username': { $regex: regex } },
-              { 'senderPlayer.username': { $regex: regex } },
-              { 'receiverPlayer.username': { $regex: regex } },
+              { "senderUser.username": { $regex: regex } },
+              { "receiverUser.username": { $regex: regex } },
+              { "senderPlayer.username": { $regex: regex } },
+              { "receiverPlayer.username": { $regex: regex } },
               { type: { $regex: regex } },
             ],
           });
         }
       }
-  
+
+      if (date) {
+        const dateRange = new Date(date as string);
+        matchConditions.push({
+          date: {
+            $gte: new Date(dateRange.setHours(0, 0, 0, 0)),
+            $lt: new Date(dateRange.setHours(23, 59, 59, 999)),
+          },
+        });
+      }
+
       const pipeline = [
         {
           $lookup: {
-            from: 'users',
-            localField: 'sender',
-            foreignField: '_id',
-            as: 'senderUser',
+            from: "users",
+            localField: "sender",
+            foreignField: "_id",
+            as: "senderUser",
           },
         },
         {
           $lookup: {
-            from: 'players',
-            localField: 'sender',
-            foreignField: '_id',
-            as: 'senderPlayer',
+            from: "players",
+            localField: "sender",
+            foreignField: "_id",
+            as: "senderPlayer",
           },
         },
         {
           $lookup: {
-            from: 'users',
-            localField: 'receiver',
-            foreignField: '_id',
-            as: 'receiverUser',
+            from: "users",
+            localField: "receiver",
+            foreignField: "_id",
+            as: "receiverUser",
           },
         },
         {
           $lookup: {
-            from: 'players',
-            localField: 'receiver',
-            foreignField: '_id',
-            as: 'receiverPlayer',
+            from: "players",
+            localField: "receiver",
+            foreignField: "_id",
+            as: "receiverPlayer",
           },
         },
         {
           $unwind: {
-            path: '$senderUser',
+            path: "$senderUser",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $unwind: {
-            path: '$senderPlayer',
+            path: "$senderPlayer",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $unwind: {
-            path: '$receiverUser',
+            path: "$receiverUser",
             preserveNullAndEmptyArrays: true,
           },
         },
         {
           $unwind: {
-            path: '$receiverPlayer',
+            path: "$receiverPlayer",
             preserveNullAndEmptyArrays: true,
           },
         },
-        ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+        ...(matchConditions.length > 0
+          ? [{ $match: { $and: matchConditions } }]
+          : []),
         {
           $project: {
             sender: {
               $cond: {
-                if: { $ifNull: ['$senderUser.username', false] },
-                then: '$senderUser.username',
-                else: '$senderPlayer.username',
+                if: { $ifNull: ["$senderUser.username", false] },
+                then: "$senderUser.username",
+                else: "$senderPlayer.username",
               },
             },
             receiver: {
               $cond: {
-                if: { $ifNull: ['$receiverUser.username', false] },
-                then: '$receiverUser.username',
-                else: '$receiverPlayer.username',
+                if: { $ifNull: ["$receiverUser.username", false] },
+                then: "$receiverUser.username",
+                else: "$receiverPlayer.username",
               },
             },
             amount: 1,
             type: 1,
             date: 1,
-           
           },
         },
       ];
-      const transactions = await Transaction.aggregate(pipeline).sort({date: -1});
-  
+      const transactions = await Transaction.aggregate(pipeline).sort({
+        date: -1,
+      });
+
       res.status(200).json(transactions);
-  
     } catch (error) {
       console.log(error);
       next(error);
     }
   }
-  
 
   // async getSuperiorSubordinateTransaction(req: Request, res: Response, next: NextFunction) {
 
@@ -405,7 +433,7 @@ class TransactionController {
   //     : superiorUser.role === "agent"
   //     ? superiorUser.players.map(player => player._id)
   //     : superiorUser.subordinates.map(sub => sub._id);
-    
+
   //       let  transactions:any;
   //       if(subordinateIds){
   //           transactions = await Transaction.find({
@@ -440,7 +468,6 @@ class TransactionController {
 
   //     const combinedTransactions = [...transactions, ...superiorTransactions];
 
-    
   //     res.status(200).json( combinedTransactions );
 
   //   } catch (error) {
@@ -451,46 +478,61 @@ class TransactionController {
 
   //SPECIFIC PLAYER TRANSACTION
 
-  async getSpecificPlayerTransactions(req: Request, res: Response, next: NextFunction) {
+  async getSpecificPlayerTransactions(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { player } = req.params;
       const { type } = req.query;
-  
+
       let playerData: any;
-  
-      if (type === 'id') {
+
+      if (type === "id") {
         playerData = await Player.findById(player);
-        if (!playerData) throw createHttpError(404, 'Player Not Found');
-      } else if (type === 'username') {
+        if (!playerData) throw createHttpError(404, "Player Not Found");
+      } else if (type === "username") {
         playerData = await Player.findOne({ username: player });
-        if (!playerData) throw createHttpError(404, 'Player Not Found with the provided username');
+        if (!playerData)
+          throw createHttpError(
+            404,
+            "Player Not Found with the provided username"
+          );
       } else {
-        throw createHttpError(400, 'Invalid type provided. Use "id" or "username".');
+        throw createHttpError(
+          400,
+          'Invalid type provided. Use "id" or "username".'
+        );
       }
-  
-      const playerTransactions = await Transaction.find({ receiver: playerData._id }).sort({date: -1})
-        .select('+senderModel +receiverModel')
+
+      const playerTransactions = await Transaction.find({
+        receiver: playerData._id,
+      })
+        .sort({ date: -1 })
+        .select("+senderModel +receiverModel")
         .populate({
-          path: 'sender',
-          select: 'username',
+          path: "sender",
+          select: "username",
         })
         .populate({
-          path: 'receiver',
-          select: 'username',
+          path: "receiver",
+          select: "username",
         });
-  
+
       // Map transactions to the desired format
-      const formattedTransactions = playerTransactions.map((transaction:any) => ({
-        _id: transaction._id,
-        type: transaction.type,
-        amount: transaction.amount,
-        date: transaction.date, 
-        sender: transaction.sender.username,
-        receiver: transaction.receiver.username,
-      }));
-  
+      const formattedTransactions = playerTransactions.map(
+        (transaction: any) => ({
+          _id: transaction._id,
+          type: transaction.type,
+          amount: transaction.amount,
+          date: transaction.date,
+          sender: transaction.sender.username,
+          receiver: transaction.receiver.username,
+        })
+      );
+
       res.status(200).json(formattedTransactions);
-  
     } catch (error) {
       console.log(error);
       next(error);
