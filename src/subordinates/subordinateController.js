@@ -48,10 +48,14 @@ class SubordinateController {
                 //CREATE
                 let existingSubordinate;
                 if (sanitizedRole === "player") {
-                    existingSubordinate = yield playerModel_1.default.findOne({ username: sanitizedUsername });
+                    existingSubordinate = yield playerModel_1.default.findOne({
+                        username: sanitizedUsername,
+                    });
                 }
                 else {
-                    existingSubordinate = yield userModel_1.default.findOne({ username: sanitizedUsername });
+                    existingSubordinate = yield userModel_1.default.findOne({
+                        username: sanitizedUsername,
+                    });
                 }
                 if (existingSubordinate) {
                     throw (0, http_errors_1.default)(400, "username already exists");
@@ -85,9 +89,10 @@ class SubordinateController {
                 }
                 yield superior.save();
                 //RESPONSE
-                res
-                    .status(201)
-                    .json({ message: `${role} Created Succesfully`, Subordinate: newSubordinate });
+                res.status(201).json({
+                    message: `${role} Created Succesfully`,
+                    Subordinate: newSubordinate,
+                });
             }
             catch (error) {
                 next(error);
@@ -108,11 +113,15 @@ class SubordinateController {
                 const subordinatesofRequestingUser = requestingUser.subordinates || [];
                 const players = requestingUser.players || [];
                 const sanitizedUsername = (0, utils_1.sanitizeInput)(username);
-                const subordinate = (yield userModel_1.default.findOne({ username: sanitizedUsername }).select('-transactions -password')) || (yield playerModel_1.default.findOne({ username: sanitizedUsername }).select('-betHistory -transactions -password'));
+                const subordinate = (yield userModel_1.default.findOne({ username: sanitizedUsername }).select("-transactions -password")) ||
+                    (yield playerModel_1.default.findOne({ username: sanitizedUsername }).select("-betHistory -transactions -password"));
                 if (!subordinate) {
                     throw (0, http_errors_1.default)(404, "User not found");
                 }
-                if (role !== "admin" && ((requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser.username) !== username) && (!subordinatesofRequestingUser.includes(subordinate._id)) && (!players.includes(subordinate._id))) {
+                if (role !== "admin" &&
+                    (requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser.username) !== username &&
+                    !subordinatesofRequestingUser.includes(subordinate._id) &&
+                    !players.includes(subordinate._id)) {
                     throw (0, http_errors_1.default)(401, "Unauthorized!");
                 }
                 res.status(200).json(subordinate);
@@ -126,7 +135,7 @@ class SubordinateController {
     getAllSubordinates(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { type, search } = req.query;
+                const { type, search, date } = req.query;
                 const _req = req;
                 const { userId } = _req.user;
                 const admin = yield userModel_1.default.findById(userId);
@@ -136,7 +145,7 @@ class SubordinateController {
                 if (type === "all") {
                     pipeline.push({
                         $unionWith: {
-                            coll: 'players',
+                            coll: "players",
                             pipeline: [
                                 {
                                     $project: {
@@ -145,17 +154,17 @@ class SubordinateController {
                                         role: { $literal: "player" },
                                         status: 1,
                                         credits: 1,
-                                        createdAt: 1
-                                    }
-                                }
-                            ]
-                        }
+                                        createdAt: 1,
+                                    },
+                                },
+                            ],
+                        },
                     });
                 }
                 else if (type === "player") {
                     pipeline.push({
                         $lookup: {
-                            from: 'players',
+                            from: "players",
                             pipeline: [
                                 {
                                     $project: {
@@ -164,39 +173,50 @@ class SubordinateController {
                                         role: { $literal: "player" },
                                         status: 1,
                                         credits: 1,
-                                        createdAt: 1
-                                    }
-                                }
+                                        createdAt: 1,
+                                    },
+                                },
                             ],
-                            as: 'players'
-                        }
+                            as: "players",
+                        },
                     }, {
-                        $unwind: '$players'
+                        $unwind: "$players",
                     }, {
-                        $replaceRoot: { newRoot: '$players' }
+                        $replaceRoot: { newRoot: "$players" },
                     });
                 }
                 else {
                     pipeline.push({
-                        $match: { role: type }
+                        $match: { role: type },
                     });
                 }
                 if (search) {
                     pipeline.push({
                         $match: {
-                            username: { $regex: new RegExp(search, 'i') },
-                        }
+                            username: { $regex: new RegExp(search, "i") },
+                        },
+                    });
+                }
+                if (date) {
+                    const filterDate = new Date(date);
+                    pipeline.push({
+                        $match: {
+                            createdAt: {
+                                $gte: new Date(filterDate.setHours(0, 0, 0, 0)),
+                                $lt: new Date(filterDate.setHours(23, 59, 59, 999)),
+                            },
+                        },
                     });
                 }
                 pipeline.push({
                     $group: {
-                        _id: '$_id',
-                        username: { $first: '$username' },
-                        role: { $first: '$role' },
-                        status: { $first: '$status' },
-                        credits: { $first: '$credits' },
-                        createdAt: { $first: '$createdAt' }
-                    }
+                        _id: "$_id",
+                        username: { $first: "$username" },
+                        role: { $first: "$role" },
+                        status: { $first: "$status" },
+                        credits: { $first: "$credits" },
+                        createdAt: { $first: "$createdAt" },
+                    },
                 });
                 // Perform aggregation
                 const results = yield userModel_1.default.aggregate(pipeline).sort({ createdAt: -1 });
@@ -280,7 +300,7 @@ class SubordinateController {
             var _a;
             try {
                 const { superior } = req.params;
-                const { type, search } = req.query;
+                const { type, search, date } = req.query;
                 const _req = req;
                 const { userId } = _req.user;
                 let requestingUser = yield userModel_1.default.findById(userId);
@@ -289,44 +309,48 @@ class SubordinateController {
                 let superiorUser;
                 // GETTING SUBORDINATE BASED ON QUERY TYPE(username, id)
                 if (type === "id") {
-                    superiorUser = yield userModel_1.default.findById(superior).select('-password -transactions');
+                    superiorUser = yield userModel_1.default.findById(superior).select("-password -transactions");
                     if (!superiorUser) {
                         throw (0, http_errors_1.default)(404, "Superior user not found");
                     }
                     if (requestingUser.role !== "admin" &&
-                        (((_a = requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser._id) === null || _a === void 0 ? void 0 : _a.toString()) !== superior) && ((!subordinatesofRequestingUser.includes(superiorUser._id)) && (!players.includes(superiorUser._id)))) {
+                        ((_a = requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser._id) === null || _a === void 0 ? void 0 : _a.toString()) !== superior &&
+                        !subordinatesofRequestingUser.includes(superiorUser._id) &&
+                        !players.includes(superiorUser._id)) {
                         console.log("here", subordinatesofRequestingUser, superiorUser._id);
                         throw (0, http_errors_1.default)(401, "Not Authorised");
                     }
                     //PLAYERS FOR AGENT(AGENT HAS PLAYERS AS SUBORDINATE)
                     if (superiorUser.role === "agent") {
                         superiorUser = yield userModel_1.default.findById(superior).populate({
-                            path: 'players',
-                            select: '-password'
+                            path: "players",
+                            select: "-password",
                         });
                     }
                     else {
                         superiorUser = yield userModel_1.default.findById(superior).populate({
-                            path: 'subordinates players',
-                            select: '-password'
+                            path: "subordinates players",
+                            select: "-password",
                         });
                     }
                     if (!superiorUser)
                         throw (0, http_errors_1.default)(404, "User Not Found");
                 }
                 else if (type === "username") {
-                    superiorUser = yield userModel_1.default.findOne({ username: superior }).select('-password -transactions');
+                    superiorUser = yield userModel_1.default.findOne({ username: superior }).select("-password -transactions");
                     if (!superiorUser) {
                         throw (0, http_errors_1.default)(404, "Superior user not found");
                     }
                     if (requestingUser.role !== "admin" &&
-                        ((requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser.username) !== superior) && ((!subordinatesofRequestingUser.includes(superiorUser._id)) && (!players.includes(superiorUser._id)))) {
+                        (requestingUser === null || requestingUser === void 0 ? void 0 : requestingUser.username) !== superior &&
+                        !subordinatesofRequestingUser.includes(superiorUser._id) &&
+                        !players.includes(superiorUser._id)) {
                         console.log("here", subordinatesofRequestingUser, superiorUser._id);
                         throw (0, http_errors_1.default)(401, "Not Authorised");
                     }
                     superiorUser = yield userModel_1.default.findOne({ username: superior }).populate({
-                        path: 'subordinates players',
-                        select: '-password'
+                        path: "subordinates players",
+                        select: "-password",
                     });
                     if (!superiorUser)
                         throw (0, http_errors_1.default)(404, "User Not Found with the provided username");
@@ -336,11 +360,22 @@ class SubordinateController {
                 }
                 // ACCESS SUBORDINATE DEPENDING ON ROLE
                 let subordinates = superiorUser.role === "admin"
-                    ? [
-                        ...superiorUser.subordinates, ...superiorUser.players
-                    ] : superiorUser.role === "agent" ? superiorUser.players : superiorUser.subordinates;
+                    ? [...superiorUser.subordinates, ...superiorUser.players]
+                    : superiorUser.role === "agent"
+                        ? superiorUser.players
+                        : superiorUser.subordinates;
                 if (search) {
                     subordinates = subordinates.filter((subordinate) => subordinate.username === search);
+                }
+                if (date) {
+                    const filterDate = new Date(date);
+                    filterDate.setHours(0, 0, 0, 0);
+                    const nextDay = new Date(filterDate);
+                    nextDay.setDate(filterDate.getDate() + 1);
+                    subordinates = subordinates.filter((subordinate) => {
+                        const createdAt = new Date(subordinate.createdAt);
+                        return createdAt >= filterDate && createdAt < nextDay;
+                    });
                 }
                 return res.status(200).json(subordinates);
             }
@@ -353,10 +388,10 @@ class SubordinateController {
 }
 SubordinateController.saltRounds = 10;
 SubordinateController.roles = Object.freeze([
-    'all',
-    'distributor',
-    'subdistributor',
-    'agent',
-    'player'
+    "all",
+    "distributor",
+    "subdistributor",
+    "agent",
+    "player",
 ]);
 exports.default = new SubordinateController();

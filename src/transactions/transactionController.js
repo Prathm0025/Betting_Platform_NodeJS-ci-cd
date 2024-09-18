@@ -74,7 +74,7 @@ class TransactionController {
     getAllTransactions(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { search } = req.query;
+                const { search, date } = req.query;
                 // Initial match conditions
                 const matchConditions = [];
                 // Add search filters
@@ -83,90 +83,101 @@ class TransactionController {
                         matchConditions.push({ amount: Number(search) });
                     }
                     else {
-                        const regex = new RegExp(search, 'i');
+                        const regex = new RegExp(search, "i");
                         matchConditions.push({
                             $or: [
-                                { 'senderUser.username': { $regex: regex } },
-                                { 'receiverUser.username': { $regex: regex } },
-                                { 'senderPlayer.username': { $regex: regex } },
-                                { 'receiverPlayer.username': { $regex: regex } },
+                                { "senderUser.username": { $regex: regex } },
+                                { "receiverUser.username": { $regex: regex } },
+                                { "senderPlayer.username": { $regex: regex } },
+                                { "receiverPlayer.username": { $regex: regex } },
                                 { type: { $regex: regex } },
                             ],
                         });
                     }
                 }
+                if (date) {
+                    const dateRange = new Date(date);
+                    matchConditions.push({
+                        date: {
+                            $gte: new Date(dateRange.setHours(0, 0, 0, 0)),
+                            $lt: new Date(dateRange.setHours(23, 59, 59, 999)),
+                        },
+                    });
+                }
                 const pipeline = [
                     {
                         $lookup: {
-                            from: 'users',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'senderUser',
+                            from: "users",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderUser",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'players',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'senderPlayer',
+                            from: "players",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderPlayer",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'users',
-                            localField: 'receiver',
-                            foreignField: '_id',
-                            as: 'receiverUser',
+                            from: "users",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverUser",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'players',
-                            localField: 'receiver',
-                            foreignField: '_id',
-                            as: 'receiverPlayer',
+                            from: "players",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverPlayer",
                         },
                     },
                     {
                         $unwind: {
-                            path: '$senderUser',
+                            path: "$senderUser",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$senderPlayer',
+                            path: "$senderPlayer",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$receiverUser',
+                            path: "$receiverUser",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$receiverPlayer',
+                            path: "$receiverPlayer",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
-                    ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+                    ...(matchConditions.length > 0
+                        ? [{ $match: { $and: matchConditions } }]
+                        : []),
                     {
                         $project: {
                             sender: {
                                 $cond: {
-                                    if: { $ifNull: ['$senderUser.username', false] },
-                                    then: '$senderUser.username',
-                                    else: '$senderPlayer.username',
+                                    if: { $ifNull: ["$senderUser.username", false] },
+                                    then: "$senderUser.username",
+                                    else: "$senderPlayer.username",
                                 },
                             },
                             receiver: {
                                 $cond: {
-                                    if: { $ifNull: ['$receiverUser.username', false] },
-                                    then: '$receiverUser.username',
-                                    else: '$receiverPlayer.username',
+                                    if: { $ifNull: ["$receiverUser.username", false] },
+                                    then: "$receiverUser.username",
+                                    else: "$receiverPlayer.username",
                                 },
                             },
                             amount: 1,
@@ -175,7 +186,9 @@ class TransactionController {
                         },
                     },
                 ];
-                const allTransactions = yield transactionModel_1.default.aggregate(pipeline).sort({ date: -1 });
+                const allTransactions = yield transactionModel_1.default.aggregate(pipeline).sort({
+                    date: -1,
+                });
                 res.status(200).json(allTransactions);
             }
             catch (error) {
@@ -192,18 +205,16 @@ class TransactionController {
                 if (!userId)
                     throw (0, http_errors_1.default)(400, "User Id not Found");
                 const transactionsOfAgent = yield transactionModel_1.default.find({
-                    $or: [
-                        { sender: userId },
-                        { receiver: userId }
-                    ]
-                }).select('+senderModel +receiverModel')
+                    $or: [{ sender: userId }, { receiver: userId }],
+                })
+                    .select("+senderModel +receiverModel")
                     .populate({
-                    path: 'sender',
-                    select: '-password',
+                    path: "sender",
+                    select: "-password",
                 })
                     .populate({
-                    path: 'receiver',
-                    select: '-password',
+                    path: "receiver",
+                    select: "-password",
                 });
                 res.status(200).json(transactionsOfAgent);
             }
@@ -217,14 +228,14 @@ class TransactionController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { superior } = req.params;
-                const { type, search } = req.query;
+                const { type, search, date } = req.query;
                 let superiorUser;
                 // Fetching superior user based on type (id or username)
                 if (type === "id") {
-                    superiorUser = yield userModel_1.default.findById(superior).select('_id subordinates players role');
+                    superiorUser = yield userModel_1.default.findById(superior).select("_id subordinates players role");
                 }
                 else if (type === "username") {
-                    superiorUser = yield userModel_1.default.findOne({ username: superior }).select('_id subordinates players role');
+                    superiorUser = yield userModel_1.default.findOne({ username: superior }).select("_id subordinates players role");
                 }
                 else {
                     throw (0, http_errors_1.default)(400, "User Id or Username not provided");
@@ -233,111 +244,122 @@ class TransactionController {
                     throw (0, http_errors_1.default)(404, "User Not Found");
                 const subordinateIds = superiorUser.role === "admin"
                     ? [
-                        ...superiorUser.players.map(player => player._id),
-                        ...superiorUser.subordinates.map(sub => sub._id)
+                        ...superiorUser.players.map((player) => player._id),
+                        ...superiorUser.subordinates.map((sub) => sub._id),
                     ]
                     : superiorUser.role === "agent"
-                        ? superiorUser.players.map(player => player._id)
-                        : superiorUser.subordinates.map(sub => sub._id);
+                        ? superiorUser.players.map((player) => player._id)
+                        : superiorUser.subordinates.map((sub) => sub._id);
                 const matchConditions = [
                     {
                         $or: [
                             { sender: { $in: subordinateIds } },
                             { receiver: { $in: subordinateIds } },
                             { sender: superiorUser._id },
-                            { receiver: superiorUser._id }
-                        ]
-                    }
+                            { receiver: superiorUser._id },
+                        ],
+                    },
                 ];
                 if (search) {
                     if (!isNaN(Number(search))) {
                         matchConditions.push({ amount: Number(search) });
                     }
                     else {
-                        const regex = new RegExp(search, 'i');
+                        const regex = new RegExp(search, "i");
                         matchConditions.push({
                             $or: [
-                                { 'senderUser.username': { $regex: regex } },
-                                { 'receiverUser.username': { $regex: regex } },
-                                { 'senderPlayer.username': { $regex: regex } },
-                                { 'receiverPlayer.username': { $regex: regex } },
+                                { "senderUser.username": { $regex: regex } },
+                                { "receiverUser.username": { $regex: regex } },
+                                { "senderPlayer.username": { $regex: regex } },
+                                { "receiverPlayer.username": { $regex: regex } },
                                 { type: { $regex: regex } },
                             ],
                         });
                     }
                 }
+                if (date) {
+                    const dateRange = new Date(date);
+                    matchConditions.push({
+                        date: {
+                            $gte: new Date(dateRange.setHours(0, 0, 0, 0)),
+                            $lt: new Date(dateRange.setHours(23, 59, 59, 999)),
+                        },
+                    });
+                }
                 const pipeline = [
                     {
                         $lookup: {
-                            from: 'users',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'senderUser',
+                            from: "users",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderUser",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'players',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'senderPlayer',
+                            from: "players",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderPlayer",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'users',
-                            localField: 'receiver',
-                            foreignField: '_id',
-                            as: 'receiverUser',
+                            from: "users",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverUser",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'players',
-                            localField: 'receiver',
-                            foreignField: '_id',
-                            as: 'receiverPlayer',
+                            from: "players",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverPlayer",
                         },
                     },
                     {
                         $unwind: {
-                            path: '$senderUser',
+                            path: "$senderUser",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$senderPlayer',
+                            path: "$senderPlayer",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$receiverUser',
+                            path: "$receiverUser",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$receiverPlayer',
+                            path: "$receiverPlayer",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
-                    ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+                    ...(matchConditions.length > 0
+                        ? [{ $match: { $and: matchConditions } }]
+                        : []),
                     {
                         $project: {
                             sender: {
                                 $cond: {
-                                    if: { $ifNull: ['$senderUser.username', false] },
-                                    then: '$senderUser.username',
-                                    else: '$senderPlayer.username',
+                                    if: { $ifNull: ["$senderUser.username", false] },
+                                    then: "$senderUser.username",
+                                    else: "$senderPlayer.username",
                                 },
                             },
                             receiver: {
                                 $cond: {
-                                    if: { $ifNull: ['$receiverUser.username', false] },
-                                    then: '$receiverUser.username',
-                                    else: '$receiverPlayer.username',
+                                    if: { $ifNull: ["$receiverUser.username", false] },
+                                    then: "$receiverUser.username",
+                                    else: "$receiverPlayer.username",
                                 },
                             },
                             amount: 1,
@@ -346,7 +368,9 @@ class TransactionController {
                         },
                     },
                 ];
-                const transactions = yield transactionModel_1.default.aggregate(pipeline).sort({ date: -1 });
+                const transactions = yield transactionModel_1.default.aggregate(pipeline).sort({
+                    date: -1,
+                });
                 res.status(200).json(transactions);
             }
             catch (error) {
@@ -428,28 +452,31 @@ class TransactionController {
                 const { player } = req.params;
                 const { type } = req.query;
                 let playerData;
-                if (type === 'id') {
+                if (type === "id") {
                     playerData = yield playerModel_1.default.findById(player);
                     if (!playerData)
-                        throw (0, http_errors_1.default)(404, 'Player Not Found');
+                        throw (0, http_errors_1.default)(404, "Player Not Found");
                 }
-                else if (type === 'username') {
+                else if (type === "username") {
                     playerData = yield playerModel_1.default.findOne({ username: player });
                     if (!playerData)
-                        throw (0, http_errors_1.default)(404, 'Player Not Found with the provided username');
+                        throw (0, http_errors_1.default)(404, "Player Not Found with the provided username");
                 }
                 else {
                     throw (0, http_errors_1.default)(400, 'Invalid type provided. Use "id" or "username".');
                 }
-                const playerTransactions = yield transactionModel_1.default.find({ receiver: playerData._id }).sort({ date: -1 })
-                    .select('+senderModel +receiverModel')
+                const playerTransactions = yield transactionModel_1.default.find({
+                    receiver: playerData._id,
+                })
+                    .sort({ date: -1 })
+                    .select("+senderModel +receiverModel")
                     .populate({
-                    path: 'sender',
-                    select: 'username',
+                    path: "sender",
+                    select: "username",
                 })
                     .populate({
-                    path: 'receiver',
-                    select: 'username',
+                    path: "receiver",
+                    select: "username",
                 });
                 // Map transactions to the desired format
                 const formattedTransactions = playerTransactions.map((transaction) => ({

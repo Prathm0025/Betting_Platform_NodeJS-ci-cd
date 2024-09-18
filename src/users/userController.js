@@ -23,6 +23,7 @@ const svg_captcha_1 = __importDefault(require("svg-captcha"));
 const uuid_1 = require("uuid");
 const transactionModel_1 = __importDefault(require("../transactions/transactionModel"));
 const betModel_1 = __importDefault(require("../bets/betModel"));
+const socket_1 = require("../socket/socket");
 const captchaStore = {};
 class UserController {
     constructor() {
@@ -60,6 +61,8 @@ class UserController {
                     if (!sanitizedUsername || !sanitizedPassword) {
                         throw (0, http_errors_1.default)(400, "Username and password are required");
                     }
+                    if (socket_1.users.get(sanitizedUsername))
+                        throw (0, http_errors_1.default)(400, "Your are already logged in from another device");
                 }
                 else if (origin === "crm") {
                     const sanitizedcaptachaToken = (0, utils_1.sanitizeInput)(captchaToken);
