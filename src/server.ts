@@ -21,7 +21,8 @@ const app = express();
 
 app.use(
   cors({
-    origin: [`*.${config.hosted_url_cors}`],
+    // origin: [`*.${config.hosted_url_cors}`],
+    origin: "*",
   })
 );
 
