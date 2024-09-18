@@ -14,6 +14,7 @@ import { config } from "../config/config";
 import { redisClient } from "../redisclient";
 
 import { removeFromWaitingQueue } from "../utils/WaitingQueue";
+import { removeItem } from "../utils/ProcessingQueue";
 
 class BetController {
   public async placeBet(
@@ -725,15 +726,46 @@ class BetController {
       if (!betId || !betData) {
          throw createHttpError(400, "Invalid Input")
       }
+      const { detailId , ...updateData } = betDetails as any;
+
+      const existingBetDetails = await BetDetail.findById(detailId);
+
+      if(!existingBetDetails){
+
+        throw createHttpError(404, "Bet Detail Not found")
+
+      }
+
+     //Handling removing the bet from processing queue or waiting queue
+
+     if(existingBetDetails.status==="pending" && betDetails.status!=="pending" ){
+        const now = new Date().getTime();
+        const commenceTime = existingBetDetails.commence_time;
+        if (now >= new Date(commenceTime).getTime()){
+          const data = {
+            betId: existingBetDetails._id.toString(),
+            commence_time: new Date(existingBetDetails.commence_time),
+          }
+          await removeFromWaitingQueue(JSON.stringify(data));
+        }else{
+          await removeItem(JSON.stringify(existingBetDetails));
+
+        }
+      }
+    
+      const existingParentBet = await Bet.findById(betId);
+      if(!existingParentBet){
+        throw createHttpError(404, "Bet Not Found")
+      }
+
 
       const session = await mongoose.startSession();
       session.startTransaction();
-      const { detailId , ...updateData } = betDetails as any;
-
-   
-          await BetDetail.findByIdAndUpdate(detailId, updateData, { new: true }).session(session);
-    
-  
+      const newupdateData = {
+        ...updateData,  
+        isResolved: true       
+      };
+      await BetDetail.findByIdAndUpdate(detailId, newupdateData, { new: true }).session(session);
       const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
     
       if (!updatedBet) {
@@ -747,26 +779,70 @@ class BetController {
       const parentBet = await Bet.findById(updatedBet._id);
       const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
       const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
+      // const hasNotWonOrLost = allBetDetails.some(
+      //   (detail) => detail.status !== 'won' && detail.status !== 'lost'
+      // );
+      
 
+      let playerResponseMessage;
+      let agentResponseMessage;
+      const playerId = parentBet.player;
+      const possibleWinningAmount = parentBet.possibleWinningAmount;
+      const player= await PlayerModel.findById(playerId);
 
       if (!hasNotWon && parentBet.status !== "won") {
-        const playerId = parentBet.player;
-        const possibleWinningAmount = parentBet.possibleWinningAmount;
-        const player = await PlayerModel.findById(playerId);
-
         if (player) {
           player.credits += possibleWinningAmount;
           await player.save();
         }
 
         parentBet.status = "won";
+        parentBet.isResolved = true;
         await parentBet.save();
 
         const playerSocket = users.get(player.username);
         if (playerSocket) {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
+        playerResponseMessage = `Bet Won!. Bet Amount: $${parentBet.amount}`;
+        agentResponseMessage = `Your Player ${player.username} has won a bet. Bet Amount: $${parentBet.amount}` 
+       
+      }else if(existingParentBet.status==="won" && hasNotWon){
+        if (player) {
+          player.credits -= possibleWinningAmount;
+          await player.save();
+        }
+
+        parentBet.status = "lost";
+        parentBet.isResolved = true;
+        await parentBet.save();
+
+        const playerSocket = users.get(player.username);
+        if (playerSocket) {
+          playerSocket.sendData({ type: "CREDITS", credits: player.credits });
+        }
+        playerResponseMessage = `Bet lost!. Bet Amount: $${parentBet.amount}`;
+        agentResponseMessage = `Your Player ${player.username} has lost a bet. Bet Amount: $${parentBet.amount}` 
+      }else{
+
+        playerResponseMessage = `Bet ${parentBet.status}!. Bet Amount: $${parentBet.amount}`;
+        agentResponseMessage = `Your Player ${player.username}'s bet has  ${parentBet.status}. Bet Amount: $${parentBet.amount}` 
       }
+
+      redisClient.publish(
+        "bet-notifications",
+        JSON.stringify({
+          type: "BET_RESULT",
+          player: {
+            _id: player._id.toString(),
+            username: player.username,
+          },
+          agent: player.createdBy.toString(),
+          betId: parentBet._id.toString(),
+          playerMessage: playerResponseMessage,
+          agentMessage: agentResponseMessage,
+        })
+      );
       res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
     } catch (error) {
       console.log(error);
