@@ -52,38 +52,38 @@ class BetController {
       }
 
       // Check if the player already has a pending bet on the same team
-      for (const betDetailData of betDetails) {
-        const existingBetDetails = await BetDetail.find({
-          event_id: betDetailData.event_id,
-          status: "pending",
-          market: betDetailData.market,
-        }).session(session);
-
-        // Check if there are any existing bet details
-        if (existingBetDetails.length > 0) {
-          for (const data of existingBetDetails) {
-            const bet = await Bet.findById(data.key).session(session);
-            if (!bet) {
-              throw new Error("Something went wrong");
-            }
-            const betPlayer = await PlayerModel.findById(bet.player).session(
-              session
-            );
-            if (betPlayer._id.equals(player._id)) {
-              // Use `.equals` for MongoDB ObjectId comparison
-              if (data.bet_on === betDetailData.bet_on) {
-                throw new Error(
-                  `You already have a pending bet on ${betDetailData.bet_on}.`
-                );
-              } else {
-                throw new Error(
-                  `This is not a valid bet since the other bet is not yet resolved!`
-                );
-              }
-            }
-          }
-        }
-      }
+      // for (const betDetailData of betDetails) {
+      //   const existingBetDetails = await BetDetail.find({
+      //     event_id: betDetailData.event_id,
+      //     status: "pending",
+      //     market: betDetailData.market,
+      //   }).session(session);
+      //
+      //   // Check if there are any existing bet details
+      //   if (existingBetDetails.length > 0) {
+      //     for (const data of existingBetDetails) {
+      //       const bet = await Bet.findById(data.key).session(session);
+      //       if (!bet) {
+      //         throw new Error("Something went wrong");
+      //       }
+      //       const betPlayer = await PlayerModel.findById(bet.player).session(
+      //         session
+      //       );
+      //       if (betPlayer._id.equals(player._id)) {
+      //         // Use `.equals` for MongoDB ObjectId comparison
+      //         if (data.bet_on === betDetailData.bet_on) {
+      //           throw new Error(
+      //             `You already have a pending bet on ${betDetailData.bet_on}.`
+      //           );
+      //         } else {
+      //           throw new Error(
+      //             `This is not a valid bet since the other bet is not yet resolved!`
+      //           );
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
 
       // Deduct the bet amount from the player's credits
       player.credits -= amount;
@@ -306,7 +306,7 @@ class BetController {
 
   //GET ALL BETS FOR ADMIN
 
-  
+
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
       const bets = await Bet.find()
@@ -713,35 +713,35 @@ class BetController {
     }
   }
 
-  
 
-   async updateBet(req: Request, res: Response, next: NextFunction) {
-  
+
+  async updateBet(req: Request, res: Response, next: NextFunction) {
+
     try {
       const { betId, betDetails, betData } = req.body;
       console.log(JSON.stringify(req.body));
-      
-  
+
+
       if (!betId || !betData) {
-         throw createHttpError(400, "Invalid Input")
+        throw createHttpError(400, "Invalid Input")
       }
 
       const session = await mongoose.startSession();
       session.startTransaction();
-      const { detailId , ...updateData } = betDetails as any;
+      const { detailId, ...updateData } = betDetails as any;
 
-   
-          await BetDetail.findByIdAndUpdate(detailId, updateData, { new: true }).session(session);
-    
-  
+
+      await BetDetail.findByIdAndUpdate(detailId, updateData, { new: true }).session(session);
+
+
       const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
-    
+
       if (!updatedBet) {
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: "Bet not found" });
       }
-  
+
       await session.commitTransaction();
       session.endSession();
       const parentBet = await Bet.findById(updatedBet._id);
@@ -770,11 +770,11 @@ class BetController {
       res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
     } catch (error) {
       console.log(error);
-      
-        next(error);
+
+      next(error);
     }
   }
-  
+
 
 
 }
