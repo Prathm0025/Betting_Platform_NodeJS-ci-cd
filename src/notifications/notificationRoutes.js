@@ -10,27 +10,19 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const utils_1 = require("../utils/utils");
 const middleware_1 = require("../utils/middleware");
 const notificationRoutes = express_1.default.Router();
-const allowedOrigins = [
-    "http://localhost:3000",
-    "https://crm.bettingparadize.com",
-    "https://betting-crm-nextjs-dev.vercel.app",
-];
 notificationRoutes.get("/", middleware_1.checkUser, notificationController_1.default.getNotifications);
 notificationRoutes.put("/", middleware_1.checkUser, notificationController_1.default.markNotificationViewed);
 //NOTE:
 // SSE route to stream notifications to agents
-notificationRoutes.get("/sse", (req, res) => {
-    var _a;
+notificationRoutes.get("/sse", middleware_1.checkUser, (req, res) => {
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader("Access-Control-Allow-Origin", origin);
-    }
+    const token = req.headers.authorization.split(" ")[1];
+    res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     // Set the headers for SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    const token = (_a = req.headers.cookie) === null || _a === void 0 ? void 0 : _a.split("=")[1];
     const decoded = jsonwebtoken_1.default.verify(token, config_1.config.jwtSecret);
     utils_1.agents.set(decoded.userId, res);
     // Clean up when the connection is closed

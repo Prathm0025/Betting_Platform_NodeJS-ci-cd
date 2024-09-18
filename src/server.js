@@ -18,13 +18,13 @@ const playerRoutes_1 = __importDefault(require("./players/playerRoutes"));
 const transactionRoutes_1 = __importDefault(require("./transactions/transactionRoutes"));
 const storeRoutes_1 = __importDefault(require("./store/storeRoutes"));
 const betRoutes_1 = __importDefault(require("./bets/betRoutes"));
-const config_1 = require("./config/config");
 const notificationRoutes_1 = __importDefault(require("./notifications/notificationRoutes"));
 const userActivityRoutes_1 = __importDefault(require("./userActivity/userActivityRoutes"));
 const bannerRoutes_1 = __importDefault(require("./banner/bannerRoutes"));
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    origin: [`*.${config_1.config.hosted_url_cors}`],
+    // origin: [`*.${config.hosted_url_cors}`],
+    origin: "*",
 }));
 app.use(express_1.default.json());
 const server = (0, http_1.createServer)(app);
