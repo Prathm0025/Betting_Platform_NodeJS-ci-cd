@@ -1,6 +1,7 @@
 import mongoose, { Model, Schema } from "mongoose";
 import { IBet, IBetDetail } from "./betsType";
 
+
 const BetDetailSchema: Schema = new Schema({
   key: { type: Schema.Types.ObjectId, ref: "Bet", required: true },
   teams: [

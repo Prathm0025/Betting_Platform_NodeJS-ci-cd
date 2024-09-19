@@ -3,27 +3,25 @@ import mongoose from "mongoose";
 export interface IBetDetail extends mongoose.Document {
   _id: mongoose.Types.ObjectId;
   key: mongoose.Schema.Types.ObjectId;
+  teams: {
+    name: string;
+    odds: number;
+  }[];
+  bet_on: {
+    name: string;
+    odds: number;
+    points?: number;
+  };
   event_id: string;
   sport_title: string;
   sport_key: string;
   commence_time: Date;
-  teams: Array<{
-    name: string;
-  }>;
-  bet_on: {
-    name: string;
-    odds: number;
-    points: number;
-  };
   category: string;
   bookmaker: string;
   oddsFormat: string;
   status: "won" | "lost" | "draw" | "pending" | "redeem" | "failed";
   isResolved: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
-
 
 export interface IBet extends mongoose.Document {
   player: mongoose.Schema.Types.ObjectId;
@@ -35,3 +33,4 @@ export interface IBet extends mongoose.Document {
   betType: "single" | "combo";
   isResolved: boolean;
 }
+

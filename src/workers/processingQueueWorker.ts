@@ -1,14 +1,11 @@
-import { parentPort, workerData } from "worker_threads";
+import { parentPort } from "worker_threads";
 import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "../bets/betModel";
 import { dequeue, getAll, removeItem, size } from "../utils/ProcessingQueue";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
-import { IPlayer } from "../players/playerType";
 import { redisClient } from "../redisclient";
-import Notification from "../notifications/notificationController";
-import { users } from "../socket/socket";
 
 
 async function connectDB() {
@@ -42,7 +39,6 @@ async function processBets(sportKeys, bets) {
       }
 
       const { completedGames } = scoresData;
-
 
       for (const game of completedGames) {
         const betsToBeProcess = bets.filter((b) => b.event_id === game.id);
