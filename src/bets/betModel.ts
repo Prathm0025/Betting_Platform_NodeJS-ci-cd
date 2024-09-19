@@ -1,29 +1,35 @@
 import mongoose, { Model, Schema } from "mongoose";
 import { IBet, IBetDetail } from "./betsType";
 
+
+
 const BetDetailSchema: Schema = new Schema({
-  key: { type: Schema.Types.ObjectId, ref: "Bet", required: true }, // Reference to the parent Bet
+  key: { type: Schema.Types.ObjectId, ref: "Bet", required: true },
+  teams: [
+    {
+      name: { type: String, required: true }
+    }
+  ],
+  bet_on: {
+    name: {
+      type: String,
+      required: true,
+    },
+    odds: {
+      type: Number,
+      required: true
+    },
+    points: {
+      type: Number,
+      required: false
+    }
+  },
   event_id: { type: String, required: true },
   sport_title: { type: String, required: true },
   sport_key: { type: String, required: true },
   commence_time: { type: Date, required: true },
-  home_team: {
-    name: { type: String, required: true },
-    odds: { type: Number, required: true },
-    points: { type: Number, required: false },
-  },
-  away_team: {
-    name: { type: String, required: true },
-    odds: { type: Number, required: true },
-    points: { type: Number, required: false },
-  },
-  market: { type: String, required: true },
-  bet_on: {
-    type: String,
-    // enum: ["home_team", "away_team", "Over", "Under"],
-    required: true,
-  },
-  selected: { type: String, required: true },
+  category: { type: String, required: true },
+  bookmaker: { type: String, required: true },
   oddsFormat: { type: String, required: true },
   status: {
     type: String,
@@ -32,8 +38,7 @@ const BetDetailSchema: Schema = new Schema({
   },
   isResolved: {
     type: Boolean,
-    default: false,  
-
+    default: false,
   }
 }, { timestamps: true });
 

@@ -57,7 +57,7 @@ class BetController {
         const existingBetDetails = await BetDetail.find({
           event_id: betDetailData.event_id,
           status: "pending",
-          market: betDetailData.market,
+          category: betDetailData.category,
         }).session(session);
 
         // Check if there are any existing bet details
@@ -89,52 +89,28 @@ class BetController {
       // Deduct the bet amount from the player's credits
       player.credits -= amount;
       await player.save({ session });
-
       playerSocket.sendData({ type: "CREDITS", credits: player.credits });
 
-      // Manually generate the Bet's _id
       const betId = new mongoose.Types.ObjectId();
       const betDetailIds: mongoose.Types.ObjectId[] = [];
-      let cumulativeOdds = 1; // Initialize cumulative odds
+      let cumulativeOdds = 1;
 
-      // Loop through each BetDetail and create it
       for (const betDetailData of betDetails) {
-        // Calculate the selected team's odds
-        let selectedOdds;
-        switch (betDetailData.bet_on) {
-          case "home_team":
-            selectedOdds = betDetailData.home_team.odds;
-            break;
-          case "away_team":
-            selectedOdds = betDetailData.away_team.odds;
-            break;
-          case "Over":
-            selectedOdds = betDetailData.home_team.odds;
-            break;
-          case "Under":
-            selectedOdds = betDetailData.away_team.odds;
-            break;
-          default:
-            break;
-        }
-
+        const selectedOdds = betDetailData.bet_on.odds;
         cumulativeOdds *= selectedOdds;
 
-        // Create the BetDetail document
         const betDetail = new BetDetail({
           ...betDetailData,
           key: betId,
-          status: "pending", // Set the betId as the key in BetDetail
+          status: "pending",
         });
 
         await betDetail.save({ session });
-        betDetailIds.push(betDetail._id); // No need to cast, using mongoose.Types.ObjectId
+        betDetailIds.push(betDetail._id);
 
-        // Schedule the job for this BetDetail based on its commence_time
         await this.scheduleBetDetailJob(betDetail);
       }
 
-      // Calculate the possible winning amount
       const possibleWinningAmount = cumulativeOdds * amount;
 
       // Create the Bet document with the manually generated _id
@@ -165,15 +141,9 @@ class BetController {
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
 
-      const selectedTeamName =
-        betDetails[0].bet_on === "home_team"
-          ? betDetails[0].home_team.name
-          : betDetails[0].away_team.name;
+      const selectedTeamName = betDetails[0].bet_on.name;
+      const selectedOdds = betDetails[0].bet_on.odds;
 
-      const selectedOdds =
-        betDetails[0].bet_on === "home_team"
-          ? betDetails[0].home_team.odds
-          : betDetails[0].away_team.odds;
 
       let playerResponseMessage;
       let agentResponseMessage;
@@ -307,7 +277,7 @@ class BetController {
 
   //GET ALL BETS FOR ADMIN
 
-  
+
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
       const bets = await Bet.find()
@@ -714,47 +684,47 @@ class BetController {
     }
   }
 
-  
 
-   async updateBet(req: Request, res: Response, next: NextFunction) {
-  
+
+  async updateBet(req: Request, res: Response, next: NextFunction) {
+
     try {
       const { betId, betDetails, betData } = req.body;
       console.log(JSON.stringify(req.body));
-      
-  
+
+
       if (!betId || !betData) {
-         throw createHttpError(400, "Invalid Input")
+        throw createHttpError(400, "Invalid Input")
       }
-      const { detailId , ...updateData } = betDetails as any;
+      const { detailId, ...updateData } = betDetails as any;
 
       const existingBetDetails = await BetDetail.findById(detailId);
 
-      if(!existingBetDetails){
+      if (!existingBetDetails) {
 
         throw createHttpError(404, "Bet Detail Not found")
 
       }
 
-     //Handling removing the bet from processing queue or waiting queue
+      //Handling removing the bet from processing queue or waiting queue
 
-     if(existingBetDetails.status==="pending" && betDetails.status!=="pending" ){
+      if (existingBetDetails.status === "pending" && betDetails.status !== "pending") {
         const now = new Date().getTime();
         const commenceTime = existingBetDetails.commence_time;
-        if (now >= new Date(commenceTime).getTime()){
+        if (now >= new Date(commenceTime).getTime()) {
           const data = {
             betId: existingBetDetails._id.toString(),
             commence_time: new Date(existingBetDetails.commence_time),
           }
           await removeFromWaitingQueue(JSON.stringify(data));
-        }else{
+        } else {
           await removeItem(JSON.stringify(existingBetDetails));
 
         }
       }
-    
+
       const existingParentBet = await Bet.findById(betId);
-      if(!existingParentBet){
+      if (!existingParentBet) {
         throw createHttpError(404, "Bet Not Found")
       }
 
@@ -762,18 +732,18 @@ class BetController {
       const session = await mongoose.startSession();
       session.startTransaction();
       const newupdateData = {
-        ...updateData,  
-        isResolved: true       
+        ...updateData,
+        isResolved: true
       };
       await BetDetail.findByIdAndUpdate(detailId, newupdateData, { new: true }).session(session);
       const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
-    
+
       if (!updatedBet) {
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: "Bet not found" });
       }
-  
+
       await session.commitTransaction();
       session.endSession();
       const parentBet = await Bet.findById(updatedBet._id);
@@ -782,13 +752,13 @@ class BetController {
       // const hasNotWonOrLost = allBetDetails.some(
       //   (detail) => detail.status !== 'won' && detail.status !== 'lost'
       // );
-      
+
 
       let playerResponseMessage;
       let agentResponseMessage;
       const playerId = parentBet.player;
       const possibleWinningAmount = parentBet.possibleWinningAmount;
-      const player= await PlayerModel.findById(playerId);
+      const player = await PlayerModel.findById(playerId);
 
       if (!hasNotWon && parentBet.status !== "won") {
         if (player) {
@@ -805,9 +775,9 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
         playerResponseMessage = `Bet Won!. Bet Amount: $${parentBet.amount}`;
-        agentResponseMessage = `Your Player ${player.username} has won a bet. Bet Amount: $${parentBet.amount}` 
-       
-      }else if(existingParentBet.status==="won" && hasNotWon){
+        agentResponseMessage = `Your Player ${player.username} has won a bet. Bet Amount: $${parentBet.amount}`
+
+      } else if (existingParentBet.status === "won" && hasNotWon) {
         if (player) {
           player.credits -= possibleWinningAmount;
           await player.save();
@@ -822,11 +792,11 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
         playerResponseMessage = `Bet lost!. Bet Amount: $${parentBet.amount}`;
-        agentResponseMessage = `Your Player ${player.username} has lost a bet. Bet Amount: $${parentBet.amount}` 
-      }else{
+        agentResponseMessage = `Your Player ${player.username} has lost a bet. Bet Amount: $${parentBet.amount}`
+      } else {
 
         playerResponseMessage = `Bet ${parentBet.status}!. Bet Amount: $${parentBet.amount}`;
-        agentResponseMessage = `Your Player ${player.username}'s bet has  ${parentBet.status}. Bet Amount: $${parentBet.amount}` 
+        agentResponseMessage = `Your Player ${player.username}'s bet has  ${parentBet.status}. Bet Amount: $${parentBet.amount}`
       }
 
       redisClient.publish(
@@ -846,11 +816,11 @@ class BetController {
       res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
     } catch (error) {
       console.log(error);
-      
-        next(error);
+
+      next(error);
     }
   }
-  
+
 
 
 }
