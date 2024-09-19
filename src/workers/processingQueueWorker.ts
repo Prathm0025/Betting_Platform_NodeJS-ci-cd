@@ -238,10 +238,11 @@ function checkIfPlayerWonBet(betDetail, gameData) {
     console.log("Game is not yet completed.");
     return "pending";
   }
-
+ const home_team = gameData.home_team;
+ const away_team = gameData.away_team;
   // extract the scores from the game data
-  const homeTeamScore = gameData.scores.find(team => team.name === gameData.home_team)?.score;
-  const awayTeamScore = gameData.scores.find(team => team.name === gameData.away_team)?.score;
+  const homeTeamScore = gameData.scores.find(team => team.name === home_team)?.score;
+  const awayTeamScore = gameData.scores.find(team => team.name === away_team)?.score;
 
   if (homeTeamScore === undefined || awayTeamScore === undefined) {
     console.error("Error: Could not find scores for the teams.");
@@ -255,15 +256,15 @@ function checkIfPlayerWonBet(betDetail, gameData) {
   }
 
   // Check if the user bet on the home team or away team
-  const userBetOn = betDetail.bet_on;
+  const userBetOn = betDetail.bet_on.name;
 
   let userWon = false;
 
-  if (userBetOn === "home_team") {
+  if (userBetOn === home_team) {
     // check id the home team won
     userWon = homeTeamScore > awayTeamScore;
   }
-  else if (userBetOn === "away_team") {
+  else if (userBetOn === away_team) {
     // Check if the away team won
     userWon = awayTeamScore > homeTeamScore;
   }
