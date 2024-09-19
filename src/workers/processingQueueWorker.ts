@@ -6,6 +6,7 @@ import { dequeue, getAll, removeItem, size } from "../utils/ProcessingQueue";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
 import { redisClient } from "../redisclient";
+import { IBet, IBetDetail } from "../bets/betsType";
 
 
 async function connectDB() {
@@ -29,7 +30,7 @@ connectDB();
 
 
 
-async function processBets(sportKeys, bets) {
+async function processBets(sportKeys: string[], bets: IBetDetail[]): Promise<void> {
   try {
     for (const sport of sportKeys) {
       const scoresData = await Store.getScoresForProcessing(sport, "3", "iso");
@@ -46,14 +47,12 @@ async function processBets(sportKeys, bets) {
         if (betsToBeProcess.length > 0) {
           for (const bet of betsToBeProcess) {
             try {
-              await processCompletedBet(bet._id.toString(), game);
+              await processCompletedBet(bet._id, game);
               await removeItem(JSON.stringify(bet))
             } catch (error) {
-              // Retrieve the parent bet of the current bet detail
-              const parentBet = await Bet.findById(bet.key); // Assuming `key` references the parent bet
+              const parentBet = await Bet.findById(bet.key); 
 
               if (parentBet) {
-                // Mark the parent bet as unresolved
                 await Bet.findByIdAndUpdate(parentBet._id, { isResolved: false });
                 console.log(`Parent Bet with ID ${parentBet._id} marked as unresolved due to an error in processing bet detail.`);
               } else {
@@ -69,15 +68,14 @@ async function processBets(sportKeys, bets) {
     }
   } catch (error) {
     console.error("Error during bet processing:", error);
-
   }
 }
 
 
-async function processCompletedBet(betDetailId, gameData) {
+async function processCompletedBet(betDetailId: mongoose.Types.ObjectId, gameData: any): Promise<void> {
   const maxRetries = 3;
   let retryCount = 0;
-  let currentBetDetail;
+  let currentBetDetail: IBetDetail = null;
 
   while (retryCount < maxRetries) {
     try {
@@ -89,7 +87,7 @@ async function processCompletedBet(betDetailId, gameData) {
       }
 
       // Find the parent Bet associated with the BetDetail
-      const parentBet = await Bet.findById(currentBetDetail.key);
+      const parentBet: IBet = await Bet.findById(currentBetDetail.key);
       if (!parentBet) {
         console.error("Parent Bet not found for betDetail:", currentBetDetail._id);
         return;
@@ -227,18 +225,20 @@ async function processCompletedBet(betDetailId, gameData) {
 }
 
 
-function checkIfPlayerWonBet(betDetail, gameData) {
+function checkIfPlayerWonBet(betDetail: IBetDetail, gameData: any): "won" | "lost" | "draw" | "pending" | "failed" {
 
   // check if the game is completed
   if (!gameData.completed) {
     console.log("Game is not yet completed.");
     return "pending";
   }
- const home_team = gameData.home_team;
- const away_team = gameData.away_team;
+
+  const homeTeamName = gameData.home_team;
+  const awayTeamName = gameData.away_team;
+
   // extract the scores from the game data
-  const homeTeamScore = gameData.scores.find(team => team.name === home_team)?.score;
-  const awayTeamScore = gameData.scores.find(team => team.name === away_team)?.score;
+  const homeTeamScore = gameData.scores.find((team: any) => team.name === homeTeamName)?.score;
+  const awayTeamScore = gameData.scores.find((team: any) => team.name === awayTeamName)?.score;
 
   if (homeTeamScore === undefined || awayTeamScore === undefined) {
     console.error("Error: Could not find scores for the teams.");
@@ -256,11 +256,11 @@ function checkIfPlayerWonBet(betDetail, gameData) {
 
   let userWon = false;
 
-  if (userBetOn === home_team) {
+  if (userBetOn === homeTeamName) {
     // check id the home team won
     userWon = homeTeamScore > awayTeamScore;
   }
-  else if (userBetOn === away_team) {
+  else if (userBetOn === awayTeamName) {
     // Check if the away team won
     userWon = awayTeamScore > homeTeamScore;
   }
@@ -269,7 +269,7 @@ function checkIfPlayerWonBet(betDetail, gameData) {
 
 }
 
-async function awardWinningsToPlayer(playerId, possibleWinningAmount) {
+async function awardWinningsToPlayer(playerId: mongoose.Schema.Types.ObjectId, possibleWinningAmount: number): Promise<void> {
   try {
     // Find the player and update their balance
     const player = await Player.findById(playerId);
