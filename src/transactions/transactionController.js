@@ -450,7 +450,7 @@ class TransactionController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { player } = req.params;
-                const { type } = req.query;
+                const { type, search, date } = req.query;
                 let playerData;
                 if (type === "id") {
                     playerData = yield playerModel_1.default.findById(player);
@@ -465,18 +465,120 @@ class TransactionController {
                 else {
                     throw (0, http_errors_1.default)(400, 'Invalid type provided. Use "id" or "username".');
                 }
-                const playerTransactions = yield transactionModel_1.default.find({
-                    receiver: playerData._id,
-                })
-                    .sort({ date: -1 })
-                    .select("+senderModel +receiverModel")
-                    .populate({
-                    path: "sender",
-                    select: "username",
-                })
-                    .populate({
-                    path: "receiver",
-                    select: "username",
+                const matchConditions = [
+                    { $or: [{ receiver: playerData._id }, { sender: playerData._id }] },
+                ];
+                if (search) {
+                    if (!isNaN(Number(search))) {
+                        matchConditions.push({ amount: Number(search) });
+                    }
+                    else {
+                        const regex = new RegExp(search, "i");
+                        matchConditions.push({
+                            $or: [
+                                { "senderUser.username": { $regex: regex } },
+                                { "receiverUser.username": { $regex: regex } },
+                                { "senderPlayer.username": { $regex: regex } },
+                                { "receiverPlayer.username": { $regex: regex } },
+                                { type: { $regex: regex } },
+                            ],
+                        });
+                    }
+                }
+                if (date) {
+                    const dateRange = new Date(date);
+                    matchConditions.push({
+                        date: {
+                            $gte: new Date(dateRange.setHours(0, 0, 0, 0)),
+                            $lt: new Date(dateRange.setHours(23, 59, 59, 999)),
+                        },
+                    });
+                }
+                const pipeline = [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderUser",
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "players",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderPlayer",
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverUser",
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "players",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverPlayer",
+                        },
+                    },
+                    ...(matchConditions.length > 0
+                        ? [{ $match: { $and: matchConditions } }]
+                        : []),
+                    {
+                        $unwind: {
+                            path: "$senderUser",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$senderPlayer",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$receiverUser",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$receiverPlayer",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            type: 1,
+                            amount: 1,
+                            date: 1,
+                            sender: {
+                                $cond: {
+                                    if: { $ifNull: ["$senderUser.username", false] },
+                                    then: "$senderUser.username",
+                                    else: "$senderPlayer.username",
+                                },
+                            },
+                            receiver: {
+                                $cond: {
+                                    if: { $ifNull: ["$receiverUser.username", false] },
+                                    then: "$receiverUser.username",
+                                    else: "$receiverPlayer.username",
+                                },
+                            },
+                        },
+                    },
+                ];
+                const playerTransactions = yield transactionModel_1.default.aggregate(pipeline).sort({
+                    date: -1,
                 });
                 // Map transactions to the desired format
                 const formattedTransactions = playerTransactions.map((transaction) => ({
@@ -484,8 +586,8 @@ class TransactionController {
                     type: transaction.type,
                     amount: transaction.amount,
                     date: transaction.date,
-                    sender: transaction.sender.username,
-                    receiver: transaction.receiver.username,
+                    sender: transaction.sender,
+                    receiver: transaction.receiver,
                 }));
                 res.status(200).json(formattedTransactions);
             }
