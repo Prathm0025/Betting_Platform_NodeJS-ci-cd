@@ -259,17 +259,23 @@ class BetController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { agentId } = req.params;
+                const { date } = req.query;
                 if (!agentId)
                     throw (0, http_errors_1.default)(400, "Agent Id not Found");
                 const agent = yield userModel_1.default.findById(agentId);
                 if (!agent)
                     throw (0, http_errors_1.default)(404, "Agent Not Found");
+                const query = {};
+                if (date) {
+                    const filterDate = new Date(date);
+                    const startOfDay = new Date(filterDate.setHours(0, 0, 0, 0));
+                    const endOfDay = new Date(filterDate.setHours(23, 59, 59, 999));
+                    query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+                }
                 const playerUnderAgent = agent.players;
                 if (playerUnderAgent.length === 0)
                     return res.status(200).json({ message: "No Players Under Agent" });
-                const bets = yield betModel_1.default.find({
-                    player: { $in: playerUnderAgent },
-                })
+                const bets = yield betModel_1.default.find(Object.assign({ player: { $in: playerUnderAgent } }, query))
                     .populate("player", "username _id")
                     .populate({
                     path: "data",
@@ -289,7 +295,15 @@ class BetController {
     getAdminBets(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const bets = yield betModel_1.default.find()
+                const { date } = req.query;
+                const query = {};
+                if (date) {
+                    const filterDate = new Date(date);
+                    const startOfDay = new Date(filterDate.setHours(0, 0, 0, 0));
+                    const endOfDay = new Date(filterDate.setHours(23, 59, 59, 999));
+                    query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+                }
+                const bets = yield betModel_1.default.find(query)
                     .sort({ createdAt: -1 })
                     .populate("player", "username _id")
                     .populate({
@@ -299,6 +313,7 @@ class BetController {
                         select: "event_id sport_title commence_time status",
                     },
                 });
+                console.log(bets);
                 res.status(200).json(bets);
             }
             catch (error) {
@@ -312,7 +327,14 @@ class BetController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { player } = req.params;
-                const { type, status } = req.query;
+                const { type, status, date, search } = req.query;
+                const query = {};
+                if (date) {
+                    const filterDate = new Date(date);
+                    const startOfDay = new Date(filterDate.setHours(0, 0, 0, 0));
+                    const endOfDay = new Date(filterDate.setHours(23, 59, 59, 999));
+                    query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+                }
                 let playerDoc;
                 if (type === "id") {
                     playerDoc = yield playerModel_1.default.findById(player);
@@ -327,7 +349,7 @@ class BetController {
                 else {
                     throw (0, http_errors_1.default)(400, "User Id or Username not provided");
                 }
-                const playerBets = yield betModel_1.default.find(Object.assign(Object.assign({ player: playerDoc._id }, (status === "combo" || status === "all" ? {} : { status })), (status === "combo" && { betType: "combo" })))
+                const playerBets = yield betModel_1.default.find(Object.assign(Object.assign(Object.assign({ player: playerDoc._id }, (status === "combo" || status === "all" ? {} : { status })), (status === "combo" && { betType: "combo" })), query))
                     .sort({ createdAt: -1 })
                     .populate("player", "username _id")
                     .populate({
@@ -457,7 +479,7 @@ class BetController {
                 let totalOldOdds = 1;
                 let totalNewOdds = 1;
                 for (const betDetails of betDetailsArray) {
-                    //need to remove from waiting list 
+                    //need to remove from waiting list
                     const data = {
                         betId: betDetails._id.toString(),
                         commence_time: new Date(betDetails.commence_time),
@@ -523,12 +545,12 @@ class BetController {
                         type: "BET_REDEEMED_FAILED",
                         player: {
                             _id: player._id.toString(),
-                            username: player.username
+                            username: player.username,
                         },
                         agent: player.createdBy.toString(),
                         betId: bet._id.toString(),
                         playerMessage: ` Bet (ID: ${betId}) redeemed failed!`,
-                        agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`
+                        agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`,
                     }));
                     throw (0, http_errors_1.default)(400, "Bet failed!");
                 }
@@ -544,12 +566,12 @@ class BetController {
                         type: "BET_REDEEMED",
                         player: {
                             _id: player._id.toString(),
-                            username: player.username
+                            username: player.username,
                         },
                         agent: player.createdBy.toString(),
                         betId: bet._id.toString(),
                         playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(2)}!`,
-                        agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(2)}`
+                        agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(2)}`,
                     }));
                     res.status(200).json({ message: "Bet Redeemed Successfully" });
                     if (playerSocket) {
@@ -607,7 +629,7 @@ class BetController {
                         playerSocket.sendData({ type: "CREDITS", credits: player.credits });
                     }
                 }
-                // remove from waiting queue on resolve 
+                // remove from waiting queue on resolve
                 allBetDetails.forEach((detail) => {
                     const data = {
                         betId: detail._id.toString(),

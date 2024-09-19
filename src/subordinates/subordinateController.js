@@ -365,7 +365,8 @@ class SubordinateController {
                         ? superiorUser.players
                         : superiorUser.subordinates;
                 if (search) {
-                    subordinates = subordinates.filter((subordinate) => subordinate.username === search);
+                    const regex = new RegExp(search, "i"); // 'i' for case-insensitive matching
+                    subordinates = subordinates.filter((subordinate) => regex.test(subordinate.username));
                 }
                 if (date) {
                     const filterDate = new Date(date);
