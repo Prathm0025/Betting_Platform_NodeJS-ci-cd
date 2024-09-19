@@ -370,6 +370,7 @@ class SubordinateController {
     try {
       const { superior } = req.params;
       const { type, search, date } = req.query;
+
       const _req = req as AuthRequest;
       const { userId } = _req.user;
 
@@ -453,8 +454,9 @@ class SubordinateController {
           : superiorUser.subordinates;
 
       if (search) {
-        subordinates = subordinates.filter(
-          (subordinate: any) => subordinate.username === search
+        const regex = new RegExp(search as string, "i"); // 'i' for case-insensitive matching
+        subordinates = subordinates.filter((subordinate: any) =>
+          regex.test(subordinate.username)
         );
       }
       if (date) {

@@ -277,17 +277,26 @@ class BetController {
   async getAgentBets(req: Request, res: Response, next: NextFunction) {
     try {
       const { agentId } = req.params;
+      const { date } = req.query;
       if (!agentId) throw createHttpError(400, "Agent Id not Found");
 
       const agent = await User.findById(agentId);
       if (!agent) throw createHttpError(404, "Agent Not Found");
+      const query: any = {};
 
+      if (date) {
+        const filterDate = new Date(date as string);
+        const startOfDay = new Date(filterDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(filterDate.setHours(23, 59, 59, 999));
+        query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+      }
       const playerUnderAgent = agent.players;
       if (playerUnderAgent.length === 0)
         return res.status(200).json({ message: "No Players Under Agent" });
 
       const bets = await Bet.find({
         player: { $in: playerUnderAgent },
+        ...query,
       })
         .populate("player", "username _id")
         .populate({
@@ -306,10 +315,19 @@ class BetController {
 
   //GET ALL BETS FOR ADMIN
 
-  
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
-      const bets = await Bet.find()
+      const { date } = req.query;
+      const query: any = {};
+
+      if (date) {
+        const filterDate = new Date(date as string);
+        const startOfDay = new Date(filterDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(filterDate.setHours(23, 59, 59, 999));
+        query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+      }
+
+      const bets = await Bet.find(query)
         .sort({ createdAt: -1 })
         .populate("player", "username _id")
         .populate({
@@ -319,6 +337,7 @@ class BetController {
             select: "event_id sport_title commence_time status",
           },
         });
+      console.log(bets);
 
       res.status(200).json(bets);
     } catch (error) {
@@ -332,7 +351,15 @@ class BetController {
   async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
     try {
       const { player } = req.params;
-      const { type, status } = req.query;
+      const { type, status, date, search } = req.query;
+      const query: any = {};
+      if (date) {
+        const filterDate = new Date(date as string);
+        const startOfDay = new Date(filterDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(filterDate.setHours(23, 59, 59, 999));
+        query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+      }
+
       let playerDoc: any;
       if (type === "id") {
         playerDoc = await PlayerModel.findById(player);
@@ -352,6 +379,7 @@ class BetController {
         player: playerDoc._id,
         ...(status === "combo" || status === "all" ? {} : { status }),
         ...(status === "combo" && { betType: "combo" }),
+        ...query,
       })
         .sort({ createdAt: -1 })
         .populate("player", "username _id")
@@ -509,7 +537,7 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
-        //need to remove from waiting list 
+        //need to remove from waiting list
         const data = {
           betId: betDetails._id.toString(),
           commence_time: new Date(betDetails.commence_time),
@@ -589,17 +617,20 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
 
-        redisClient.publish("bet-notifications", JSON.stringify({
-          type: "BET_REDEEMED_FAILED",
-          player: {
-            _id: player._id.toString(),
-            username: player.username
-          },
-          agent: player.createdBy.toString(),
-          betId: bet._id.toString(),
-          playerMessage: ` Bet (ID: ${betId}) redeemed failed!`,
-          agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`
-        }))
+        redisClient.publish(
+          "bet-notifications",
+          JSON.stringify({
+            type: "BET_REDEEMED_FAILED",
+            player: {
+              _id: player._id.toString(),
+              username: player.username,
+            },
+            agent: player.createdBy.toString(),
+            betId: bet._id.toString(),
+            playerMessage: ` Bet (ID: ${betId}) redeemed failed!`,
+            agentMessage: `A Player ${player.username} failed to redeemed a bet (ID: ${betId})`,
+          })
+        );
         throw createHttpError(400, "Bet failed!");
       } else {
         const amount = (totalNewOdds / totalOldOdds) * betAmount;
@@ -611,28 +642,35 @@ class BetController {
         bet.status = "redeem";
         await bet.save();
         //send redeem notification
-        redisClient.publish("bet-notifications", JSON.stringify({
-          type: "BET_REDEEMED",
-          player: {
-            _id: player._id.toString(),
-            username: player.username
-          },
-          agent: player.createdBy.toString(),
-          betId: bet._id.toString(),
-          playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(2)}!`,
-          agentMessage: `A Player ${player.username} redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(2)}`
-        }))
+        redisClient.publish(
+          "bet-notifications",
+          JSON.stringify({
+            type: "BET_REDEEMED",
+            player: {
+              _id: player._id.toString(),
+              username: player.username,
+            },
+            agent: player.createdBy.toString(),
+            betId: bet._id.toString(),
+            playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(
+              2
+            )}!`,
+            agentMessage: `A Player ${
+              player.username
+            } redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(
+              2
+            )}`,
+          })
+        );
         res.status(200).json({ message: "Bet Redeemed Successfully" });
         if (playerSocket) {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
       }
     } catch (error) {
-
       next(error);
     }
   }
-
 
   // UPADTE OR RESOLVE BET
   async resolveBet(req: Request, res: Response, next: NextFunction) {
@@ -669,7 +707,7 @@ class BetController {
         parentBet.status = "lost";
         await parentBet.save();
 
-        return res.status(200).json({ message: "Bet detail Updated" })
+        return res.status(200).json({ message: "Bet detail Updated" });
       }
 
       const allBetDetails = await BetDetail.find({
@@ -677,7 +715,6 @@ class BetController {
       });
       const hasNotWon = allBetDetails.some((detail) => detail.status !== "won");
 
-
       if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
         const possibleWinningAmount = parentBet.possibleWinningAmount;
@@ -697,57 +734,55 @@ class BetController {
         }
       }
 
-      // remove from waiting queue on resolve 
+      // remove from waiting queue on resolve
       allBetDetails.forEach((detail) => {
         const data = {
           betId: detail._id.toString(),
           commence_time: new Date(detail.commence_time),
-        }
+        };
 
         removeFromWaitingQueue(JSON.stringify(data));
-      })
+      });
       return res.status(200).json({ message: "Bet detail status updated" });
-
     } catch (error) {
       next(error);
     }
   }
 
-  
-
-   async updateBet(req: Request, res: Response, next: NextFunction) {
-  
+  async updateBet(req: Request, res: Response, next: NextFunction) {
     try {
       const { betId, betDetails, betData } = req.body;
       console.log(JSON.stringify(req.body));
-      
-  
+
       if (!betId || !betData) {
-         throw createHttpError(400, "Invalid Input")
+        throw createHttpError(400, "Invalid Input");
       }
 
       const session = await mongoose.startSession();
       session.startTransaction();
-      const { detailId , ...updateData } = betDetails as any;
+      const { detailId, ...updateData } = betDetails as any;
 
-   
-          await BetDetail.findByIdAndUpdate(detailId, updateData, { new: true }).session(session);
-    
-  
-      const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
-    
+      await BetDetail.findByIdAndUpdate(detailId, updateData, {
+        new: true,
+      }).session(session);
+
+      const updatedBet = await Bet.findByIdAndUpdate(betId, betData, {
+        new: true,
+      }).session(session);
+
       if (!updatedBet) {
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: "Bet not found" });
       }
-  
+
       await session.commitTransaction();
       session.endSession();
       const parentBet = await Bet.findById(updatedBet._id);
-      const allBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
-      const hasNotWon = allBetDetails.some((detail) => detail.status !== 'won');
-
+      const allBetDetails = await BetDetail.find({
+        _id: { $in: parentBet.data },
+      });
+      const hasNotWon = allBetDetails.some((detail) => detail.status !== "won");
 
       if (!hasNotWon && parentBet.status !== "won") {
         const playerId = parentBet.player;
@@ -767,16 +802,16 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
       }
-      res.status(200).json({ message: "Bet and BetDetails updated successfully", updatedBet });
+      res.status(200).json({
+        message: "Bet and BetDetails updated successfully",
+        updatedBet,
+      });
     } catch (error) {
       console.log(error);
-      
-        next(error);
+
+      next(error);
     }
   }
-  
-
-
 }
 
 export default new BetController();
