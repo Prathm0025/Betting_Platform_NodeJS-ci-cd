@@ -73,18 +73,18 @@ class BetController {
             const betPlayer = await PlayerModel.findById(bet.player).session(
               session
             );
-            if (betPlayer._id.equals(player._id)) {
-              // Use `.equals` for MongoDB ObjectId comparison
-              if (data.bet_on === betDetailData.bet_on) {
-                throw new Error(
-                  `You already have a pending bet on ${betDetailData.bet_on}.`
-                );
-              } else {
-                throw new Error(
-                  `This is not a valid bet since the other bet is not yet resolved!`
-                );
-              }
-            }
+            // if (betPlayer._id.equals(player._id)) {
+            //   // Use `.equals` for MongoDB ObjectId comparison
+            //   if (data.bet_on === betDetailData.bet_on) {
+            //     throw new Error(
+            //       `You already have a pending bet on ${betDetailData.bet_on.name}.`
+            //     );
+            //   } else {
+            //     throw new Error(
+            //       `This is not a valid bet since the other bet is not yet resolved!`
+            //     );
+            //   }
+            // }
           }
         }
       }
@@ -146,7 +146,6 @@ class BetController {
 
       const selectedTeamName = betDetails[0].bet_on.name;
       const selectedOdds = betDetails[0].bet_on.odds;
-
 
       let playerResponseMessage;
       let agentResponseMessage;
@@ -344,9 +343,7 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
-        let selectedBetOn = betDetails.bet_on;
-
-        const oldOdds = selectedBetOn.odds;
+        const oldOdds = betDetails.bet_on.odds;
         totalOldOdds *= oldOdds;
 
         const currentData = await Store.getEventOdds(
@@ -373,11 +370,9 @@ class BetController {
 
           const newOdds = marketDetails.outcomes.find((item) => {
             if (betDetails.category !== "totals") {
-              return item.name === selectedBetOn.name;
-            } else {
-              return item.name === betDetails.bet_on;
+              return item.name === betDetails.bet_on.name;
             }
-          }).price;
+          }).price
           totalNewOdds *= newOdds;
         }
       }
@@ -441,10 +436,7 @@ class BetController {
         };
 
         removeFromWaitingQueue(JSON.stringify(data));
-
-        let selectedTeam = betDetails.bet_on;
-
-        const oldOdds = selectedTeam.odds;
+        const oldOdds = betDetails.bet_on.odds;
         totalOldOdds *= oldOdds;
 
         const currentData = await Store.getEventOdds(
@@ -471,11 +463,9 @@ class BetController {
 
           const newOdds = marketDetails.outcomes.find((item) => {
             if (betDetails.category !== "totals") {
-              return item.name === selectedTeam.name;
-            } else {
-              return item.name === betDetails.bet_on;
+              return item.name === betDetails.bet_on.name;
             }
-          }).price;
+          }).price
           totalNewOdds *= newOdds;
 
           betDetails.status = "redeem";
