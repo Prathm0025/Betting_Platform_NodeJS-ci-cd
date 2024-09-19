@@ -5,6 +5,7 @@ export interface IBetDetail extends mongoose.Document {
   key: mongoose.Schema.Types.ObjectId;
   teams: {
     name: string;
+    odds: number;
   }[];
   bet_on: {
     name: string;

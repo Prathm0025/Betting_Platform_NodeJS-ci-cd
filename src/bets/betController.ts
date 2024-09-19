@@ -26,6 +26,9 @@ class BetController {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
+
+      console.log("BET TO PLACE : ", betDetails);
+
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
       if (!playerSocket) {
@@ -213,38 +216,8 @@ class BetController {
     }
   }
 
-  private calculatePossibleWinning(data: any) {
-    const selectedTeam =
-      data.bet_on === "home_team" ? data.home_team : data.away_team;
-    const oddsFormat = data.oddsFormat;
-    const betAmount = parseFloat(data.amount.toString());
-
-    let possibleWinningAmount = 0;
-
-    switch (oddsFormat) {
-      case "decimal":
-        possibleWinningAmount = selectedTeam.odds * betAmount;
-        break;
-
-      case "american":
-        if (selectedTeam.odds > 0) {
-          possibleWinningAmount =
-            (selectedTeam.odds / 100) * betAmount + betAmount;
-        } else {
-          possibleWinningAmount =
-            (100 / Math.abs(selectedTeam.odds)) * betAmount + betAmount;
-        }
-        break;
-
-      default:
-        console.log("INVALID ODDS FORMAT");
-    }
-
-    return possibleWinningAmount;
-  }
 
   //GET BETS OF PLAYERS UNDER AN AGENT
-
   async getAgentBets(req: Request, res: Response, next: NextFunction) {
     try {
       const { agentId } = req.params;
@@ -276,8 +249,6 @@ class BetController {
   }
 
   //GET ALL BETS FOR ADMIN
-
-
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
       const bets = await Bet.find()
@@ -299,7 +270,6 @@ class BetController {
   }
 
   //GET BETS FOR A PLAYER
-
   async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
     try {
       const { player } = req.params;
@@ -374,39 +344,22 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
-        let selectedTeam;
-        switch (betDetails.bet_on) {
-          case "home_team":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "away_team":
-            selectedTeam = betDetails.away_team;
-            break;
-          case "Over":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "Under":
-            selectedTeam = betDetails.away_team;
-            break;
-          default:
-            break;
-        }
+        let selectedBetOn = betDetails.bet_on;
 
-        const oldOdds = selectedTeam.odds;
-
+        const oldOdds = selectedBetOn.odds;
         totalOldOdds *= oldOdds;
 
         const currentData = await Store.getEventOdds(
           betDetails.sport_key,
           betDetails.event_id,
-          betDetails.market,
+          betDetails.category,
           "us",
           betDetails.oddsFormat,
           "iso"
         );
 
         const currentBookmakerData = currentData?.bookmakers?.find(
-          (item) => item?.key === betDetails.selected
+          (item) => item?.key === betDetails.bookmaker
         );
 
         //the earlier selected bookmaker is not available anymore
@@ -415,11 +368,12 @@ class BetController {
           break;
         } else {
           const marketDetails = currentBookmakerData?.markets?.find(
-            (item) => item.key === betDetails.market
+            (item) => item.key === betDetails.category
           );
+
           const newOdds = marketDetails.outcomes.find((item) => {
-            if (betDetails.market !== "totals") {
-              return item.name === selectedTeam.name;
+            if (betDetails.category !== "totals") {
+              return item.name === selectedBetOn.name;
             } else {
               return item.name === betDetails.bet_on;
             }
@@ -485,40 +439,25 @@ class BetController {
           betId: betDetails._id.toString(),
           commence_time: new Date(betDetails.commence_time),
         };
+
         removeFromWaitingQueue(JSON.stringify(data));
-        let selectedTeam;
-        switch (betDetails.bet_on) {
-          case "home_team":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "away_team":
-            selectedTeam = betDetails.away_team;
-            break;
-          case "Over":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "Under":
-            selectedTeam = betDetails.away_team;
-            break;
-          default:
-            break;
-        }
+
+        let selectedTeam = betDetails.bet_on;
 
         const oldOdds = selectedTeam.odds;
-
         totalOldOdds *= oldOdds;
 
         const currentData = await Store.getEventOdds(
           betDetails.sport_key,
           betDetails.event_id,
-          betDetails.market,
+          betDetails.category,
           "us",
           betDetails.oddsFormat,
           "iso"
         );
 
         const currentBookmakerData = currentData?.bookmakers?.find(
-          (item) => item?.key === betDetails.selected
+          (item) => item?.key === betDetails.bookmaker
         );
 
         //the earlier selected bookmaker is not available anymore
@@ -527,11 +466,11 @@ class BetController {
           break;
         } else {
           const marketDetails = currentBookmakerData?.markets?.find(
-            (item) => item.key === betDetails.market
+            (item) => item.key === betDetails.category
           );
 
           const newOdds = marketDetails.outcomes.find((item) => {
-            if (betDetails.market !== "totals") {
+            if (betDetails.category !== "totals") {
               return item.name === selectedTeam.name;
             } else {
               return item.name === betDetails.bet_on;
@@ -599,7 +538,6 @@ class BetController {
         }
       }
     } catch (error) {
-
       next(error);
     }
   }

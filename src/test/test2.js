@@ -28,3 +28,5 @@ const gameData = {
     ],
     last_update: '2024-09-08T16:36:44Z'
 }
+
+const test = { "_id": "66ebf2087f74f60ef3277a30", "key": "66ebf2087f74f60ef3277a2f", "teams": [{ "name": "Doosan Bears", "odds": 3.3, "_id": "66ebf2087f74f60ef3277a31" }, { "name": "Kia Tigers", "odds": 1.29, "_id": "66ebf2087f74f60ef3277a32" }], "bet_on": { "name": "Doosan Bears", "odds": 3.3 }, "event_id": "55a4bf24253fdf32f815366479f58e83", "sport_title": "KBO", "sport_key": "baseball_kbo", "commence_time": "2024-09-19T09:30:00.000Z", "category": "h2h", "bookmaker": "bovada", "oddsFormat": "decimal", "status": "pending", "isResolved": false, "createdAt": "2024-09-19T09:42:32.100Z", "updatedAt": "2024-09-19T09:42:32.100Z", "__v": 0 }
