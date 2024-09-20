@@ -91,7 +91,7 @@ class UserActivityController {
       const betsAggregation = Bet.aggregate([
       {
         $match: {
-          createdAt: { $gte: startTime, $lte: endTime },
+          createdAt: { $gte: new Date(startTime), $lte: new Date(endTime) },
           player: playerId, // Filter by playerId
 
         },
@@ -130,7 +130,7 @@ class UserActivityController {
     const transactionsAggregation = Transaction.aggregate([
       {
         $match: {
-          date: { $gte: startTime, $lte: endTime },
+          date: { $gte: new Date(startTime), $lte: new Date(endTime) },
         },
       },
       {
