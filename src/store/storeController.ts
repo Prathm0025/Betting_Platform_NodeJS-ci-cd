@@ -43,7 +43,7 @@ class Store {
         params: { ...params, apiKey: config.oddsApi.key },
       });
 
-      let cacheDuration = 43200; // Default to 1 minute (60 seconds)
+      let cacheDuration = 60; // Default to 1 minute (60 seconds)
 
       if (cacheKey === 'sportsList') {
         cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
