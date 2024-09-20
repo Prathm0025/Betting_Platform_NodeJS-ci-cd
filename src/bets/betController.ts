@@ -17,6 +17,24 @@ import { removeFromWaitingQueue } from "../utils/WaitingQueue";
 import { removeItem } from "../utils/ProcessingQueue";
 
 class BetController {
+  private redisGetAsync;
+  private redisSetAsync;
+
+  constructor() {
+    this.initializeRedis();
+  }
+
+  private async initializeRedis() {
+    try {
+      this.redisGetAsync = redisClient.get.bind(redisClient);
+      this.redisSetAsync = redisClient.set.bind(redisClient);
+    } catch (error) {
+      console.error("Redis client connection error:", error);
+      this.redisGetAsync = async () => null;
+      this.redisSetAsync = async () => null;
+    }
+  }
+
   public async placeBet(
     playerRef: Player,
     betDetails: IBetDetail[],
@@ -28,6 +46,7 @@ class BetController {
     try {
 
       console.log("BET TO PLACE : ", betDetails);
+      
 
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
@@ -54,7 +73,51 @@ class BetController {
       if (amount === 0) {
         throw new Error("Betting amount can't be zero");
       }
+     
+  
+      for (const betDetailData of betDetails) {
+        const cacheKey = `odds_${betDetailData.sport_key}_h2h_us`;
+        console.log(cacheKey);
+        
+        const cachedDataString = await this.redisGetAsync(cacheKey);
+        const cachedOddsData = JSON.parse(cachedDataString);
+        console.log(cachedOddsData, "cached odds data");
 
+        const cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+  
+        if (!cachedEvent) {
+          throw new Error("Event not found in cached data");
+        }
+  
+        const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
+  
+        if (!cachedBookmaker) {
+          throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
+        }
+  
+        const cachedMarket = cachedBookmaker.markets.find(market => market.key === "h2h");
+  
+        if (!cachedMarket) {
+          throw new Error("Market not found in cached data");
+        }
+  
+        const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
+        console.log(cachedOutcome, "co");
+        
+        if (!cachedOutcome) {
+          throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
+        }
+        console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
+        // Compare cached odds with submitted odds
+        if (cachedOutcome.price !== betDetailData.bet_on.odds) {
+          playerSocket.sendData({
+            type: "ODDS_MISMATCH",
+            message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
+          });
+          throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
+          
+        }
+      }
       // Check if the player already has a pending bet on the same team
       for (const betDetailData of betDetails) {
         const existingBetDetails = await BetDetail.find({
