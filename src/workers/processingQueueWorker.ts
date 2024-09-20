@@ -64,7 +64,7 @@ class ProcessingQueueWorker {
       const betQueue: string[] = await getAll();
       const parsedBetQueue: IBetDetail[] = betQueue.map((bet: string) => JSON.parse(bet));
 
-      console.log("BET in ProcessingQueue : ", parsedBetQueue);
+
 
       if (Array.isArray(parsedBetQueue)) {
         for (const bet of parsedBetQueue) {
@@ -105,7 +105,7 @@ class ProcessingQueueWorker {
 
         const { completedGames } = scoresData;
         console.log("COMPLETED GAMES : ", completedGames);
-        
+
 
         for (const game of completedGames) {
           const betsToBeProcess = bets.filter((b) => b.event_id === game.id);

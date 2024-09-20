@@ -34,3 +34,24 @@ export interface IBet extends mongoose.Document {
   isResolved: boolean;
 }
 
+
+export interface IBetSlip {
+  id: string;
+  teams: {
+    name: string;
+    odds: number;
+  }[];
+  bet_on: {
+    name: string;
+    odds: number;
+    points?: number;
+  };
+  event_id: string;
+  sport_title: string;
+  sport_key: string;
+  commence_time: string;
+  category: string;
+  bookmaker: string;
+  oddsFormat: string;
+  amount: number;
+}

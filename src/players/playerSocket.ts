@@ -1,11 +1,10 @@
 import { Server, Socket } from "socket.io";
 import PlayerModel from "./playerModel";
-import { IBet, IBetDetail } from "../bets/betsType";
+import { IBet, IBetDetail, IBetSlip } from "../bets/betsType";
 import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
-import { activeRooms } from "../socket/socket";
-// import { updateLiveData } from "../workers/initWorker";
+import { activeRooms, eventRooms } from "../socket/socket";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
@@ -13,20 +12,23 @@ export default class Player {
   private credits: number;
   public socket: Socket;
   public currentRoom: string;
-  private io: Server; // Add io instance here
+  public eventRooms: Map<string, Set<string>>;
+  private betSlip: Map<string, IBetSlip>;
+  private io: Server;
 
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
     username: string,
     credits: number,
-    io: Server // Initialize io instance in constructor
+    io: Server
   ) {
     this.socket = socket;
     this.userId = userId;
     this.username = username;
     this.credits = credits;
-    this.io = io; // Assign io instance
+    this.io = io;
+    this.betSlip = new Map();
     this.initializeHandlers();
     this.betHandler();
   }
@@ -35,6 +37,56 @@ export default class Player {
     this.socket = socket;
     this.initializeHandlers();
     this.betHandler();
+  }
+
+  public addBetToSlip(bet: IBetSlip): void {
+    const betId = this.generateBetId(bet);
+
+    if (this.betSlip.has(betId)) {
+      console.log(`Bet with ID ${betId} already exists in the bet slip.`);
+      return; // If bet already exists, we do nothing
+    }
+
+    this.betSlip.set(betId, bet); // Store bet details with amount
+    // this.eventRooms.set(bet.sport_key, )
+    eventRooms.add(`${bet.sport_key}:${bet.event_id}`)
+    this.socket.join(`${bet.sport_key}:${bet.event_id}`)
+    this.sendBetSlip();
+  }
+
+  public removeBetFromSlip(betId: string): void {
+    const bet = this.betSlip.get(betId)
+    if (this.betSlip.has(betId)) {
+      this.betSlip.delete(betId);
+      this.socket.leave(`${bet.sport_key}:${bet.event_id}`)
+      this.sendBetSlip();
+    } else {
+      this.sendError(`Bet with ID ${betId} not found in the slip.`);
+    }
+  }
+
+  public updateBetAmount(bet: IBetSlip, amount: number): void {
+    const betId = this.generateBetId(bet);
+    const existingBet = this.betSlip.get(betId);
+
+    if (!existingBet) {
+      console.log(`Bet with ID ${betId} not found in the bet slip.`);
+      return
+    }
+
+    existingBet.amount = amount;
+    console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
+
+    this.sendBetSlip();
+  }
+
+  private sendBetSlip(): void {
+    const betSlipData = Array.from(this.betSlip.values());
+    this.sendAlert({ type: "BET_SLIP", payload: betSlipData }) // Send the bet slip to the client
+  }
+
+  private generateBetId(betDetails: IBetSlip): string {
+    return `${betDetails.event_id}_${betDetails.bet_on.name}_${betDetails.category}_${betDetails.bet_on.odds}`;
   }
 
   public async updateBalance(
@@ -243,8 +295,16 @@ export default class Player {
               }
               break;
 
-            case "START":
-              // Handle "START" action if needed
+            case "ADD_TO_BETSLIP":
+              this.addBetToSlip(payload.data)
+              break;
+
+            case "REMOVE_FROM_BETSLIP":
+              this.removeBetFromSlip(payload.betId);
+              break;
+
+            case "UPDATE_BET_AMOUNT":
+              this.updateBetAmount(payload.bet, payload.amount);
               break;
 
             default:

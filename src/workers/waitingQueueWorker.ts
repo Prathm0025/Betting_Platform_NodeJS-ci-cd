@@ -75,6 +75,7 @@ async function startWorker() {
       console.log("Checking bets commence time...");
 
       await checkBetsCommenceTime();
+      
 
     } catch (error) {
       console.error("Error in setInterval Waiting Queue Worker:", error);
