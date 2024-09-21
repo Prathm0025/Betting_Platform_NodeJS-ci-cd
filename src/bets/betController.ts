@@ -45,8 +45,8 @@ class BetController {
     session.startTransaction();
     try {
 
-      console.log("BET TO PLACE : ", betDetails);
-      
+      // const tempBetId = betDetailIds.id
+
 
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
@@ -73,37 +73,36 @@ class BetController {
       if (amount === 0) {
         throw new Error("Betting amount can't be zero");
       }
-     
-  
+
+
       for (const betDetailData of betDetails) {
         const cacheKey = `odds_${betDetailData.sport_key}_h2h_us`;
-        console.log(cacheKey);
-        
+
+
         const cachedDataString = await this.redisGetAsync(cacheKey);
         const cachedOddsData = JSON.parse(cachedDataString);
-        console.log(cachedOddsData, "cached odds data");
 
         const cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
-  
+
         if (!cachedEvent) {
           throw new Error("Event not found in cached data");
         }
-  
+
         const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
-  
+
         if (!cachedBookmaker) {
           throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
         }
-  
+
         const cachedMarket = cachedBookmaker.markets.find(market => market.key === "h2h");
-  
+
         if (!cachedMarket) {
           throw new Error("Market not found in cached data");
         }
-  
+
         const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
         console.log(cachedOutcome, "co");
-        
+
         if (!cachedOutcome) {
           throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
         }
@@ -115,10 +114,10 @@ class BetController {
             message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
           });
           throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
-          
+
         }
       }
-      // Check if the player already has a pending bet on the same team
+
       for (const betDetailData of betDetails) {
         const existingBetDetails = await BetDetail.find({
           event_id: betDetailData.event_id,
@@ -126,7 +125,6 @@ class BetController {
           category: betDetailData.category,
         }).session(session);
 
-        // Check if there are any existing bet details
         if (existingBetDetails.length > 0) {
           for (const data of existingBetDetails) {
             const bet = await Bet.findById(data.key).session(session);
@@ -136,18 +134,7 @@ class BetController {
             const betPlayer = await PlayerModel.findById(bet.player).session(
               session
             );
-            // if (betPlayer._id.equals(player._id)) {
-            //   // Use `.equals` for MongoDB ObjectId comparison
-            //   if (data.bet_on === betDetailData.bet_on) {
-            //     throw new Error(
-            //       `You already have a pending bet on ${betDetailData.bet_on.name}.`
-            //     );
-            //   } else {
-            //     throw new Error(
-            //       `This is not a valid bet since the other bet is not yet resolved!`
-            //     );
-            //   }
-            // }
+
           }
         }
       }
@@ -162,6 +149,8 @@ class BetController {
       let cumulativeOdds = 1;
 
       for (const betDetailData of betDetails) {
+        const tempBetId = betDetailData.id;
+
         const selectedOdds = betDetailData.bet_on.odds;
         cumulativeOdds *= selectedOdds;
 
@@ -173,7 +162,8 @@ class BetController {
 
         await betDetail.save({ session });
         betDetailIds.push(betDetail._id);
-
+        playerSocket.sendAlert({ type: "BET_PLACED", payload: { betId: tempBetId } });
+        playerSocket.removeBetFromSlip(tempBetId);
         await this.scheduleBetDetailJob(betDetail);
       }
 
@@ -235,6 +225,8 @@ class BetController {
           agentMessage: agentResponseMessage,
         })
       );
+
+
 
       // Commit the transaction
       await session.commitTransaction();
