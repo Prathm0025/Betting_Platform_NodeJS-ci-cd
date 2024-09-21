@@ -3,6 +3,9 @@ import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
 
+
+
+
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
@@ -75,48 +78,46 @@ class BetController {
       }
 
 
-      for (const betDetailData of betDetails) {
-        const cacheKey = `odds_${betDetailData.sport_key}_h2h_us`;
+      // for (const betDetailData of betDetails) {
+      //   const cacheKey = `odds_${betDetailData.sport_key}_h2h_us`;
+      //   const cachedDataString = await this.redisGetAsync(cacheKey);
+      //   const cachedOddsData = JSON.parse(cachedDataString);
 
+      //   const cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
 
-        const cachedDataString = await this.redisGetAsync(cacheKey);
-        const cachedOddsData = JSON.parse(cachedDataString);
+      //   if (!cachedEvent) {
+      //     throw new Error("Event not found in cached data");
+      //   }
 
-        const cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+      //   const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
 
-        if (!cachedEvent) {
-          throw new Error("Event not found in cached data");
-        }
+      //   if (!cachedBookmaker) {
+      //     throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
+      //   }
 
-        const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
+      //   const cachedMarket = cachedBookmaker.markets.find(market => market.key === "h2h");
 
-        if (!cachedBookmaker) {
-          throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
-        }
+      //   if (!cachedMarket) {
+      //     throw new Error("Market not found in cached data");
+      //   }
 
-        const cachedMarket = cachedBookmaker.markets.find(market => market.key === "h2h");
+      //   const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
+      //   console.log(cachedOutcome, "co");
 
-        if (!cachedMarket) {
-          throw new Error("Market not found in cached data");
-        }
+      //   if (!cachedOutcome) {
+      //     throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
+      //   }
+      //   console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
+      //   // Compare cached odds with submitted odds
+      //   if (cachedOutcome.price !== betDetailData.bet_on.odds) {
+      //     playerSocket.sendData({
+      //       type: "ODDS_MISMATCH",
+      //       message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
+      //     });
+      //     throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
 
-        const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
-        console.log(cachedOutcome, "co");
-
-        if (!cachedOutcome) {
-          throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
-        }
-        console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
-        // Compare cached odds with submitted odds
-        if (cachedOutcome.price !== betDetailData.bet_on.odds) {
-          playerSocket.sendData({
-            type: "ODDS_MISMATCH",
-            message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
-          });
-          throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
-
-        }
-      }
+      //   }
+      // }
 
       for (const betDetailData of betDetails) {
         const existingBetDetails = await BetDetail.find({
@@ -237,7 +238,7 @@ class BetController {
       // Rollback the transaction in case of error
       await session.abortTransaction();
       session.endSession();
-      console.error("Error placing bet:", error.message);
+      console.error("Error placing bet:", error);
       playerRef.sendError(error.message);
     }
   }
@@ -611,11 +612,10 @@ class BetController {
             playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(
               2
             )}!`,
-            agentMessage: `A Player ${
-              player.username
-            } redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(
-              2
-            )}`,
+            agentMessage: `A Player ${player.username
+              } redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(
+                2
+              )}`,
           })
         );
         res.status(200).json({ message: "Bet Redeemed Successfully" });
