@@ -5,6 +5,7 @@ import userActivityController from "../userActivity/userActivityController";
 
 export let users: Map<string, Player> = new Map();
 export const activeRooms: Set<string> = new Set();
+export const eventRooms: Map<string, Set<string>> = new Map();
 
 
 const socketController = async (io: Server) => {
@@ -60,10 +61,10 @@ const socketController = async (io: Server) => {
       );
       users.set(username, newUser);
       // console.log(`Player ${username} entered the platform.`);
-     await userActivityController.createActiviySession(username, new Date(Date.now()))
+      await userActivityController.createActiviySession(username, new Date(Date.now()))
     }
 
-    socket.on("disconnect", async() => {
+    socket.on("disconnect", async () => {
       const player = users.get(username);
       if (player) {
         const room = player.currentRoom;
@@ -78,7 +79,7 @@ const socketController = async (io: Server) => {
         }
         await userActivityController.endSession(username, new Date(Date.now()));
 
-        
+
       }
 
     });

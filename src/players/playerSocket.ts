@@ -1,11 +1,10 @@
 import { Server, Socket } from "socket.io";
 import PlayerModel from "./playerModel";
-import { IBet, IBetDetail } from "../bets/betsType";
+import { IBet, IBetDetail, IBetSlip } from "../bets/betsType";
 import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
-import { activeRooms } from "../socket/socket";
-// import { updateLiveData } from "../workers/initWorker";
+import { activeRooms, eventRooms } from "../socket/socket";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
@@ -13,20 +12,23 @@ export default class Player {
   private credits: number;
   public socket: Socket;
   public currentRoom: string;
-  private io: Server; // Add io instance here
+  public eventRooms: Map<string, Set<string>>;
+  public betSlip: Map<string, IBetSlip>;
+  private io: Server;
 
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
     username: string,
     credits: number,
-    io: Server // Initialize io instance in constructor
+    io: Server
   ) {
     this.socket = socket;
     this.userId = userId;
     this.username = username;
     this.credits = credits;
-    this.io = io; // Assign io instance
+    this.io = io;
+    this.betSlip = new Map();
     this.initializeHandlers();
     this.betHandler();
   }
@@ -35,6 +37,80 @@ export default class Player {
     this.socket = socket;
     this.initializeHandlers();
     this.betHandler();
+  }
+
+  public addBetToSlip(bet: IBetSlip): void {
+    const betId = bet.id
+
+    if (this.betSlip.has(betId)) {
+      console.log(`Bet with ID ${betId} already exists in the bet slip.`);
+      return;
+    }
+
+    this.betSlip.set(betId, bet);
+    eventRooms.set(bet.sport_key, new Set<string>());
+    this.joinEventRoom(bet.sport_key, bet.event_id);
+  }
+
+  public removeBetFromSlip(betId: string): void {
+    console.log("Removing bet from slip:", betId);
+    console.log("BEFORE ECVENTS : ", eventRooms);
+
+
+    const bet = this.betSlip.get(betId)
+    console.log("GOT BET SLIPT ; ", bet);
+
+    if (this.betSlip.has(betId)) {
+      this.betSlip.delete(betId);
+      const roomKey = `${bet.sport_key}:${bet.event_id}`;
+      console.log("ROOM KEY ; ", roomKey);
+
+
+      this.socket.leave(roomKey);
+      const hasRemainingBets = Array.from(this.betSlip.values()).some(
+        b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
+      );
+
+      if (!hasRemainingBets) {
+        const eventSet = eventRooms.get(bet.sport_key);
+        if (eventSet) {
+          eventSet.delete(bet.event_id);
+          if (eventSet.size === 0) {
+            eventRooms.delete(bet.sport_key);
+          }
+        }
+      }
+      console.log(`Joined room: ${this.currentRoom}`);
+      console.log("AFTER ECVENTS : ", eventRooms);
+
+      this.sendBetSlip();
+    } else {
+      this.sendError(`Bet with ID ${betId} not found in the slip.`);
+    }
+  }
+
+  public updateBetAmount(bet: IBetSlip, amount: number): void {
+    const betId = this.generateBetId(bet);
+    const existingBet = this.betSlip.get(betId);
+
+    if (!existingBet) {
+      console.log(`Bet with ID ${betId} not found in the bet slip.`);
+      return
+    }
+
+    existingBet.amount = amount;
+    console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
+
+    this.sendBetSlip();
+  }
+
+  private sendBetSlip(): void {
+    const betSlipData = Array.from(this.betSlip.values());
+    this.sendAlert({ type: "BET_SLIP", payload: betSlipData }) // Send the bet slip to the client
+  }
+
+  private generateBetId(betDetails: IBetSlip): string {
+    return `${betDetails.event_id}_${betDetails.bet_on.name}_${betDetails.category}_${betDetails.bet_on.odds}`;
   }
 
   public async updateBalance(
@@ -172,6 +248,7 @@ export default class Player {
             );
             const { bookmakers, ...data } = eventOddsData;
             this.sendData({ type: "GET event odds", data: data });
+            this.joinEventRoom(res.payload.sport, res.payload.eventId);
             break;
 
           case "SPORTS":
@@ -243,8 +320,16 @@ export default class Player {
               }
               break;
 
-            case "START":
-              // Handle "START" action if needed
+            case "ADD_TO_BETSLIP":
+              this.addBetToSlip(payload.data)
+              break;
+
+            case "REMOVE_FROM_BETSLIP":
+              this.removeBetFromSlip(payload.betId);
+              break;
+
+            case "UPDATE_BET_AMOUNT":
+              this.updateBetAmount(payload.bet, payload.amount);
               break;
 
             default:
@@ -265,6 +350,8 @@ export default class Player {
   }
 
   public joinRoom(room: string) {
+
+
     if (this.currentRoom) {
       this.socket.leave(this.currentRoom);
       const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
@@ -276,10 +363,31 @@ export default class Player {
       }
     }
 
+
     activeRooms.add(room);
     // updateLiveData(activeRooms);
 
     this.socket.join(room);
     this.currentRoom = room;
+
   }
+  public joinEventRoom(sportKey: string, eventId: string) {
+    if (!eventRooms.has(sportKey)) {
+      eventRooms.set(sportKey, new Set<string>())
+    }
+
+    // Retrieve the Set of event IDs for the sportKey
+    const eventSet = eventRooms.get(sportKey);
+    eventSet?.add(eventId);
+
+    this.socket.join(`${sportKey}:${eventId}`);
+    this.currentRoom = `${sportKey}:${eventId}`;
+
+    console.log(`Joined room: ${this.currentRoom}`);
+  }
+
+
+
+
+
 }

@@ -89,11 +89,10 @@ class UserActivityController {
 
       const { startTime, endTime, playerId } = req.body;
       const betsAggregation = Bet.aggregate([
-        {
-          $match: {
-            createdAt: { $gte: new Date(startTime), $lte: new Date(endTime) },
-            player: playerId, // Filter by playerId
-
+      {
+        $match: {
+          createdAt: { $gte: new Date(startTime), $lte: new Date(endTime) },
+          player: playerId, // Filter by playerId
           },
         },
         {
@@ -127,11 +126,10 @@ class UserActivityController {
         },
       ]);
 
-      const transactionsAggregation = Transaction.aggregate([
-        {
-          $match: {
-            date: { $gte: new Date(startTime), $lte: new Date(endTime) },
-          },
+    const transactionsAggregation = Transaction.aggregate([
+      {
+        $match: {
+          date: { $gte: new Date(startTime), $lte: new Date(endTime) },
         },
         {
           $lookup: {

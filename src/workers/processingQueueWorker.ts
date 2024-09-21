@@ -1,371 +1,447 @@
-import { parentPort, workerData } from "worker_threads";
+import { parentPort } from "worker_threads";
 import mongoose from "mongoose";
 import Store from "../store/storeController";
 import Bet, { BetDetail } from "../bets/betModel";
 import { dequeue, getAll, removeItem, size } from "../utils/ProcessingQueue";
 import { config } from "../config/config";
 import Player from "../players/playerModel";
-import { IPlayer } from "../players/playerType";
 import { redisClient } from "../redisclient";
-import Notification from "../notifications/notificationController";
-import { users } from "../socket/socket";
+import { IBet, IBetDetail } from "../bets/betsType";
 
 
-async function connectDB() {
-  try {
-    mongoose.connection.on("connected", async () => {
-      console.log("Connected to database successfully");
-    });
+class ProcessingQueueWorker {
+  private tick: number;
+  private redisClient: typeof redisClient;
 
-    mongoose.connection.on("error", (err) => {
-      console.log("Error in connecting to database.", err);
-    });
-
-    await mongoose.connect(config.databaseUrl as string);
-  } catch (err) {
-    console.error("Failed to connect to database.", err);
-    process.exit(1);
+  constructor() {
+    this.tick = 0;
+    this.redisClient = redisClient;
+    this.connectDB()
   }
-}
 
-connectDB();
+  async connectDB(): Promise<void> {
+    try {
+      mongoose.connection.on("connected", async () => {
+        console.log("Connected to database successfully");
+      });
 
+      mongoose.connection.on("error", (err) => {
+        console.log("Error in connecting to database.", err);
+      });
 
+      await mongoose.connect(config.databaseUrl as string);
+    } catch (err) {
+      console.error("Failed to connect to database.", err);
+      process.exit(1);
+    }
+  }
 
-async function processBets(sportKeys, bets) {
-  try {
-    for (const sport of sportKeys) {
-      const scoresData = await Store.getScoresForProcessing(sport, "3", "iso");
+  async startWorker(): Promise<void> {
+    console.log("Processing Queue Worker Started")
 
-      if (!scoresData) {
-        continue;
+    setInterval(async () => {
+      try {
+        console.log("Processing Bet.........");
+        if (this.tick === 0) {
+          ++this.tick;
+          this.redisClient.publish('live-update', 'true')
+        } else {
+          this.tick = 0
+        }
+
+        await this.processBetsFromQueue()
+      } catch (error) {
+        console.error("Error in setInterval Waiting Queue Worker:", error);
       }
+    }, 30000);
+  }
 
-      const { completedGames } = scoresData;
+  async processBetsFromQueue(): Promise<void> {
+    let bets: IBetDetail[] = [];
+    const sports = new Set<string>();
+
+    try {
+      const betQueue: string[] = await getAll();
+      const parsedBetQueue: IBetDetail[] = betQueue.map((bet: string) => JSON.parse(bet));
 
 
-      for (const game of completedGames) {
-        const betsToBeProcess = bets.filter((b) => b.event_id === game.id);
 
-        if (betsToBeProcess.length > 0) {
-          for (const bet of betsToBeProcess) {
-            try {
-              await processCompletedBet(bet._id.toString(), game);
-              await removeItem(JSON.stringify(bet))
-            } catch (error) {
-              // Retrieve the parent bet of the current bet detail
-              const parentBet = await Bet.findById(bet.key); // Assuming `key` references the parent bet
+      if (Array.isArray(parsedBetQueue)) {
+        for (const bet of parsedBetQueue) {
+          if (bet && bet.sport_key) {
+            if (bet.status === "pending") {
+              bets.push(bet);
+              sports.add(bet.sport_key);
+            }
+            else {
+              await removeItem(JSON.stringify(bet));
+            }
+          }
+        }
 
-              if (parentBet) {
-                // Mark the parent bet as unresolved
-                await Bet.findByIdAndUpdate(parentBet._id, { isResolved: false });
-                console.log(`Parent Bet with ID ${parentBet._id} marked as unresolved due to an error in processing bet detail.`);
-              } else {
-                console.error(`Parent bet not found for bet detail ID ${bet._id}.`);
+        const sportKeys = Array.from(sports);
+
+        if (bets.length > 0) {
+          await this.processBets(sportKeys, bets);
+        } else {
+          console.log("Nothing to process in processing queue");
+        }
+      } else {
+        console.log("No bets found in the queue");
+      }
+    } catch (error) {
+      console.error('Error fetching or processing queue data:', error);
+    }
+  }
+
+  async processBets(sportKeys: string[], bets: IBetDetail[]): Promise<void> {
+    try {
+      for (const sport of sportKeys) {
+        const scoresData = await Store.getScoresForProcessing(sport, "3", "iso");
+
+        if (!scoresData) {
+          continue;
+        }
+
+        const { completedGames } = scoresData;
+        console.log("COMPLETED GAMES : ", completedGames);
+
+
+        for (const game of completedGames) {
+          const betsToBeProcess = bets.filter((b) => b.event_id === game.id);
+
+          if (betsToBeProcess.length > 0) {
+            for (const bet of betsToBeProcess) {
+              try {
+                await this.processCompletedBet(bet._id, game);
+                await removeItem(JSON.stringify(bet))
+              } catch (error) {
+                const parentBet = await Bet.findById(bet.key);
+
+                if (parentBet) {
+                  await Bet.findByIdAndUpdate(parentBet._id, { isResolved: false });
+                  console.log(`Parent Bet with ID ${parentBet._id} marked as unresolved due to an error in processing bet detail.`);
+                } else {
+                  console.error(`Parent bet not found for bet detail ID ${bet._id}.`);
+                }
+
+                await removeItem(JSON.stringify(bet))
               }
-
-              await removeItem(JSON.stringify(bet))
             }
           }
         }
       }
-
+    } catch (error) {
+      console.error("Error during bet processing:", error);
     }
-  } catch (error) {
-    console.error("Error during bet processing:", error);
-
   }
-}
 
+  async processCompletedBet(betDetailId: mongoose.Types.ObjectId, gameData: any): Promise<void> {
+    const maxRetries = 3;
+    let retryCount = 0;
+    let currentBetDetail: IBetDetail | null = null;
 
-async function processCompletedBet(betDetailId, gameData) {
-  const maxRetries = 3;
-  let retryCount = 0;
-  let currentBetDetail;
+    while (retryCount < maxRetries) {
+      try {
+        currentBetDetail = await BetDetail.findById(betDetailId)
+        if (!currentBetDetail) {
+          return;
+        }
 
-  while (retryCount < maxRetries) {
-    try {
-      // Find the current BetDetail
-      currentBetDetail = await BetDetail.findById(betDetailId)
-      if (!currentBetDetail) {
-        console.error("BetDetail not found:", betDetailId);
-        return;
-      }
+        const parentBet: IBet = await Bet.findById(currentBetDetail.key);
+        if (!parentBet) {
+          return;
+        }
 
-      // Find the parent Bet associated with the BetDetail
-      const parentBet = await Bet.findById(currentBetDetail.key);
-      if (!parentBet) {
-        console.error("Parent Bet not found for betDetail:", currentBetDetail._id);
-        return;
-      }
+        const playerId = parentBet.player.toString();
+        const player = await Player.findById(playerId);
+        if (!player) {
+          return;
+        }
 
-      const playerId = parentBet.player.toString();
-      const player = await Player.findById(playerId);
-      if (!player) {
-        console.error("Player not found:", playerId);
-        return;
-      }
-      const agentId = player.createdBy.toString();
+        const agentId = player.createdBy.toString();
 
+        let result: "won" | "lost" | "draw" | "pending" | "failed";
 
-      // Process the current bet result
-      const result = checkIfPlayerWonBet(currentBetDetail, gameData);
-      if (["won", "lost", "draw"].includes(result)) {
-        // Update the BetDetail status
+        switch (currentBetDetail.category) {
+          case "h2h":
+            result = this.checkH2HBetResult(currentBetDetail, gameData);
+            break;
+
+          case "spread":
+            result = this.checkSpreadBetResult(currentBetDetail, gameData);
+            break;
+
+          case "totals":
+            result = this.checkTotalsBetResult(currentBetDetail, gameData);
+            break;
+
+          default:
+            console.error(`Unknown bet category: ${currentBetDetail.category}`);
+            return;
+        }
+
+        if (result === "pending" || result === "failed") {
+          console.log(`Bet is ${result} for BetDetail ID ${currentBetDetail._id}`);
+          return;
+        }
+
         currentBetDetail.status = result;
         await currentBetDetail.save();
         console.log(`BetDetail with ID ${currentBetDetail._id} updated to '${result}'`);
-      }
 
-      // Fetch the updated BetDetail to ensure status change
-      currentBetDetail = await BetDetail.findById(currentBetDetail._id).lean();
+        await this.checkAndUpdateParentBet(parentBet, player, agentId);
+        break;
 
-      // After updating the current BetDetail, check the status of all BetDetails
-      const updatedBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
+      } catch (error) {
+        console.error("Error during processing, retrying...", error);
 
-      // Check if any BetDetail is lost or failed
-      const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
-      const anyBetFailed = updatedBetDetails.some(detail => detail.status === 'failed');
-
-      // If any bet is lost, mark the parent bet as lost and stop further processing
-      if (anyBetLost) {
-        await Bet.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
-
-        redisClient.publish("bet-notifications", JSON.stringify({
-          type: "BET_LOST",
-          player: {
-            _id: playerId,
-            username: player.username
-          },
-          agent: agentId,
-          betId: parentBet._id,
-          playerMessage: `Unfortunately, you lost your bet (ID: ${parentBet._id}). Better luck next time!`,
-          agentMessage: `A player's bet (ID: ${parentBet._id}) has lost. Please review the details.`
-        }))
-        return;
-      }
-
-      // If any bet fails, mark the parent bet as failed and stop further processing
-      if (anyBetFailed) {
-        await Bet.findByIdAndUpdate(parentBet._id, { status: 'failed', isResolved: false });
-
-        redisClient.publish("bet-notifications", JSON.stringify({
-          type: "BET_FAILED",
-          player: {
-            _id: playerId,
-            username: player.username
-          },
-          agent: agentId,
-          betId: parentBet._id,
-          playerMessage: `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
-          agentMessage: `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
-        }))
-        return;
-      }
-
-      // Check if all BetDetails are won
-      const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
-
-      // If all BetDetails are won, mark the parent bet as won and award the winnings
-      if (allBetsWon) {
-        await Bet.findByIdAndUpdate(parentBet._id, { status: 'won', isResolved: true });
-        await awardWinningsToPlayer(parentBet.player, parentBet.possibleWinningAmount);
-
-        redisClient.publish("bet-notifications", JSON.stringify({
-          type: "BET_WON",
-          player: {
-            _id: playerId,
-            username: player.username
-          },
-          agentId,
-          betId: parentBet._id,
-          playerMessage: `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`,
-          agentMessage: `Player ${player.username} has won the bet with ID ${parentBet._id}, and the winnings of $${parentBet.possibleWinningAmount} have been awarded.`
-        }));
-      } else {
-        // If all bets are resolved (either won or lost), mark the parent Bet as resolved
-        await Bet.findByIdAndUpdate(parentBet._id, { isResolved: true });
-        console.log(`Parent Bet with ID ${parentBet._id} has been resolved.`);
-      }
-
-      break;
-
-    } catch (error) {
-      console.error("Error during processing, retrying...", error);
-
-      // If an error occurs, mark the BetDetail as 'failed' and set isResolved to false
-      if (currentBetDetail) {
-        await BetDetail.findByIdAndUpdate(betDetailId, {
-          status: 'failed',
-          isResolved: false,
-        });
-      }
-
-      retryCount++;
-      if (retryCount >= maxRetries) {
-        // Remove the failed bet from the processing queue
-        await removeItem(JSON.stringify(currentBetDetail));
-
-        // Mark the parent bet as failed due to a processing issue
         if (currentBetDetail) {
-          const parentBet = await Bet.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
-          const player = await Player.findById(parentBet.player);
-
-          redisClient.publish("bet-notifications", JSON.stringify({
-            type: "BET_FAILED",
-            player: {
-              _id: player._id,
-              username: player.username
-            },
-            agent: player.createdBy,
-            betId: parentBet._id,
-            playerMessage: `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
-            agentMessage: `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
-          }))
-          console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
+          await BetDetail.findByIdAndUpdate(betDetailId, {
+            status: 'failed',
+            isResolved: false,
+          });
         }
-        throw error;
+
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          await removeItem(JSON.stringify(currentBetDetail));
+
+          if (currentBetDetail) {
+            const parentBet = await Bet.findByIdAndUpdate(currentBetDetail.key, { status: 'failed', isResolved: false });
+            const player = await Player.findById(parentBet.player);
+
+            await this.publishRedisNotification(
+              "BET_FAILED",
+              player._id.toString(),
+              player.username,
+              player.createdBy.toString(),
+              parentBet._id.toString(),
+              `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
+              `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
+            );
+            console.log(`Parent Bet with ID ${currentBetDetail.key} marked as 'failed' due to processing issue.`);
+          }
+          throw error;
+        }
       }
     }
   }
-}
 
+  async checkAndUpdateParentBet(parentBet: IBet, player: any, agentId: string): Promise<void> {
+    const updatedBetDetails = await BetDetail.find({ _id: { $in: parentBet.data } });
 
-function checkIfPlayerWonBet(betDetail, gameData) {
+    const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
+    const anyBetFailed = updatedBetDetails.some(detail => detail.status === 'failed');
 
-  // check if the game is completed
-  if (!gameData.completed) {
-    console.log("Game is not yet completed.");
-    return "pending";
-  }
-
-  // extract the scores from the game data
-  const homeTeamScore = gameData.scores.find(team => team.name === gameData.home_team)?.score;
-  const awayTeamScore = gameData.scores.find(team => team.name === gameData.away_team)?.score;
-
-  if (homeTeamScore === undefined || awayTeamScore === undefined) {
-    console.error("Error: Could not find scores for the teams.");
-    return "failed";
-  }
-
-  // Check if it's a draw
-  if (homeTeamScore === awayTeamScore) {
-    console.log("The game ended in a draw.");
-    return "draw";
-  }
-
-  // Check if the user bet on the home team or away team
-  const userBetOn = betDetail.bet_on;
-
-  let userWon = false;
-
-  if (userBetOn === "home_team") {
-    // check id the home team won
-    userWon = homeTeamScore > awayTeamScore;
-  }
-  else if (userBetOn === "away_team") {
-    // Check if the away team won
-    userWon = awayTeamScore > homeTeamScore;
-  }
-
-  return userWon ? "won" : "lost";
-
-}
-
-async function awardWinningsToPlayer(playerId, possibleWinningAmount) {
-  try {
-    // Find the player and update their balance
-    const player = await Player.findById(playerId);
-
-    if (!player) {
-      console.log(`Player with ID ${playerId} not found.`);
+    if (anyBetLost) {
+      await Bet.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
+      await this.publishRedisNotification(
+        "BET_LOST",
+        player._id.toString(),
+        player.username,
+        agentId,
+        parentBet._id.toString(),
+        `Unfortunately, you lost your bet (ID: ${parentBet._id}). Better luck next time!`,
+        `A player's bet (ID: ${parentBet._id}) has lost. Please review the details.`
+      );
       return;
     }
 
-    // Add the possible winning amount to the player's balance
-    player.credits += possibleWinningAmount;
+    if (anyBetFailed) {
+      await Bet.findByIdAndUpdate(parentBet._id, { status: 'failed', isResolved: false });
+      await this.publishRedisNotification(
+        "BET_FAILED",
+        player._id.toString(),
+        player.username,
+        agentId,
+        parentBet._id.toString(),
+        `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`,
+        `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`
+      );
+      return;
+    }
 
-    // Save the updated player data
-    await player.save();
+    const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
 
-    console.log(`Awarded ${possibleWinningAmount} to player with ID ${player._id}`);
-  } catch (error) {
-    console.error("Error updating player's balance:", error);
-  }
-}
-
-
-
-const processBetsFromQueue = async () => {
-  let bets: any[] = [];
-  const sports = new Set<string>();
-
-  try {
-    const betQueue: any = await getAll();
-    const parsedBetQueue = betQueue.map((bet: string) => JSON.parse(bet));
-
-    // Ensure parsedBetQueue is an array
-    if (Array.isArray(parsedBetQueue)) {
-      // Process each bet item in the parsed queue
-      for (const bet of parsedBetQueue) {
-        if (bet && bet.sport_key) {
-          if (bet.status === "pending") {
-            bets.push(bet); // Add to betsData
-            sports.add(bet.sport_key); // Add sport_key to the Set
-          }
-          else {
-            // If bet is not pending, remove it from the queue
-            console.log(`Removing bet with ID ${bet._id} from the queue as it is not pending (status: ${bet.status})`);
-            await removeItem(JSON.stringify(bet));
-          }
-        }
-      }
-
-      const sportKeys = Array.from(sports);
-      // console.log(sportKeys, "sports key array");
-
-      // console.log("Bets data after dequeuing:", bets);
-
-      if (bets.length > 0) {
-        await processBets(sportKeys, bets); // Process bets if data exists
-      } else {
-        console.log("Nothing to process in processing queue");
-      }
+    if (allBetsWon) {
+      await Bet.findByIdAndUpdate(parentBet._id, { status: 'won', isResolved: true });
+      await this.awardWinningsToPlayer(parentBet.player, parentBet.possibleWinningAmount);
+      await this.publishRedisNotification(
+        "BET_WON",
+        player._id.toString(),
+        player.username,
+        agentId,
+        parentBet._id.toString(),
+        `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`,
+        `Player ${player.username} has won the bet with ID ${parentBet._id}, and the winnings of $${parentBet.possibleWinningAmount} have been awarded.`
+      );
     } else {
-      console.log("No bets found in the queue");
+      await Bet.findByIdAndUpdate(parentBet._id, { isResolved: true });
+      console.log(`Parent Bet with ID ${parentBet._id} has been resolved.`);
     }
-  } catch (error) {
-    console.error('Error fetching or processing queue data:', error);
   }
-};
 
-
-async function startWorker() {
-  console.log("Processing Queue Worker Started")
-
-  let tick = 0
-
-  setInterval(async () => {
+  async awardWinningsToPlayer(playerId: mongoose.Schema.Types.ObjectId, possibleWinningAmount: number): Promise<void> {
     try {
-      console.log("Processing Bet.........");
-      if (tick === 0) {
-        ++tick
-        //NOTE: implemented pub sub to tell main thread to broadcast to client for ~live update(60s)
-        redisClient.publish('live-update', 'true')
+      // Find the player and update their balance
+      const player = await Player.findById(playerId);
 
-      } else {
-        tick = 0
+      if (!player) {
+        console.log(`Player with ID ${playerId} not found.`);
+        return;
       }
 
-      await processBetsFromQueue();
+      // Add the possible winning amount to the player's balance
+      player.credits += possibleWinningAmount;
+
+      // Save the updated player data
+      await player.save();
+
+      console.log(`Awarded ${possibleWinningAmount} to player with ID ${player._id}`);
     } catch (error) {
-      console.error("Error in setInterval Waiting Queue Worker:", error);
+      console.error("Error updating player's balance:", error);
     }
-  }, 30000); // Runs every 30 seconds
+  }
+
+  checkH2HBetResult(betDetail: IBetDetail, gameData: any): "won" | "lost" | "draw" | "pending" | "failed" {
+    const betOnTeam = betDetail.bet_on.name;
+
+    if (!gameData.completed) {
+      return "pending";
+    }
+
+    const homeTeamName = gameData.home_team;
+    const awayTeamName = gameData.away_team;
+
+    const homeTeamScore = gameData.scores.find((team: any) => team.name === homeTeamName)?.score;
+    const awayTeamScore = gameData.scores.find((team: any) => team.name === awayTeamName)?.score;
+
+    if (homeTeamScore === undefined || awayTeamScore === undefined) {
+      return "failed";
+    }
+
+    if (homeTeamScore === awayTeamScore) {
+      return "draw";
+    }
+
+    const gameWinner = homeTeamScore > awayTeamScore ? homeTeamName : awayTeamName;
+    return betOnTeam === gameWinner ? "won" : "lost";
+  }
+
+  checkSpreadBetResult(betDetail: IBetDetail, gameData: any): "won" | "lost" | "draw" | "pending" | "failed" {
+    const spreadLine = betDetail.bet_on.points;
+    const betOnTeam = betDetail.bet_on.name;
+    const isFavorite = spreadLine < 0;
+
+    if (!gameData.completed) {
+      return "pending"
+    }
+
+    const homeTeamName = gameData.home_team;
+    const awayTeamName = gameData.away_team;
+
+    const homeTeamScore = gameData.scores.find((team: any) => team.name === homeTeamName)?.score;
+    const awayTeamScore = gameData.scores.find((team: any) => team.name === awayTeamName)?.score;
+
+    if (homeTeamScore == null || awayTeamScore == null) {
+      return "failed";
+    }
+
+    const scoreDifference = homeTeamScore - awayTeamScore;
+
+    if (Math.abs(scoreDifference) === Math.abs(spreadLine)) {
+      return "draw";
+    }
+
+    // Handle bets on the favorite (negative spread)
+    if (isFavorite) {
+      if (betOnTeam === homeTeamName && scoreDifference > Math.abs(spreadLine)) {
+        return "won" // Favorite covered the spread
+      }
+      else if (betOnTeam === awayTeamName && scoreDifference < -Math.abs(spreadLine)) {
+        return "won" // Away team (underdog) won against the spread
+      }
+      return "lost"; // Favorite didn't cover, or underdog lost by more than the spread
+    }
+
+    // Handle bets on the underdog (positive spread)
+    if (!isFavorite) {
+      if (betOnTeam === homeTeamName && scoreDifference >= spreadLine) {
+        return "won" // Home underdog covered or won outright
+      } else if (betOnTeam === awayTeamName && scoreDifference <= spreadLine) {
+        return "won" // Away underdog covered or won outright
+      }
+
+      return "lost"; // Underdog didn't cover
+    }
+
+    return "pending" // Fallback case, should not reach here
+  }
+
+  checkTotalsBetResult(betDetail: IBetDetail, gameData: any): "won" | "lost" | "draw" | "pending" | "failed" {
+    const totalLine = betDetail.bet_on.points;
+    const betOn = betDetail.bet_on.name; // 'Over' or 'Under'
+
+    if (!gameData.completed) {
+      return "pending";
+    }
+
+    const homeTeamScore = gameData.scores.find((team: any) => team.name === gameData.home_team)?.score;
+    const awayTeamScore = gameData.scores.find((team: any) => team.name === gameData.away_team)?.score;
+
+    if (homeTeamScore == null || awayTeamScore == null) {
+      return "failed";
+    }
+
+    // Handle invalid scores (e.g., negative scores)
+    if (homeTeamScore < 0 || awayTeamScore < 0) {
+      console.error("Error: Invalid scores found (negative values).");
+      return "failed";
+    }
+
+    // Calculate the total score for the game
+    const totalScore = homeTeamScore + awayTeamScore;
+
+    // Edge Case: Exact total matches the total line, this is considered a "push" (draw)
+    if (totalScore === totalLine) {
+      console.log("The total score equals the total line. It's a push (draw).");
+      return "draw"; // This would result in a push or draw
+    }
+
+    // Determine if the user bet on Over or Under and return the appropriate result
+    if (betOn === "Over") {
+      return totalScore > totalLine ? "won" : "lost";
+    } else if (betOn === "Under") {
+      return totalScore < totalLine ? "won" : "lost";
+    }
+
+    return "pending";  // Fallback case, should not reach here
+  }
+
+  async publishRedisNotification(type: string, playerId: string, username: string, agentId: string, betId: string, playerMessage: string, agentMessage: string): Promise<void> {
+    try {
+      await redisClient.publish("bet-notifications", JSON.stringify({
+        type,
+        player: {
+          _id: playerId,
+          username
+        },
+        agent: agentId,
+        betId,
+        playerMessage,
+        agentMessage
+      }));
+      console.log(`Published ${type} notification for bet ${betId}`);
+    } catch (error) {
+      console.error(`Failed to publish ${type} notification for bet ${betId}:`, error);
+    }
+  }
 }
 
-parentPort.on('message', (message) => {
+parentPort.on('message', async (message) => {
   if (message === "start") {
-    startWorker()
+    const worker = new ProcessingQueueWorker();
+    await worker.startWorker()
   }
 })
