@@ -180,7 +180,7 @@ export default class Player {
 } 
 
 public async reconcileAllOdds(): Promise<void> {
-  console.log(eventRooms.entries, "event room entries");
+  // console.log(eventRooms.entries, "event room entries");
   
     try {
         for (const [sportKey, eventSet] of eventRooms.entries()) {
@@ -206,10 +206,10 @@ compareOdds(cachedOdds: any, latestOdds: any): boolean {``
 public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
   try {
       const latestOdds = await Store.getEventOdds(sportKey, eventId);
-      console.log(latestOdds, "latest odds");
+      // console.log(latestOdds, "latest odds");
       
       const cachedOdds = await this.getCachedOdds(eventId);
-      console.log(cachedOdds, "cached odds");
+      // console.log(cachedOdds, "cached odds");
       
       if (!cachedOdds) {
           await this.cacheOdds(eventId, latestOdds);
@@ -219,7 +219,7 @@ public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
       const oddsChanged = this.compareOdds(cachedOdds, latestOdds);
 
       if (oddsChanged) {
-          console.log(`Odds have changed for event: ${eventId}`);
+          // console.log(`Odds have changed for event: ${eventId}`);
           await this.cacheOdds(eventId, latestOdds); 
       }
   } catch (error) {

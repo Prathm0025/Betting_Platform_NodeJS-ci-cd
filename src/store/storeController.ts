@@ -217,7 +217,7 @@ class Store {
       const oddsResponse = await this.fetchFromApi(
         `${config.oddsApi.url}/sports/${sport}/odds`,
         {
-          // markets: "h2h", // Default to 'h2h' if not provided
+          markets: "h2h,spreads,totals", // Default to 'h2h' if not provided
           regions: "us", // Default to 'us' if not provided
           oddsFormat: "decimal",
         },
