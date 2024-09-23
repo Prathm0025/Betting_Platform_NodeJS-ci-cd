@@ -25,7 +25,7 @@ export interface IBetDetail extends mongoose.Document {
 
 export interface IBet extends mongoose.Document {
   player: mongoose.Schema.Types.ObjectId;
-  data: IBetDetail[]; // Expect populated `BetDetail` documents
+  data: IBetDetail[]; 
   amount: number;
   possibleWinningAmount: number;
   status: "won" | "lost" | "draw" | "pending" | "redeem" | "failed";
