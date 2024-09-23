@@ -430,9 +430,4 @@ export default class Player {
 
     console.log(`Joined room: ${this.currentRoom}`);
   }
-
-
-
-
-
 }

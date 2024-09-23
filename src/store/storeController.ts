@@ -209,23 +209,23 @@ class Store {
     }
   }
 
-  public async getOddsForProcessing(
-    sport: string,
-  ) {
-    const cacheKey = `odds_${sport}_h2h_us`;
+    public async getOddsForProcessing(
+      sport: string,
+    ) {
+      const cacheKey = `odds_${sport}_h2h_us`;
 
-    const oddsResponse = await this.fetchFromApi(
-      `${config.oddsApi.url}/sports/${sport}/odds`,
-      {
-        // markets: "h2h", // Default to 'h2h' if not provided
-        regions: "us", // Default to 'us' if not provided
-        oddsFormat: "decimal",
-      },
-      cacheKey
-    );
-    return oddsResponse
+      const oddsResponse = await this.fetchFromApi(
+        `${config.oddsApi.url}/sports/${sport}/odds`,
+        {
+          // markets: "h2h", // Default to 'h2h' if not provided
+          regions: "us", // Default to 'us' if not provided
+          oddsFormat: "decimal",
+        },
+        cacheKey
+      );
+      return oddsResponse
 
-  }
+    }
   public getEvents(sport: string, dateFormat?: string): Promise<any> {
     const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
     return this.fetchFromApi(
