@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
 import { activeRooms, eventRooms } from "../socket/socket";
+import { redisClient } from "../redisclient";
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
@@ -15,7 +16,8 @@ export default class Player {
   public eventRooms: Map<string, Set<string>>;
   public betSlip: Map<string, IBetSlip>;
   private io: Server;
-
+  private redisGetAsync;
+  private redisSetAsync;
   constructor(
     socket: Socket,
     userId: mongoose.Types.ObjectId,
@@ -30,9 +32,20 @@ export default class Player {
     this.io = io;
     this.betSlip = new Map();
     this.initializeHandlers();
+    this.initializeRedis();
     this.betHandler();
+    this.startOddsReconciliation();
   }
-
+  private async initializeRedis() {
+    try {
+      this.redisGetAsync = redisClient.get.bind(redisClient);
+      this.redisSetAsync = redisClient.set.bind(redisClient);
+    } catch (error) {
+      console.error("Redis client connection error:", error);
+      this.redisGetAsync = async () => null;
+      this.redisSetAsync = async () => null;
+    }
+  }
   public updateSocket(socket: Socket) {
     this.socket = socket;
     this.initializeHandlers();
@@ -40,6 +53,7 @@ export default class Player {
   }
 
   public addBetToSlip(bet: IBetSlip): void {
+  
     const betId = bet.id
 
     if (this.betSlip.has(betId)) {
@@ -158,6 +172,61 @@ export default class Player {
       console.error(`Error updating balance for player ${this.userId}:`, error);
     }
   }
+
+ private async getCachedOdds(eventId: string): Promise<any> {
+    const cacheKey = `odds:${eventId}`;
+    const cachedOdds = await this.redisGetAsync(cacheKey);
+    return cachedOdds ? JSON.parse(cachedOdds) : null;
+} 
+
+public async reconcileAllOdds(): Promise<void> {
+  console.log(eventRooms.entries, "event room entries");
+  
+    try {
+        for (const [sportKey, eventSet] of eventRooms.entries()) {
+            for (const eventId of eventSet) {
+                await this.reconcileOdds(sportKey, eventId);
+            }
+        }
+    } catch (error) {
+        console.error('Error reconciling odds for all events:', error);
+    }
+}
+
+async cacheOdds(eventId: string, odds: any) {
+  const cacheKey = `odds:${eventId}`;
+  await this.redisSetAsync(cacheKey, JSON.stringify(odds),"EX", 120); 
+}
+
+compareOdds(cachedOdds: any, latestOdds: any): boolean {``
+  return JSON.stringify(cachedOdds) !== JSON.stringify(latestOdds);
+}
+
+
+public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
+  try {
+      const latestOdds = await Store.getEventOdds(sportKey, eventId);
+      console.log(latestOdds, "latest odds");
+      
+      const cachedOdds = await this.getCachedOdds(eventId);
+      console.log(cachedOdds, "cached odds");
+      
+      if (!cachedOdds) {
+          await this.cacheOdds(eventId, latestOdds);
+          return;
+      }
+
+      const oddsChanged = this.compareOdds(cachedOdds, latestOdds);
+
+      if (oddsChanged) {
+          console.log(`Odds have changed for event: ${eventId}`);
+          await this.cacheOdds(eventId, latestOdds); 
+      }
+  } catch (error) {
+      console.error(`Error reconciling odds for event ${eventId}:`, error);
+  }
+}
+
 
   public sendMessage(message: any): void {
     try {
@@ -416,6 +485,14 @@ export default class Player {
     this.currentRoom = room;
 
   }
+
+public startOddsReconciliation(): void {
+  setInterval(async () => {
+      console.log("Checking for odds updates...");
+      await this.reconcileAllOdds();
+  }, 30000); 
+}
+
   public joinEventRoom(sportKey: string, eventId: string) {
     if (!eventRooms.has(sportKey)) {
       eventRooms.set(sportKey, new Set<string>())
@@ -431,3 +508,4 @@ export default class Player {
     console.log(`Joined room: ${this.currentRoom}`);
   }
 }
+
