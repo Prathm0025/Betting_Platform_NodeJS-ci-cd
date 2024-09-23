@@ -52,20 +52,29 @@ export default class Player {
     this.joinEventRoom(bet.sport_key, bet.event_id);
   }
 
-  public removeBetFromSlip(betId: string): void {
-    console.log("Removing bet from slip:", betId);
-    console.log("BEFORE ECVENTS : ", eventRooms);
+  public updateBetAmount(bet: IBetSlip, amount: number): void {
+    const betId = this.generateBetId(bet);
+    const existingBet = this.betSlip.get(betId);
 
+    if (!existingBet) {
+      console.log(`Bet with ID ${betId} not found in the bet slip.`);
+      return
+    }
+
+    existingBet.amount = amount;
+    console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
+
+    this.sendBetSlip();
+  }
+
+  public removeBetFromSlip(betId: string): void {
 
     const bet = this.betSlip.get(betId)
-    console.log("GOT BET SLIPT ; ", bet);
+    console.log("REMOVE BET FROM SLIP: ", bet.id);
 
     if (this.betSlip.has(betId)) {
       this.betSlip.delete(betId);
       const roomKey = `${bet.sport_key}:${bet.event_id}`;
-      console.log("ROOM KEY ; ", roomKey);
-
-
       this.socket.leave(roomKey);
       const hasRemainingBets = Array.from(this.betSlip.values()).some(
         b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
@@ -80,8 +89,9 @@ export default class Player {
           }
         }
       }
-      console.log(`Joined room: ${this.currentRoom}`);
-      console.log("AFTER ECVENTS : ", eventRooms);
+
+      console.log("BET SLIP REMOVED : ", this.betSlip.get(betId));
+
 
       this.sendBetSlip();
     } else {
@@ -89,19 +99,29 @@ export default class Player {
     }
   }
 
-  public updateBetAmount(bet: IBetSlip, amount: number): void {
-    const betId = this.generateBetId(bet);
-    const existingBet = this.betSlip.get(betId);
+  public removeAllBetsFromSlip(): void {
+    for (const [betId, bet] of this.betSlip.entries()) {
+      const roomKey = `${bet.sport_key}:${bet.event_id}`;
+      this.socket.leave(roomKey);
 
-    if (!existingBet) {
-      console.log(`Bet with ID ${betId} not found in the bet slip.`);
-      return
+      const hasRemainingBets = Array.from(this.betSlip.values()).some(
+        b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
+      );
+
+      if (!hasRemainingBets) {
+        const eventSet = eventRooms.get(bet.sport_key);
+        if (eventSet) {
+          eventSet.delete(bet.event_id);
+          if (eventSet.size === 0) {
+            eventRooms.delete(bet.sport_key);
+          }
+        }
+      }
+
+      this.betSlip.clear();
+      console.log("All bets removed from bet slip");
+      this.sendBetSlip();
     }
-
-    existingBet.amount = amount;
-    console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
-
-    this.sendBetSlip();
   }
 
   private sendBetSlip(): void {
@@ -321,11 +341,36 @@ export default class Player {
               break;
 
             case "ADD_TO_BETSLIP":
-              this.addBetToSlip(payload.data)
+              try {
+                const { data } = payload;
+                this.addBetToSlip(data);
+                callback({ status: "success", message: `Bet added successfully.` });
+              } catch (error) {
+                console.error("Error adding bet to bet slip:", error);
+                callback({ status: "error", message: "Failed to add bet to bet slip." });
+              }
               break;
 
             case "REMOVE_FROM_BETSLIP":
-              this.removeBetFromSlip(payload.betId);
+              let betId: string;
+              try {
+                betId = payload.betId;
+                this.removeBetFromSlip(betId);
+                callback({ status: "success", message: `Bet with ID ${betId} removed successfully.` });
+              } catch (error) {
+                console.error("Error removing bet from bet slip:", error);
+                callback({ status: "error", message: `Failed to remove bet with ID ${betId}.` });
+              }
+              break;
+
+            case "REMOVE_ALL_FROM_BETSLIP":
+              try {
+                this.removeAllBetsFromSlip();
+                callback({ status: "success", message: "All bets removed from the bet slip." });
+              } catch (error) {
+                console.error("Error removing all bets from bet slip:", error);
+                callback({ status: "error", message: "Failed to remove all bets from the bet slip." });
+              }
               break;
 
             case "UPDATE_BET_AMOUNT":
