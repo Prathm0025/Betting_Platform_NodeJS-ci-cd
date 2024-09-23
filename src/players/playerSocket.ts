@@ -60,7 +60,7 @@ export default class Player {
       console.log(`Bet with ID ${betId} already exists in the bet slip.`);
       return;
     }
-
+    
     this.betSlip.set(betId, bet);
     eventRooms.set(bet.sport_key, new Set<string>());
     this.joinEventRoom(bet.sport_key, bet.event_id);
@@ -198,9 +198,10 @@ async cacheOdds(eventId: string, odds: any) {
   await this.redisSetAsync(cacheKey, JSON.stringify(odds),"EX", 120); 
 }
 
-compareOdds(cachedOdds: any, latestOdds: any): boolean {``
-  return JSON.stringify(cachedOdds) !== JSON.stringify(latestOdds);
+compareOdds(betSlipOdds: any, latestOdds: any): boolean {
+  return JSON.stringify(betSlipOdds) !== JSON.stringify(latestOdds);
 }
+
 
 
 public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
@@ -209,6 +210,7 @@ public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
       // console.log(latestOdds, "latest odds");
       
       const cachedOdds = await this.getCachedOdds(eventId);
+      const previousOdd =""
       // console.log(cachedOdds, "cached odds");
       
       if (!cachedOdds) {
@@ -216,12 +218,25 @@ public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
           return;
       }
 
-      const oddsChanged = this.compareOdds(cachedOdds, latestOdds);
-
+      for (const [betId, betSlip] of this.betSlip.entries()) {
+        if (betSlip.event_id === eventId) {
+          // Compare betSlip odds with the latest odds
+          const oddsChanged = this.compareOdds(betSlip.bet_on.odds, latestOdds);
       if (oddsChanged) {
-          // console.log(`Odds have changed for event: ${eventId}`);
+          console.log(`Odds have changed for event: ${eventId}`);
           await this.cacheOdds(eventId, latestOdds); 
       }
+
+      this.io.to(`${sportKey}:${eventId}`).emit('data', {
+        type: "ODDS_UPDATED",
+        data: {
+        eventId,
+        newOdds: latestOdds,
+        }
+    });
+  }
+}
+
   } catch (error) {
       console.error(`Error reconciling odds for event ${eventId}:`, error);
   }
