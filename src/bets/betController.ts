@@ -80,13 +80,23 @@ class BetController {
 
       for (const betDetailData of betDetails) {
 
-        const oddsData = await Store.getOddsForProcessing(betDetailData.sport_key);
+        const oddsData = await Store.getEventOdds(betDetailData.sport_key, betDetailData.event_id, betDetailData.category, 'us', 'decimal', 'iso');
         const oddsDataString = JSON.stringify(oddsData); //no need to stringify and parse but doing it just to be on safer side 
         const cachedOddsData = JSON.parse(oddsDataString);
         console.log(cachedOddsData, "cached odds data");
         
-        const cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+        let cachedEvent = null;
 
+        if (Array.isArray(cachedOddsData)) {
+          cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+        } else if (cachedOddsData && cachedOddsData.id === betDetailData.event_id) {
+          cachedEvent = cachedOddsData;
+        }
+        
+        if (!cachedEvent) {
+          throw new Error(`Event with ID ${betDetailData.event_id} not found in cached data.`);
+        }
+        
         if (!cachedEvent) {
           throw new Error("Event not found in cached data");
         }
