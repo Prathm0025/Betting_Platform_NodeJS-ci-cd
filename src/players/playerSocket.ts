@@ -13,7 +13,7 @@ export default class Player {
   public socket: Socket;
   public currentRoom: string;
   public eventRooms: Map<string, Set<string>>;
-  public betSlip: Map<string, IBetSlip>;
+  private betSlip: Map<string, IBetSlip>;
   private io: Server;
 
   constructor(
@@ -40,48 +40,43 @@ export default class Player {
   }
 
   public addBetToSlip(bet: IBetSlip): void {
-    const betId = bet.id
+    const betId = this.generateBetId(bet);
 
     if (this.betSlip.has(betId)) {
       console.log(`Bet with ID ${betId} already exists in the bet slip.`);
-      return;
+      return; // If bet already exists, we do nothing
     }
 
-    this.betSlip.set(betId, bet);
-    eventRooms.set(bet.sport_key, new Set<string>());
-    this.joinEventRoom(bet.sport_key, bet.event_id);
+    this.betSlip.set(betId, bet); // Store bet details with amount
+    // this.eventRooms.set(bet.sport_key, )
+    // eventRooms.(`${bet.sport_key}:${bet.event_id}`)
+    eventRooms.set(bet.sport_key, new Set<string>()); // Initialize a new Set for event IDs
+
+    this.socket.join(`${bet.sport_key}:${bet.event_id}`)
+    this.sendBetSlip();
   }
 
   public removeBetFromSlip(betId: string): void {
-    console.log("Removing bet from slip:", betId);
-    console.log("BEFORE ECVENTS : ", eventRooms);
-
-
     const bet = this.betSlip.get(betId)
-    console.log("GOT BET SLIPT ; ", bet);
-
     if (this.betSlip.has(betId)) {
       this.betSlip.delete(betId);
       const roomKey = `${bet.sport_key}:${bet.event_id}`;
-      console.log("ROOM KEY ; ", roomKey);
-
 
       this.socket.leave(roomKey);
       const hasRemainingBets = Array.from(this.betSlip.values()).some(
         b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
-      );
+    );
 
-      if (!hasRemainingBets) {
+    if (!hasRemainingBets) {
         const eventSet = eventRooms.get(bet.sport_key);
         if (eventSet) {
-          eventSet.delete(bet.event_id);
-          if (eventSet.size === 0) {
-            eventRooms.delete(bet.sport_key);
-          }
+            eventSet.delete(bet.event_id);
+            if (eventSet.size === 0) {
+                eventRooms.delete(bet.sport_key); 
+            }
         }
-      }
-      console.log(`Joined room: ${this.currentRoom}`);
-      console.log("AFTER ECVENTS : ", eventRooms);
+    }
+    console.log(`Joined room: ${this.currentRoom}`);
 
       this.sendBetSlip();
     } else {
@@ -103,6 +98,27 @@ export default class Player {
 
     this.sendBetSlip();
   }
+
+  public updateBetOdds(betId: string, newOdds: number): void {
+    const bet = this.betSlip.get(betId);
+
+    if (!bet) {
+        console.log(`Bet with ID ${betId} not found in the bet slip.`);
+        return;
+    }
+
+    bet.bet_on.odds = newOdds;
+    console.log(`Odds updated for bet ${betId}:`, newOdds);
+
+    this.sendBetSlip();
+    
+    this.io.to(`${bet.sport_key}:${bet.event_id}`).emit('oddsUpdated', {
+        betId: betId,
+        newOdds: newOdds,
+        betSlip: Array.from(this.betSlip.values()),
+    });
+}
+
 
   private sendBetSlip(): void {
     const betSlipData = Array.from(this.betSlip.values());
@@ -248,7 +264,7 @@ export default class Player {
             );
             const { bookmakers, ...data } = eventOddsData;
             this.sendData({ type: "GET event odds", data: data });
-            this.joinEventRoom(res.payload.sport, res.payload.eventId);
+           this.joinEventRoom(res.payload.sport, res.payload.eventId);
             break;
 
           case "SPORTS":
@@ -351,7 +367,7 @@ export default class Player {
 
   public joinRoom(room: string) {
 
-
+    
     if (this.currentRoom) {
       this.socket.leave(this.currentRoom);
       const clients = this.io.sockets.adapter.rooms.get(this.currentRoom);
@@ -373,21 +389,21 @@ export default class Player {
   }
   public joinEventRoom(sportKey: string, eventId: string) {
     if (!eventRooms.has(sportKey)) {
-      eventRooms.set(sportKey, new Set<string>())
+        eventRooms.set(sportKey, new Set<string>())
     }
 
     // Retrieve the Set of event IDs for the sportKey
     const eventSet = eventRooms.get(sportKey);
-    eventSet?.add(eventId);
+    eventSet?.add(eventId); 
 
     this.socket.join(`${sportKey}:${eventId}`);
     this.currentRoom = `${sportKey}:${eventId}`;
 
     console.log(`Joined room: ${this.currentRoom}`);
-  }
+}
 
 
 
 
-
+  
 }
