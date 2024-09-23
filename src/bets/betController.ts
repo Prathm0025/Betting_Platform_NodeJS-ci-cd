@@ -96,8 +96,9 @@ class BetController {
         if (!cachedBookmaker) {
           throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
         }
-
-        const cachedMarket = cachedBookmaker.markets.find(market => market.key === "h2h");
+        console.log(betDetailData.category);
+        
+        const cachedMarket = cachedBookmaker.markets.find(market => market.key === betDetailData.category);
 
         if (!cachedMarket) {
           throw new Error("Market not found in cached data");
