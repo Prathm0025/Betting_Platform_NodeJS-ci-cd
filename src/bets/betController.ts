@@ -80,7 +80,6 @@ class BetController {
 
       for (const betDetailData of betDetails) {
 
-        const cacheKey = `odds_${betDetailData.sport_key}_h2h_us`;
         const oddsData = await Store.getOddsForProcessing(betDetailData.sport_key);
         const oddsDataString = JSON.stringify(oddsData); //no need to stringify and parse but doing it just to be on safer side 
         const cachedOddsData = JSON.parse(oddsDataString);
