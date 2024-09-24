@@ -73,7 +73,7 @@ export async function checkBetsCommenceTime() {
 async function migrateLegacyBet(betDetail: any) {
   try {
     // If no `teams` array exists, we need to migrate from `home_team` and `away_team`
-    if (!betDetail.teams || betDetail.teams.length === 0 || betDetail.home_team || betDetail.away_team) {
+    if (betDetail.home_team && betDetail.away_team) {
       console.log(`Migrating legacy bet with ID ${betDetail._id}...`);
 
       // Convert home_team and away_team into the teams array
@@ -103,25 +103,6 @@ async function migrateLegacyBet(betDetail: any) {
         console.error(`Invalid bet_on value: ${betDetail.bet_on}`);
         return
       }
-
-      // Update the existing document and remove the old fields using $unset
-      // const updatedBetDetail = await BetDetail.findByIdAndUpdate(betDetail._id, {
-      //   $set: {
-      //     key: betDetail.key,
-      //     teams: newTeams,
-      //     bet_on: newBetOn,
-      //     event_id: betDetail.event_id,
-      //     sport_title: betDetail.sport_title,
-      //     sport_key: betDetail.sport_key,
-      //     commence_time: betDetail.commence_time,
-      //     category: betDetail.market,
-      //     bookmaker: betDetail.selected,
-      //     oddsFormat: betDetail.oddsFormat,
-      //     status: betDetail.status,
-      //     isResolved: betDetail.isResolved
-      //   },
-      //   $unset: { home_team: 1, away_team: 1 } // Unset old fields
-      // }, { new: true });
 
       const result = await BetDetail.updateOne(
         { _id: betDetail._id },
