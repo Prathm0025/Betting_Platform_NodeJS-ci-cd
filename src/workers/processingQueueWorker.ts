@@ -43,12 +43,8 @@ class ProcessingQueueWorker {
     setInterval(async () => {
       try {
         console.log("Processing Bet.........");
-        if (this.tick === 0) {
-          ++this.tick;
-          this.redisClient.publish('live-update', 'true')
-        } else {
-          this.tick = 0
-        }
+
+        this.redisClient.publish('live-update', 'true')
 
         await this.processBetsFromQueue()
       } catch (error) {
