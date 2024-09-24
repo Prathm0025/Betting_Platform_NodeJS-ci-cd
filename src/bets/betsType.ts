@@ -21,17 +21,6 @@ export interface IBetDetail extends mongoose.Document {
   oddsFormat: string;
   status: "won" | "lost" | "draw" | "pending" | "redeem" | "failed";
   isResolved: boolean;
-
-  home_team?: {
-    name: string;
-    odds: number;
-    points?: number;
-  };
-  away_team?: {
-    name: string;
-    odds: number;
-    points?: number;
-  };
 }
 
 export interface IBet extends mongoose.Document {

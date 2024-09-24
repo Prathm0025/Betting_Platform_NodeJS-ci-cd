@@ -70,6 +70,86 @@ export async function checkBetsCommenceTime() {
 }
 
 
+async function migrateLegacyBet(betDetail: any) {
+  try {
+    // If no `teams` array exists, we need to migrate from `home_team` and `away_team`
+    if (!betDetail.teams || betDetail.teams.length === 0 || betDetail.home_team || betDetail.away_team) {
+      console.log(`Migrating legacy bet with ID ${betDetail._id}...`);
+
+      // Convert home_team and away_team into the teams array
+      const newTeams = [
+        { name: betDetail.home_team?.name, odds: betDetail.home_team?.odds },
+        { name: betDetail.away_team?.name, odds: betDetail.away_team?.odds }
+      ];
+
+      let newBetOn: any;
+
+      if (betDetail.bet_on === "home_team" && betDetail.home_team) {
+        newBetOn = {
+          name: betDetail.home_team.name,
+          odds: betDetail.home_team.odds
+        }
+      } else if (betDetail.bet_on === "away_team" && betDetail.away_team) {
+        newBetOn = {
+          name: betDetail.away_team.name,
+          odds: betDetail.away_team.odds
+        }
+      } else if (["Over", "Under"].includes(betDetail.bet_on)) {
+        newBetOn = {
+          name: betDetail.bet_on,
+          odds: 0
+        }
+      } else {
+        console.error(`Invalid bet_on value: ${betDetail.bet_on}`);
+        return
+      }
+
+      // Update the existing document and remove the old fields using $unset
+      // const updatedBetDetail = await BetDetail.findByIdAndUpdate(betDetail._id, {
+      //   $set: {
+      //     key: betDetail.key,
+      //     teams: newTeams,
+      //     bet_on: newBetOn,
+      //     event_id: betDetail.event_id,
+      //     sport_title: betDetail.sport_title,
+      //     sport_key: betDetail.sport_key,
+      //     commence_time: betDetail.commence_time,
+      //     category: betDetail.market,
+      //     bookmaker: betDetail.selected,
+      //     oddsFormat: betDetail.oddsFormat,
+      //     status: betDetail.status,
+      //     isResolved: betDetail.isResolved
+      //   },
+      //   $unset: { home_team: 1, away_team: 1 } // Unset old fields
+      // }, { new: true });
+
+      const result = await BetDetail.updateOne(
+        { _id: betDetail._id },
+        {
+          $set: {
+            teams: newTeams,
+            bet_on: newBetOn,
+          },
+          $unset: { home_team: "", away_team: "" }
+        },
+        { new: true, strict: false }
+      );
+
+      if (result) {
+        console.log("Updated BetDetail:", result);
+      }
+      else {
+        console.log("Failed to update BetDetail:", result);
+      }
+
+      console.log(`Bet with ID ${betDetail._id} successfully migrated.`);
+    } else {
+      console.log(`Bet with ID ${betDetail._id} is already fully migrated, skipping.`);
+    }
+  } catch (error) {
+    console.error(`Error migrating legacy bet with ID ${betDetail._id}:`, error);
+  }
+}
 
 export async function migrateAllBetsFromQueue() {
   const bets = await redisClient.zrange('waitingQueue', 0, -1); // Get all bets in the queue
@@ -79,8 +159,9 @@ export async function migrateAllBetsFromQueue() {
     const betId = data.betId;
 
     try {
-      // Fetch the BetDetail document
+      // Fetch the BetDetail document using projection to exclude `home_team` and `away_team`
       let betDetail = await BetDetail.findById(betId).lean();
+
 
       // Check if the betDetail exists
       if (!betDetail) {
@@ -103,21 +184,7 @@ export async function migrateAllBetsFromQueue() {
         continue; // Skip further processing for this bet
       }
 
-      // Check if the bet has already been converted (new schema includes "teams" field)
-      if (betDetail.teams && betDetail.teams.length > 0) {
-        console.log(`Bet with ID ${betId} is already in the new schema, skipping conversion.`);
-        continue; // Skip conversion for already converted bets
-      }
-
-      // If it's a legacy bet, convert it
-      if (isLegacyBet(betDetail)) {
-        console.log(`Migrating legacy bet with ID ${betId}...`);
-        betDetail = convertLegacyBet(betDetail); // Convert legacy schema to the new format
-
-        // Update the bet in the database to reflect the new schema
-        await BetDetail.findByIdAndUpdate(betId, { $set: betDetail });
-        console.log(`Bet with ID ${betId} successfully migrated to the new schema.`);
-      }
+      await migrateLegacyBet(betDetail);
 
     } catch (error) {
       console.log(`Error migrating bet with ID ${betId}:`, error);
@@ -125,31 +192,8 @@ export async function migrateAllBetsFromQueue() {
   }
 }
 
+
 // Function to check if a bet follows the legacy schema
-function isLegacyBet(betDetail: IBetDetail): boolean {
-  return !!(betDetail.home_team && betDetail.away_team); // Legacy schema contains `home_team` and `away_team`
-}
-
-// Function to convert legacy bet to the new schema
-function convertLegacyBet(betDetail: IBetDetail): IBetDetail {
-  // Convert home_team and away_team to teams array
-  betDetail.teams = [
-    {
-      name: betDetail.home_team?.name || '',
-      odds: betDetail.home_team?.odds || 0,
-    },
-    {
-      name: betDetail.away_team?.name || '',
-      odds: betDetail.away_team?.odds || 0,
-    }
-  ];
-
-  // Remove the old schema fields
-  delete betDetail.home_team;
-  delete betDetail.away_team;
-
-  return betDetail;
-}
 
 async function startWorker() {
   console.log("Waiting Queue Worker Started")
