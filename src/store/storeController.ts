@@ -43,7 +43,7 @@ class Store {
         params: { ...params, apiKey: config.oddsApi.key },
       });
 
-      let cacheDuration = 60; // Default to 1 minute (60 seconds)
+      let cacheDuration = 60000; // Default to 1 minute (60 seconds)
 
       if (cacheKey === 'sportsList') {
         cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
@@ -209,23 +209,23 @@ class Store {
     }
   }
 
-    public async getOddsForProcessing(
-      sport: string,
-    ) {
-      const cacheKey = `odds_${sport}_h2h_us`;
+  public async getOddsForProcessing(
+    sport: string,
+  ) {
+    const cacheKey = `odds_${sport}_h2h_us`;
 
-      const oddsResponse = await this.fetchFromApi(
-        `${config.oddsApi.url}/sports/${sport}/odds`,
-        {
-          markets: "h2h,spreads,totals", // Default to 'h2h' if not provided
-          regions: "us", // Default to 'us' if not provided
-          oddsFormat: "decimal",
-        },
-        cacheKey
-      );
-      return oddsResponse
+    const oddsResponse = await this.fetchFromApi(
+      `${config.oddsApi.url}/sports/${sport}/odds`,
+      {
+        markets: "h2h,spreads,totals", // Default to 'h2h' if not provided
+        regions: "us", // Default to 'us' if not provided
+        oddsFormat: "decimal",
+      },
+      cacheKey
+    );
+    return oddsResponse
 
-    }
+  }
   public getEvents(sport: string, dateFormat?: string): Promise<any> {
     const cacheKey = `events_${sport}_${dateFormat || "iso"}`;
     return this.fetchFromApi(
@@ -248,7 +248,7 @@ class Store {
       ?.find((event) => event?.key === sport)?.has_outrights;
 
     markets = has_outrights ? "outright" : "h2h,spreads,totals";
-   regions = "us"
+    regions = "us"
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
       }_${oddsFormat || "decimal"}`;
 

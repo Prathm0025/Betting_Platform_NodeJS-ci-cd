@@ -145,12 +145,11 @@ class ProcessingQueueWorker {
 
     while (retryCount < maxRetries) {
       try {
-        currentBetDetail = await BetDetail.findById(betDetailId)
-        if (!currentBetDetail) {
-          return;
-        }
 
-        await migrateLegacyBet(currentBetDetail);
+        const betToMigrate = await BetDetail.findById(betDetailId).lean()
+
+        console.log("MIGRATING IN PROCESSING QUEUE");
+        await migrateLegacyBet(betToMigrate);
 
         currentBetDetail = await BetDetail.findById(betDetailId);
 
