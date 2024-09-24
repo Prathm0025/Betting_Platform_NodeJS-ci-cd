@@ -6,7 +6,6 @@ import { Redis } from "ioredis";
 import Store from "../store/storeController";
 import Notification from "../notifications/notificationController";
 import { agents } from "../utils/utils";
-import Player from "../players/playerSocket";
 
 const connectDB = async () => {
   try {
@@ -92,7 +91,7 @@ const connectDB = async () => {
               });
             });
             
-            console.log(`Received live update for event: ${eventId}, odds:`, latestOdds);
+            // console.log(`Received live update for event: ${eventId}, odds:`, latestOdds);
 
           }
         });

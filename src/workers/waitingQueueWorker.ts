@@ -103,24 +103,6 @@ async function getLatestOddsForAllEvents() {
 
         await redisClient.publish("live-update-odds", JSON.stringify(oddsUpdate));
         console.log(`Published latest odds for event: ${eventId} on channel: live-update-odds`);
-      
-
-        // Assuming you have a method to check if the odds have changed and to cache the odds
-        // const cachedOdds = await getCachedOdds(eventId);
-        // if (!cachedOdds) {
-        //   await cacheOdds(eventId, latestOdds);
-        //   continue; 
-        // }
-
-        // Compare the odds to check if they have changed
-        // const oddsChanged = compareOdds(cachedOdds, latestOdds);
-        // if (oddsChanged) {
-        //   console.log(`Odds have changed for event: ${eventId}, sportKey: ${sportKey}`);
-
-        //   // Assuming betSlip is defined and accessible here
-
-        //   await cacheOdds(eventId, latestOdds);
-        // }
       }
     }
   } catch (error) {
@@ -128,19 +110,6 @@ async function getLatestOddsForAllEvents() {
   }
 }
 
-async function cacheOdds(eventId: string, odds: any) {
-  const cacheKey = `odds:${eventId}`;
-  await this.redisSetAsync(cacheKey, JSON.stringify(odds),"EX", 120); 
-}
-
-function compareOdds(betSlipOdds: any, latestOdds: any): boolean {
-  return JSON.stringify(betSlipOdds) !== JSON.stringify(latestOdds);
-}
-async function getCachedOdds(eventId: string): Promise<any> {
-  const cacheKey = 'globalEventRooms';
-  const cachedOdds = await this.redisGetAsync(cacheKey);
-  return cachedOdds ? JSON.parse(cachedOdds) : null;
-} 
 async function startWorker() {
   console.log("Waiting Queue Worker Started")
   setInterval(async () => {
