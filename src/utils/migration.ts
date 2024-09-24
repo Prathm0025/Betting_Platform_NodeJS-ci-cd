@@ -62,6 +62,6 @@ export async function migrateLegacyBet(betDetail: any) {
             console.log(`Bet with ID ${betDetail._id} is already fully migrated, skipping.`);
         }
     } catch (error) {
-        console.error(`Error migrating legacy bet with ID ${betDetail._id}:`, error);
+        console.error(`Error migrating legacy bet with ID ${betDetail}:`, error);
     }
 }
