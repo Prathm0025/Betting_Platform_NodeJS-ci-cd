@@ -185,7 +185,7 @@ public async reconcileAllOdds(): Promise<void> {
     try {
         for (const [sportKey, eventSet] of eventRooms.entries()) {
             for (const eventId of eventSet) {
-                await this.reconcileOdds(sportKey, eventId);
+                await this.reconcileOdds();
             }
         }
     } catch (error) {
@@ -204,41 +204,62 @@ compareOdds(betSlipOdds: any, latestOdds: any): boolean {
 
 
 
-public async reconcileOdds(sportKey: string, eventId: string): Promise<void> {
+public async reconcileOdds(): Promise<void> {
   try {
-      const latestOdds = await Store.getEventOdds(sportKey, eventId);
-      // console.log(latestOdds, "latest odds");
-      
-      const cachedOdds = await this.getCachedOdds(eventId);
-      const previousOdd =""
-      // console.log(cachedOdds, "cached odds");
-      
-      if (!cachedOdds) {
-          await this.cacheOdds(eventId, latestOdds);
-          return;
-      }
+    const updatesBySportAndEvent = new Map<string, Map<string, any[]>>();
 
-      for (const [betId, betSlip] of this.betSlip.entries()) {
-        if (betSlip.event_id === eventId) {
-          // Compare betSlip odds with the latest odds
-          const oddsChanged = this.compareOdds(betSlip.bet_on.odds, latestOdds);
+    for (const [betId, betSlip] of this.betSlip.entries()) {
+      const { sport_key, event_id: eventId, bet_on } = betSlip;
+
+      const latestOdds = await Store.getEventOdds(sport_key, eventId);
+
+      // const cachedOdds = await this.getCachedOdds(eventId);
+      // if (!cachedOdds) {
+      //   await this.cacheOdds(eventId, latestOdds);
+      //   continue; 
+      // }
+
+      const oddsChanged = this.compareOdds(bet_on.odds, latestOdds);
       if (oddsChanged) {
-          console.log(`Odds have changed for event: ${eventId}`);
-          await this.cacheOdds(eventId, latestOdds); 
-      }
+        console.log(`Odds have changed for event: ${eventId}, betId: ${betId}`);
 
-      this.io.to(`${sportKey}:${eventId}`).emit('data', {
-        type: "ODDS_UPDATED",
-        data: {
-        eventId,
-        newOdds: latestOdds,
+        betSlip.bet_on.odds = latestOdds;
+
+        // await this.cacheOdds(eventId, latestOdds);
+
+        if (!updatesBySportAndEvent.has(sport_key)) {
+          updatesBySportAndEvent.set(sport_key, new Map());
         }
-    });
-  }
-}
+
+        const eventUpdates = updatesBySportAndEvent.get(sport_key);
+        if (!eventUpdates.has(eventId)) {
+          eventUpdates.set(eventId, []);
+        }
+
+        eventUpdates.get(eventId).push({
+          betId,
+          newOdds: latestOdds,
+          previousOdds: bet_on.odds,
+        });
+      }
+    }
+
+    for (const [sport_key, eventMap] of updatesBySportAndEvent.entries()) {
+      for (const [eventId, updatedBets] of eventMap.entries()) {
+        console.log(`Emitting odds update for sportKey: ${sport_key}, eventId: ${eventId}`);
+
+        this.io.to(`${sport_key}:${eventId}`).emit('data', {
+          type: "ODDS_UPDATED",
+          data: {
+            eventId,
+            updatedBets, 
+          },
+        });
+      }
+    }
 
   } catch (error) {
-      console.error(`Error reconciling odds for event ${eventId}:`, error);
+    console.error('Error reconciling odds:', error);
   }
 }
 
