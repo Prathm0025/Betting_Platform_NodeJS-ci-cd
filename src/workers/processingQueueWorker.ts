@@ -440,8 +440,8 @@ class ProcessingQueueWorker {
 }
 
 parentPort.on('message', async (message) => {
-  if (message === "start") {
-    const worker = new ProcessingQueueWorker();
-    await worker.startWorker()
-  }
+  // if (message === "start") {
+  //   const worker = new ProcessingQueueWorker();
+  //   await worker.startWorker()
+  // }
 })
