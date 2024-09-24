@@ -187,7 +187,7 @@ async function migrateAllBetsFromWaitingQueue() {
 }
 
 async function migrateLegacyResolvedBets() {
-  const bets = await BetDetail.find({ isResolved: true, status: { $ne: 'pending' } });
+  const bets = await BetDetail.find({ isResolved: true, status: { $ne: 'pending' } }).lean();
   for (const bet of bets) {
     try {
       await migrateLegacyBet(bet);
