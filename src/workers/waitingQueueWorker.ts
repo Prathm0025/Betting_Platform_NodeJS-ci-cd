@@ -116,35 +116,29 @@ async function getLatestOddsForAllEvents() {
 
 
 async function migrateAllBetsFromWaitingQueue() {
-  const bets = await redisClient.zrange('waitingQueue', 0, -1); // Get all bets in the queue
+  const bets = await redisClient.zrange('waitingQueue', 0, -1); 
 
   for (const bet of bets) {
     const data = JSON.parse(bet);
     const betId = data.betId;
     try {
-      // Fetch the BetDetail document using projection to exclude `home_team` and `away_team`
       let betDetail = await BetDetail.findById(betId).lean();
 
-
-      // Check if the betDetail exists
       if (!betDetail) {
         console.log(`BetDetail not found for betId: ${betId}, skipping this bet.`);
-        continue; // Skip to the next bet if betDetail doesn't exist
+        continue; 
       }
 
-      // Check if the key (reference to the parent Bet) exists
       if (!betDetail.key) {
         console.log(`BetDetail with ID ${betId} is missing the 'key' field, skipping.`);
-        continue; // Skip if no key reference
+        continue; 
       }
 
-      // Fetch the parent Bet document using the key from betDetail
       const betParent = await Bet.findById(betDetail.key).lean();
 
-      // If parent Bet doesn't exist, log the error and skip the bet
       if (!betParent) {
         console.log(`Parent Bet not found for betId: ${betId}, skipping.`);
-        continue; // Skip further processing for this bet
+        continue; 
       }
 
       await migrateLegacyBet(betDetail);
@@ -166,80 +160,6 @@ async function migrateLegacyResolvedBets() {
   }
 }
 
-async function getAllBetsForPlayerAndUpdateStatus(playerId) {
-  try {
-    // Ensure the provided playerId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(playerId)) {
-      throw new Error('Invalid player ID');
-    }
-
-    // Find all bets for the given playerId and populate the BetDetail data
-    const bets = await Bet.find({ player: playerId })
-      .populate({
-        path: 'data', // Populate the 'data' field referencing BetDetail
-        model: 'BetDetail',
-      })
-      .lean(); // Use lean() for performance boost
-
-    if (!bets || bets.length === 0) {
-      console.log(`No bets found for player with ID: ${playerId}`);
-      return [];
-    }
-
-    // Update each BetDetail and the parent Bet
-    for (const bet of bets) {
-      const betDetailsIds = bet.data.map(detail => detail._id);
-
-      // Update all bet details to status 'pending' and isResolved 'false'
-      await BetDetail.updateMany(
-        { _id: { $in: betDetailsIds } },
-        { $set: { status: 'pending', isResolved: false } }
-      );
-
-      // Update the parent bet to status 'pending'
-      await Bet.findByIdAndUpdate(bet._id, { status: 'pending', isResolved: false });
-    }
-
-    return bets; // Return the bets with updated status for further use
-  } catch (error) {
-    console.error(`Error retrieving or updating bets for player with ID ${playerId}:`, error);
-    throw error; // Rethrow the error to handle it in the calling function
-  }
-}
-
-async function addMultipleBetsToProcessingQueue(bets) {
-  try {
-    // Start a Redis multi transaction to push multiple bets at once
-    const multi = redisClient.multi();
-
-    // Loop through each bet and add to Redis multi command
-    for (const bet of bets) {
-      // Serialize each bet object to a JSON string
-      const serializedBet = JSON.stringify(bet);
-      // Add the serialized bet to the processingQueue
-      multi.lpush('processingQueue', serializedBet);
-    }
-
-    // Execute all commands in the multi queue
-    await multi.exec();
-
-    console.log(`${bets.length} bets added to processingQueue`);
-  } catch (error) {
-    console.error("Error adding bets to processing queue:", error);
-  }
-}
-
-function extractDataField(betsArray) {
-  let extractedData = [];
-
-  for (let bet of betsArray) {
-    if (bet.data && Array.isArray(bet.data)) {
-      extractedData = [...extractedData, ...bet.data];
-    }
-  }
-
-  return extractedData;
-}
 
 
 async function startWorker() {
