@@ -6,6 +6,7 @@ import userActivityController from "../userActivity/userActivityController";
 export let users: Map<string, Player> = new Map();
 export const activeRooms: Set<string> = new Set();
 export const eventRooms: Map<string, Set<string>> = new Map();
+export const playerBets: Map<string, Set<string>> = new Map();
 
 
 const socketController = async (io: Server) => {

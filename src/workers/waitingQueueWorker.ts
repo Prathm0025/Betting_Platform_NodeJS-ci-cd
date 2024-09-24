@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Bet, { BetDetail } from '../bets/betModel';
 import { config } from '../config/config';
 import { parentPort } from 'worker_threads';
+import Store from "../store/storeController";
 
 async function connectDB() {
   try {
@@ -68,6 +69,78 @@ export async function checkBetsCommenceTime() {
   }
 }
 
+async function getLatestOddsForAllEvents() {
+  try {
+    // Fetch globalEventRooms data from Redis
+    const redisKey = 'globalEventRooms';
+    const eventRoomsData = await redisClient.get(redisKey);
+    
+    if (!eventRoomsData) {
+      console.log("No event rooms data found in Redis.");
+      return;
+    }
+
+
+    // Parse the data from Redis into a Map<string, Set<string>>
+    const eventRoomsMap = new Map<string, Set<string>>(
+      JSON.parse(eventRoomsData, (key, value) => {
+        if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+          return new Set(value);
+        }
+        return value;
+      })
+    );
+
+    for (const [sportKey, eventIdsSet] of eventRoomsMap.entries()) {
+      for (const eventId of eventIdsSet) {
+        console.log(eventId, "EVENT ID IN WAITING QUEUE");
+        
+        const latestOdds = await Store.getEventOdds(sportKey, eventId);
+          const oddsUpdate = {
+          eventId,
+          latestOdds,
+        };
+
+        await redisClient.publish("live-update-odds", JSON.stringify(oddsUpdate));
+        console.log(`Published latest odds for event: ${eventId} on channel: live-update-odds`);
+      
+
+        // Assuming you have a method to check if the odds have changed and to cache the odds
+        // const cachedOdds = await getCachedOdds(eventId);
+        // if (!cachedOdds) {
+        //   await cacheOdds(eventId, latestOdds);
+        //   continue; 
+        // }
+
+        // Compare the odds to check if they have changed
+        // const oddsChanged = compareOdds(cachedOdds, latestOdds);
+        // if (oddsChanged) {
+        //   console.log(`Odds have changed for event: ${eventId}, sportKey: ${sportKey}`);
+
+        //   // Assuming betSlip is defined and accessible here
+
+        //   await cacheOdds(eventId, latestOdds);
+        // }
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching latest odds:", error);
+  }
+}
+
+async function cacheOdds(eventId: string, odds: any) {
+  const cacheKey = `odds:${eventId}`;
+  await this.redisSetAsync(cacheKey, JSON.stringify(odds),"EX", 120); 
+}
+
+function compareOdds(betSlipOdds: any, latestOdds: any): boolean {
+  return JSON.stringify(betSlipOdds) !== JSON.stringify(latestOdds);
+}
+async function getCachedOdds(eventId: string): Promise<any> {
+  const cacheKey = 'globalEventRooms';
+  const cachedOdds = await this.redisGetAsync(cacheKey);
+  return cachedOdds ? JSON.parse(cachedOdds) : null;
+} 
 async function startWorker() {
   console.log("Waiting Queue Worker Started")
   setInterval(async () => {
@@ -75,7 +148,7 @@ async function startWorker() {
       console.log("Checking bets commence time...");
 
       await checkBetsCommenceTime();
-      
+      await getLatestOddsForAllEvents();
 
     } catch (error) {
       console.error("Error in setInterval Waiting Queue Worker:", error);

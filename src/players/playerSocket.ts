@@ -4,8 +4,9 @@ import { IBet, IBetDetail, IBetSlip } from "../bets/betsType";
 import mongoose from "mongoose";
 import BetController from "../bets/betController";
 import Store from "../store/storeController";
-import { activeRooms, eventRooms } from "../socket/socket";
+import { activeRooms, eventRooms, playerBets } from "../socket/socket";
 import { redisClient } from "../redisclient";
+
 
 export default class Player {
   public userId: mongoose.Types.ObjectId;
@@ -34,7 +35,7 @@ export default class Player {
     this.initializeHandlers();
     this.initializeRedis();
     this.betHandler();
-    this.startOddsReconciliation();
+    // this.startOddsReconciliation();
   }
   private async initializeRedis() {
     try {
@@ -57,61 +58,101 @@ export default class Player {
     const betId = bet.id
 
     if (this.betSlip.has(betId)) {
-      console.log(`Bet with ID ${betId} already exists in the bet slip.`);
+      // console.log(`Bet with ID ${betId} already exists in the bet slip.`);
       return;
     }
     
     this.betSlip.set(betId, bet);
     eventRooms.set(bet.sport_key, new Set<string>());
     this.joinEventRoom(bet.sport_key, bet.event_id);
+    if (!playerBets.has(this.username)) {
+      playerBets.set(this.username, new Set<string>());
+    }
+    playerBets.get(this.username)?.add(bet.event_id);
+  
   }
 
+  
   public updateBetAmount(bet: IBetSlip, amount: number): void {
     const betId = this.generateBetId(bet);
     const existingBet = this.betSlip.get(betId);
 
     if (!existingBet) {
-      console.log(`Bet with ID ${betId} not found in the bet slip.`);
+      // console.log(`Bet with ID ${betId} not found in the bet slip.`);
       return
     }
 
     existingBet.amount = amount;
-    console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
+    // console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
 
     this.sendBetSlip();
   }
 
-  public removeBetFromSlip(betId: string): void {
-
-    const bet = this.betSlip.get(betId)
-    console.log("REMOVE BET FROM SLIP: ", bet.id);
+  public async removeBetFromSlip(betId: string): Promise<void> {
+    const bet = this.betSlip?.get(betId);
 
     if (this.betSlip.has(betId)) {
-      this.betSlip.delete(betId);
-      const roomKey = `${bet.sport_key}:${bet.event_id}`;
-      this.socket.leave(roomKey);
-      const hasRemainingBets = Array.from(this.betSlip.values()).some(
-        b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
-      );
+        this.betSlip.delete(betId);
+        const roomKey = `${bet.sport_key}:${bet.event_id}`;
+        this.socket.leave(roomKey);
 
-      if (!hasRemainingBets) {
-        const eventSet = eventRooms.get(bet.sport_key);
-        if (eventSet) {
-          eventSet.delete(bet.event_id);
-          if (eventSet.size === 0) {
-            eventRooms.delete(bet.sport_key);
+        const playerEvents = playerBets.get(this.username);
+        if (playerEvents) {
+          playerEvents.delete(bet.event_id);
+          if (playerEvents.size === 0) {
+            playerBets.delete(this.username);
           }
         }
-      }
 
-      console.log("BET SLIP REMOVED : ", this.betSlip.get(betId));
+        const hasRemainingBets = Array.from(this.betSlip.values()).some(
+            b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
+        );
 
+        if (!hasRemainingBets) {
+            const redisKey = "globalEventRooms";
+            const eventRoomsData = await this.redisGetAsync(redisKey);
+            let eventRoomsMap: Map<string, Set<string>> = eventRoomsData 
+                ? new Map<string, Set<string>>(
+                    JSON.parse(eventRoomsData, (key, value) => {
+                        if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+                            return new Set(value);
+                        }
+                        return value;
+                    })
+                )
+                : new Map<string, Set<string>>();
 
-      this.sendBetSlip();
+            const eventRedisSet = eventRoomsMap.get(bet.sport_key);
+            if (eventRedisSet) {
+                eventRedisSet.delete(bet.event_id);
+                if (eventRedisSet.size === 0) {
+                    eventRoomsMap.delete(bet.sport_key);                }
+            }
+
+            // Update Redis with the modified eventRooms
+            await this.redisSetAsync(redisKey, JSON.stringify(
+                Array.from(eventRoomsMap.entries(), ([key, set]) => [
+                    key,
+                    Array.from(set),
+                ])
+            ));
+
+            // In-memory update (optional, in case you're maintaining another state)
+            const eventSet = eventRooms.get(bet.sport_key);
+            if (eventSet) {
+                eventSet.delete(bet.event_id);
+                if (eventSet.size === 0) {
+                  eventRooms.delete(bet.sport_key);
+                }
+            }
+        }
+
+        // console.log("BET SLIP REMOVED: ", bet);
+        this.sendBetSlip();
     } else {
-      this.sendError(`Bet with ID ${betId} not found in the slip.`);
+        this.sendError(`Bet with ID ${betId} not found in the slip.`);
     }
-  }
+}
 
   public removeAllBetsFromSlip(): void {
     for (const [betId, bet] of this.betSlip.entries()) {
@@ -213,11 +254,11 @@ public async reconcileOdds(): Promise<void> {
 
       const latestOdds = await Store.getEventOdds(sport_key, eventId);
 
-      // const cachedOdds = await this.getCachedOdds(eventId);
-      // if (!cachedOdds) {
-      //   await this.cacheOdds(eventId, latestOdds);
-      //   continue; 
-      // }
+      const cachedOdds = await this.getCachedOdds(eventId);
+      if (!cachedOdds) {
+        await this.cacheOdds(eventId, latestOdds);
+        continue; 
+      }
 
       const oddsChanged = this.compareOdds(bet_on.odds, latestOdds);
       if (oddsChanged) {
@@ -225,7 +266,7 @@ public async reconcileOdds(): Promise<void> {
 
         betSlip.bet_on.odds = latestOdds;
 
-        // await this.cacheOdds(eventId, latestOdds);
+        await this.cacheOdds(eventId, latestOdds);
 
         if (!updatesBySportAndEvent.has(sport_key)) {
           updatesBySportAndEvent.set(sport_key, new Map());
@@ -248,13 +289,13 @@ public async reconcileOdds(): Promise<void> {
       for (const [eventId, updatedBets] of eventMap.entries()) {
         console.log(`Emitting odds update for sportKey: ${sport_key}, eventId: ${eventId}`);
 
-        this.io.to(`${sport_key}:${eventId}`).emit('data', {
-          type: "ODDS_UPDATED",
-          data: {
-            eventId,
-            updatedBets, 
-          },
-        });
+        // this.io.to(`${sport_key}:${eventId}`).emit('data', {
+        //   type: "ODDS_UPDATED",
+        //   data: {
+        //     eventId,
+        //     updatedBets, 
+        //   },
+        // });
       }
     }
 
@@ -509,7 +550,7 @@ public async reconcileOdds(): Promise<void> {
 
       if (!clients || clients.size === 0) {
         activeRooms.delete(this.currentRoom);
-        console.log(`Room ${this.currentRoom} removed from activeRooms.`);
+        // console.log(`Room ${this.currentRoom} removed from activeRooms.`);
       }
     }
 
@@ -524,12 +565,46 @@ public async reconcileOdds(): Promise<void> {
 
 public startOddsReconciliation(): void {
   setInterval(async () => {
-      console.log("Checking for odds updates...");
+      // console.log("Checking for odds updates...");
       await this.reconcileAllOdds();
   }, 30000); 
 }
 
-  public joinEventRoom(sportKey: string, eventId: string) {
+  public async joinEventRoom(sportKey: string, eventId: string) {
+      const redisKey = "globalEventRooms";
+
+      const eventRoomsData = await this.redisGetAsync(redisKey);
+      let eventRoomsMap: Map<string, Set<string>>;
+
+      if (eventRoomsData) {
+          eventRoomsMap = new Map<string, Set<string>>(
+              JSON.parse(eventRoomsData, (key, value) => {
+                  if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+                      return new Set(value);
+                  }
+                  return value;
+              })
+          );
+      } else {
+          eventRoomsMap = new Map<string, Set<string>>();
+      }
+
+      if (!eventRoomsMap.has(sportKey)) {
+          eventRoomsMap.set(sportKey, new Set<string>());
+      }
+
+      const eventRedisSet = eventRoomsMap.get(sportKey);
+      eventRedisSet?.add(eventId);
+
+      const serializedMap = JSON.stringify(
+          Array.from(eventRoomsMap.entries(), ([key, set]) => [
+              key,
+              Array.from(set),
+          ])
+      );
+
+      await this.redisSetAsync(redisKey, serializedMap);
+
     if (!eventRooms.has(sportKey)) {
       eventRooms.set(sportKey, new Set<string>())
     }
@@ -541,7 +616,7 @@ public startOddsReconciliation(): void {
     this.socket.join(`${sportKey}:${eventId}`);
     this.currentRoom = `${sportKey}:${eventId}`;
 
-    console.log(`Joined room: ${this.currentRoom}`);
+    // console.log(`Joined room: ${this.currentRoom}`);
   }
 }
 
