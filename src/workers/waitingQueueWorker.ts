@@ -5,6 +5,7 @@ import { config } from '../config/config';
 import { parentPort } from 'worker_threads';
 import { IBetDetail } from '../bets/betsType';
 import { migrateLegacyBet } from '../utils/migration';
+import Store from '../store/storeController';
 
 async function connectDB() {
   try {
@@ -71,6 +72,79 @@ export async function checkBetsCommenceTime() {
 }
 
 
+async function getLatestOddsForAllEvents() {
+  try {
+    // Fetch globalEventRooms data from Redis
+    const redisKey = 'globalEventRooms';
+    const eventRoomsData = await redisClient.get(redisKey);
+
+    if (!eventRoomsData) {
+      console.log("No event rooms data found in Redis.");
+      return;
+    }
+
+
+    // Parse the data from Redis into a Map<string, Set<string>>
+    const eventRoomsMap = new Map<string, Set<string>>(
+      JSON.parse(eventRoomsData, (key, value) => {
+        if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+          return new Set(value);
+        }
+        return value;
+      })
+    );
+
+    for (const [sportKey, eventIdsSet] of eventRoomsMap.entries()) {
+      for (const eventId of eventIdsSet) {
+        console.log(eventId, "EVENT ID IN WAITING QUEUE");
+
+        const latestOdds = await Store.getEventOdds(sportKey, eventId);
+        const oddsUpdate = {
+          eventId,
+          latestOdds,
+        };
+
+        await redisClient.publish("live-update-odds", JSON.stringify(oddsUpdate));
+        console.log(`Published latest odds for event: ${eventId} on channel: live-update-odds`);
+
+
+        // Assuming you have a method to check if the odds have changed and to cache the odds
+        // const cachedOdds = await getCachedOdds(eventId);
+        // if (!cachedOdds) {
+        //   await cacheOdds(eventId, latestOdds);
+        //   continue; 
+        // }
+
+        // Compare the odds to check if they have changed
+        // const oddsChanged = compareOdds(cachedOdds, latestOdds);
+        // if (oddsChanged) {
+        //   console.log(`Odds have changed for event: ${eventId}, sportKey: ${sportKey}`);
+
+        //   // Assuming betSlip is defined and accessible here
+
+        //   await cacheOdds(eventId, latestOdds);
+        // }
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching latest odds:", error);
+  }
+}
+
+async function cacheOdds(eventId: string, odds: any) {
+  const cacheKey = `odds:${eventId}`;
+  await this.redisSetAsync(cacheKey, JSON.stringify(odds), "EX", 120);
+}
+
+function compareOdds(betSlipOdds: any, latestOdds: any): boolean {
+  return JSON.stringify(betSlipOdds) !== JSON.stringify(latestOdds);
+}
+async function getCachedOdds(eventId: string): Promise<any> {
+  const cacheKey = 'globalEventRooms';
+  const cachedOdds = await this.redisGetAsync(cacheKey);
+  return cachedOdds ? JSON.parse(cachedOdds) : null;
+}
+
 export async function migrateAllBetsFromWaitingQueue() {
   const bets = await redisClient.zrange('waitingQueue', 0, -1); // Get all bets in the queue
 
@@ -113,15 +187,89 @@ export async function migrateAllBetsFromWaitingQueue() {
 }
 
 
+async function getAllBetsForPlayerAndUpdateStatus(playerId) {
+  try {
+    // Ensure the provided playerId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(playerId)) {
+      throw new Error('Invalid player ID');
+    }
+
+    // Find all bets for the given playerId and populate the BetDetail data
+    const bets = await Bet.find({ player: playerId })
+      .populate({
+        path: 'data', // Populate the 'data' field referencing BetDetail
+        model: 'BetDetail',
+      })
+      .lean(); // Use lean() for performance boost
+
+    if (!bets || bets.length === 0) {
+      console.log(`No bets found for player with ID: ${playerId}`);
+      return [];
+    }
+
+    // Update each BetDetail and the parent Bet
+    for (const bet of bets) {
+      const betDetailsIds = bet.data.map(detail => detail._id);
+
+      // Update all bet details to status 'pending' and isResolved 'false'
+      await BetDetail.updateMany(
+        { _id: { $in: betDetailsIds } },
+        { $set: { status: 'pending', isResolved: false } }
+      );
+
+      // Update the parent bet to status 'pending'
+      await Bet.findByIdAndUpdate(bet._id, { status: 'pending', isResolved: false });
+    }
+
+    return bets; // Return the bets with updated status for further use
+  } catch (error) {
+    console.error(`Error retrieving or updating bets for player with ID ${playerId}:`, error);
+    throw error; // Rethrow the error to handle it in the calling function
+  }
+}
+
+async function addMultipleBetsToProcessingQueue(bets) {
+  try {
+    // Start a Redis multi transaction to push multiple bets at once
+    const multi = redisClient.multi();
+
+    // Loop through each bet and add to Redis multi command
+    for (const bet of bets) {
+      // Serialize each bet object to a JSON string
+      const serializedBet = JSON.stringify(bet);
+      // Add the serialized bet to the processingQueue
+      multi.lpush('processingQueue', serializedBet);
+    }
+
+    // Execute all commands in the multi queue
+    await multi.exec();
+
+    console.log(`${bets.length} bets added to processingQueue`);
+  } catch (error) {
+    console.error("Error adding bets to processing queue:", error);
+  }
+}
+
+function extractDataField(betsArray) {
+  let extractedData = [];
+
+  for (let bet of betsArray) {
+    if (bet.data && Array.isArray(bet.data)) {
+      extractedData = [...extractedData, ...bet.data];
+    }
+  }
+
+  return extractedData;
+}
+
+
 async function startWorker() {
   console.log("Waiting Queue Worker Started")
   setInterval(async () => {
     try {
-      console.log('Migrating legacy bets to new schema...');
       await migrateAllBetsFromWaitingQueue();
-
-      console.log("Processing bets based on commence time...");
       await checkBetsCommenceTime();
+      await getLatestOddsForAllEvents()
     } catch (error) {
       console.error("Error in setInterval Waiting Queue Worker:", error);
     }
