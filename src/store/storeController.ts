@@ -247,7 +247,7 @@ class Store {
       ?.flatMap((item) => item?.events)
       ?.find((event) => event?.key === sport)?.has_outrights;
 
-    markets = has_outrights ? "outright" : "h2h,spreads,totals";
+    markets = has_outrights ? "outrights" : "h2h,spreads,totals";
     regions = "us"
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
       }_${oddsFormat || "decimal"}`;
