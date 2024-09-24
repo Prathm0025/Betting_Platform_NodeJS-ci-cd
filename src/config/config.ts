@@ -29,3 +29,7 @@ const _config = {
 };
 
 export const config = Object.freeze(_config);
+
+if (['production'].includes(process.env.NODE_ENV)) {
+  console.log = () => {};
+}

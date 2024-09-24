@@ -35,7 +35,6 @@ export default class Player {
     this.initializeHandlers();
     this.initializeRedis();
     this.betHandler();
-    // this.startOddsReconciliation();
   }
   private async initializeRedis() {
     try {
@@ -213,97 +212,6 @@ export default class Player {
       console.error(`Error updating balance for player ${this.userId}:`, error);
     }
   }
-
- private async getCachedOdds(eventId: string): Promise<any> {
-    const cacheKey = `odds:${eventId}`;
-    const cachedOdds = await this.redisGetAsync(cacheKey);
-    return cachedOdds ? JSON.parse(cachedOdds) : null;
-} 
-
-public async reconcileAllOdds(): Promise<void> {
-  // console.log(eventRooms.entries, "event room entries");
-  
-    try {
-        for (const [sportKey, eventSet] of eventRooms.entries()) {
-            for (const eventId of eventSet) {
-                await this.reconcileOdds();
-            }
-        }
-    } catch (error) {
-        console.error('Error reconciling odds for all events:', error);
-    }
-}
-
-async cacheOdds(eventId: string, odds: any) {
-  const cacheKey = `odds:${eventId}`;
-  await this.redisSetAsync(cacheKey, JSON.stringify(odds),"EX", 120); 
-}
-
-compareOdds(betSlipOdds: any, latestOdds: any): boolean {
-  return JSON.stringify(betSlipOdds) !== JSON.stringify(latestOdds);
-}
-
-
-
-public async reconcileOdds(): Promise<void> {
-  try {
-    const updatesBySportAndEvent = new Map<string, Map<string, any[]>>();
-
-    for (const [betId, betSlip] of this.betSlip.entries()) {
-      const { sport_key, event_id: eventId, bet_on } = betSlip;
-
-      const latestOdds = await Store.getEventOdds(sport_key, eventId);
-
-      const cachedOdds = await this.getCachedOdds(eventId);
-      if (!cachedOdds) {
-        await this.cacheOdds(eventId, latestOdds);
-        continue; 
-      }
-
-      const oddsChanged = this.compareOdds(bet_on.odds, latestOdds);
-      if (oddsChanged) {
-        console.log(`Odds have changed for event: ${eventId}, betId: ${betId}`);
-
-        betSlip.bet_on.odds = latestOdds;
-
-        await this.cacheOdds(eventId, latestOdds);
-
-        if (!updatesBySportAndEvent.has(sport_key)) {
-          updatesBySportAndEvent.set(sport_key, new Map());
-        }
-
-        const eventUpdates = updatesBySportAndEvent.get(sport_key);
-        if (!eventUpdates.has(eventId)) {
-          eventUpdates.set(eventId, []);
-        }
-
-        eventUpdates.get(eventId).push({
-          betId,
-          newOdds: latestOdds,
-          previousOdds: bet_on.odds,
-        });
-      }
-    }
-
-    for (const [sport_key, eventMap] of updatesBySportAndEvent.entries()) {
-      for (const [eventId, updatedBets] of eventMap.entries()) {
-        console.log(`Emitting odds update for sportKey: ${sport_key}, eventId: ${eventId}`);
-
-        // this.io.to(`${sport_key}:${eventId}`).emit('data', {
-        //   type: "ODDS_UPDATED",
-        //   data: {
-        //     eventId,
-        //     updatedBets, 
-        //   },
-        // });
-      }
-    }
-
-  } catch (error) {
-    console.error('Error reconciling odds:', error);
-  }
-}
-
 
   public sendMessage(message: any): void {
     try {
@@ -563,13 +471,6 @@ public async reconcileOdds(): Promise<void> {
 
   }
 
-public startOddsReconciliation(): void {
-  setInterval(async () => {
-      // console.log("Checking for odds updates...");
-      await this.reconcileAllOdds();
-  }, 30000); 
-}
-
   public async joinEventRoom(sportKey: string, eventId: string) {
       const redisKey = "globalEventRooms";
 
@@ -603,7 +504,7 @@ public startOddsReconciliation(): void {
           ])
       );
 
-      await this.redisSetAsync(redisKey, serializedMap);
+      await this.redisSetAsync(redisKey, serializedMap, "EX", 300); 
 
     if (!eventRooms.has(sportKey)) {
       eventRooms.set(sportKey, new Set<string>())
