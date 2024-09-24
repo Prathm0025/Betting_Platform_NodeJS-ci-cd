@@ -145,7 +145,7 @@ async function getCachedOdds(eventId: string): Promise<any> {
   return cachedOdds ? JSON.parse(cachedOdds) : null;
 }
 
-export async function migrateAllBetsFromWaitingQueue() {
+async function migrateAllBetsFromWaitingQueue() {
   const bets = await redisClient.zrange('waitingQueue', 0, -1); // Get all bets in the queue
 
   for (const bet of bets) {
@@ -186,6 +186,16 @@ export async function migrateAllBetsFromWaitingQueue() {
   }
 }
 
+async function migrateLegacyResolvedBets() {
+  const bets = await BetDetail.find({ isResolved: true, status: { $ne: 'pending' } });
+  for (const bet of bets) {
+    try {
+      await migrateLegacyBet(bet);
+    } catch (error) {
+      console.log(`Error updating bet with ID ${bet._id}:`, error);
+    }
+  }
+}
 
 async function getAllBetsForPlayerAndUpdateStatus(playerId) {
   try {
@@ -268,8 +278,9 @@ async function startWorker() {
   setInterval(async () => {
     try {
       await migrateAllBetsFromWaitingQueue();
+      await migrateLegacyResolvedBets();
       await checkBetsCommenceTime();
-      await getLatestOddsForAllEvents()
+      await getLatestOddsForAllEvents();
     } catch (error) {
       console.error("Error in setInterval Waiting Queue Worker:", error);
     }
