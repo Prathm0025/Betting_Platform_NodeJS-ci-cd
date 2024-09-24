@@ -3,7 +3,9 @@ import mongoose from 'mongoose';
 import Bet, { BetDetail } from '../bets/betModel';
 import { config } from '../config/config';
 import { parentPort } from 'worker_threads';
-import Store from "../store/storeController";
+import { IBetDetail } from '../bets/betsType';
+import { migrateLegacyBet } from '../utils/migration';
+import Store from '../store/storeController';
 
 async function connectDB() {
   try {
@@ -69,12 +71,13 @@ export async function checkBetsCommenceTime() {
   }
 }
 
+
 async function getLatestOddsForAllEvents() {
   try {
     // Fetch globalEventRooms data from Redis
     const redisKey = 'globalEventRooms';
     const eventRoomsData = await redisClient.get(redisKey);
-    
+
     if (!eventRoomsData) {
       console.log("No event rooms data found in Redis.");
       return;
@@ -94,9 +97,9 @@ async function getLatestOddsForAllEvents() {
     for (const [sportKey, eventIdsSet] of eventRoomsMap.entries()) {
       for (const eventId of eventIdsSet) {
         console.log(eventId, "EVENT ID IN WAITING QUEUE");
-        
+
         const latestOdds = await Store.getEventOdds(sportKey, eventId);
-          const oddsUpdate = {
+        const oddsUpdate = {
           eventId,
           latestOdds,
         };
@@ -110,24 +113,58 @@ async function getLatestOddsForAllEvents() {
   }
 }
 
-async function startWorker() {
-  console.log("Waiting Queue Worker Started")
-  setInterval(async () => {
-    try {
-      console.log("Checking bets commence time...");
 
-      await checkBetsCommenceTime();
-      await getLatestOddsForAllEvents();
+
+async function migrateAllBetsFromWaitingQueue() {
+  const bets = await redisClient.zrange('waitingQueue', 0, -1); // Get all bets in the queue
+
+  for (const bet of bets) {
+    const data = JSON.parse(bet);
+    const betId = data.betId;
+    try {
+      // Fetch the BetDetail document using projection to exclude `home_team` and `away_team`
+      let betDetail = await BetDetail.findById(betId).lean();
+
+
+      // Check if the betDetail exists
+      if (!betDetail) {
+        console.log(`BetDetail not found for betId: ${betId}, skipping this bet.`);
+        continue; // Skip to the next bet if betDetail doesn't exist
+      }
+
+      // Check if the key (reference to the parent Bet) exists
+      if (!betDetail.key) {
+        console.log(`BetDetail with ID ${betId} is missing the 'key' field, skipping.`);
+        continue; // Skip if no key reference
+      }
+
+      // Fetch the parent Bet document using the key from betDetail
+      const betParent = await Bet.findById(betDetail.key).lean();
+
+      // If parent Bet doesn't exist, log the error and skip the bet
+      if (!betParent) {
+        console.log(`Parent Bet not found for betId: ${betId}, skipping.`);
+        continue; // Skip further processing for this bet
+      }
+
+      await migrateLegacyBet(betDetail);
 
     } catch (error) {
-      console.error("Error in setInterval Waiting Queue Worker:", error);
+      console.log(`Error migrating bet with ID ${betId}:`, error);
     }
-  }, 30000); // Runs every 30 seconds
+  }
 }
 
-const bets = [
-
-]
+async function migrateLegacyResolvedBets() {
+  const bets = await BetDetail.find({ isResolved: true, status: { $ne: 'pending' } }).lean();
+  for (const bet of bets) {
+    try {
+      await migrateLegacyBet(bet);
+    } catch (error) {
+      console.log(`Error updating bet with ID ${bet._id}:`, error);
+    }
+  }
+}
 
 async function getAllBetsForPlayerAndUpdateStatus(playerId) {
   try {
@@ -204,16 +241,23 @@ function extractDataField(betsArray) {
   return extractedData;
 }
 
+
+async function startWorker() {
+  console.log("Waiting Queue Worker Started")
+  setInterval(async () => {
+    try {
+      await migrateAllBetsFromWaitingQueue();
+      await migrateLegacyResolvedBets();
+      await checkBetsCommenceTime();
+      await getLatestOddsForAllEvents();
+    } catch (error) {
+      console.error("Error in setInterval Waiting Queue Worker:", error);
+    }
+  }, 30000); // Runs every 30 seconds
+}
+
 parentPort.on('message', async (message) => {
   if (message === "start") {
     startWorker();
-
-    // const bets = await getAllBetsForPlayerAndUpdateStatus('66dc523111f2ab2408f0041b')
-    // const data = extractDataField(bets)
-    // console.log(data);
-
-
-
-    // await addMultipleBetsToProcessingQueue(data)
   }
 })

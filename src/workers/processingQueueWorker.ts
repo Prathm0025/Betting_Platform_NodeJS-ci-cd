@@ -7,6 +7,7 @@ import { config } from "../config/config";
 import Player from "../players/playerModel";
 import { redisClient } from "../redisclient";
 import { IBet, IBetDetail } from "../bets/betsType";
+import { migrateLegacyBet } from "../utils/migration";
 
 
 class ProcessingQueueWorker {
@@ -141,10 +142,20 @@ class ProcessingQueueWorker {
     let retryCount = 0;
     let currentBetDetail: IBetDetail | null = null;
 
+
     while (retryCount < maxRetries) {
       try {
         currentBetDetail = await BetDetail.findById(betDetailId)
         if (!currentBetDetail) {
+          return;
+        }
+
+        await migrateLegacyBet(currentBetDetail);
+
+        currentBetDetail = await BetDetail.findById(betDetailId);
+
+        if (!currentBetDetail) {
+          console.error("BetDetail not found after migration:", betDetailId);
           return;
         }
 
