@@ -27,6 +27,7 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
                 const redisForSub = new ioredis_1.Redis(config_1.config.redisUrl);
                 yield redisForSub.subscribe("live-update");
                 yield redisForSub.subscribe("bet-notifications");
+                yield redisForSub.subscribe("live-update-odds");
                 redisForSub.on("message", (channel, message) => __awaiter(void 0, void 0, void 0, function* () {
                     if (channel === "bet-notifications") {
                         try {
@@ -59,6 +60,29 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
                     else if (channel === "live-update") {
                         yield storeController_1.default.updateLiveData();
                     }
+                    else if (channel === "live-update-odds") {
+                        const oddsUpdate = JSON.parse(message);
+                        const { eventId, latestOdds } = oddsUpdate;
+                        const playersToNotify = [];
+                        // console.log(playerBets, "SET");
+                        for (const [username, eventIds] of socket_1.playerBets.entries()) {
+                            for (const event_id of eventIds) {
+                                if (event_id === eventId) {
+                                    const playerSocket = socket_1.users.get(username);
+                                    if (playerSocket && playerSocket.socket.connected) {
+                                        playersToNotify.push(playerSocket);
+                                    }
+                                }
+                            }
+                        }
+                        playersToNotify.forEach(playerSocket => {
+                            playerSocket.sendAlert({
+                                type: "ODDS_UPDATE",
+                                payload: { eventId, latestOdds },
+                            });
+                        });
+                        // console.log(`Received live update for event: ${eventId}, odds:`, latestOdds);
+                    }
                 }));
             }
             catch (err) {
@@ -72,8 +96,6 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log("Error in connecting to database.", err);
         });
         yield mongoose_1.default.connect(config_1.config.databaseUrl);
-        const activeRoomsData = Array.from(socket_1.activeRooms);
-        console.log(activeRoomsData, socket_1.activeRooms);
         (0, initWorker_1.startWorkers)();
     }
     catch (err) {

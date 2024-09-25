@@ -36,7 +36,7 @@ app.use("/api/store", middleware_1.checkUser, storeRoutes_1.default);
 app.use("/api/transactions", middleware_1.checkUser, transactionRoutes_1.default);
 app.use("/api/bets", middleware_1.checkUser, betRoutes_1.default);
 app.use("/api/userActivities", middleware_1.checkUser, userActivityRoutes_1.default);
-app.use("/api/notifications", notificationRoutes_1.default);
+app.use("/api/notifications", middleware_1.checkUser, notificationRoutes_1.default);
 app.use("/api/banner", middleware_1.checkUser, bannerRoutes_1.default);
 app.get("/", (req, res, next) => {
     const health = {

@@ -48,7 +48,7 @@ class Store {
                 const response = yield axios_1.default.get(url, {
                     params: Object.assign(Object.assign({}, params), { apiKey: config_1.config.oddsApi.key }),
                 });
-                let cacheDuration = 60; // Default to 1 minute (60 seconds)
+                let cacheDuration = 30; // Default to 1 minute (60 seconds)
                 if (cacheKey === 'sportsList') {
                     cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
                 }
@@ -165,7 +165,7 @@ class Store {
         return __awaiter(this, void 0, void 0, function* () {
             const cacheKey = `odds_${sport}_h2h_us`;
             const oddsResponse = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/odds`, {
-                // markets: "h2h", // Default to 'h2h' if not provided
+                markets: "h2h,spreads,totals", // Default to 'h2h' if not provided
                 regions: "us", // Default to 'us' if not provided
                 oddsFormat: "decimal",
             }, cacheKey);
@@ -181,7 +181,8 @@ class Store {
             var _a, _b;
             const categoriesData = yield this.getCategories();
             const has_outrights = (_b = (_a = categoriesData === null || categoriesData === void 0 ? void 0 : categoriesData.flatMap((item) => item === null || item === void 0 ? void 0 : item.events)) === null || _a === void 0 ? void 0 : _a.find((event) => (event === null || event === void 0 ? void 0 : event.key) === sport)) === null || _b === void 0 ? void 0 : _b.has_outrights;
-            markets = has_outrights ? "outright" : "h2h,spreads,totals";
+            markets = has_outrights ? "outrights" : "h2h,spreads,totals";
+            regions = "us";
             const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"}_${oddsFormat || "decimal"}`;
             const data = yield this.fetchFromApi(`${config_1.config.oddsApi.url}/sports/${sport}/events/${eventId}/odds`, { regions, markets, dateFormat: "iso", oddsFormat: "decimal" }, cacheKey);
             const { bookmakers } = data;
@@ -269,8 +270,9 @@ class Store {
     }
     updateLiveData() {
         return __awaiter(this, void 0, void 0, function* () {
-            const currentActive = Array.from(socket_1.activeRooms);
-            console.log("currentActive", currentActive);
+            console.log(socket_1.activeRooms.values(), "AcTiVe");
+            const currentActive = this.removeInactiveRooms();
+            // console.log("currentActive", currentActive);
             for (const sport of currentActive) {
                 const liveData = yield this.getOdds(sport);
                 // console.log("livedata", liveData);

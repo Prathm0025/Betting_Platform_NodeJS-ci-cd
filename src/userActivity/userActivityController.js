@@ -70,7 +70,7 @@ class UserActivityController {
                 const updateDailyActivity = yield userActivityModel_1.default.findByIdAndUpdate(dailyActivity._id, {
                     $push: { actvity: savedNewActivitySession._id },
                 }, { new: true, useFindAndModify: false });
-                console.log(savedNewActivitySession, dailyActivity);
+                // console.log(savedNewActivitySession, dailyActivity);
             }
             catch (error) {
                 console.error("Error creating activity:", error.message);
@@ -114,7 +114,7 @@ class UserActivityController {
                 const betsAggregation = betModel_1.default.aggregate([
                     {
                         $match: {
-                            createdAt: { $gte: startTime, $lte: endTime },
+                            createdAt: { $gte: new Date(startTime), $lte: new Date(endTime) },
                             player: playerId, // Filter by playerId
                         },
                     },
@@ -151,62 +151,86 @@ class UserActivityController {
                 const transactionsAggregation = transactionModel_1.default.aggregate([
                     {
                         $match: {
-                            date: { $gte: startTime, $lte: endTime },
+                            date: { $gte: new Date(startTime), $lte: new Date(endTime) },
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderUser",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'players',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'senderDetails',
+                            from: "players",
+                            localField: "sender",
+                            foreignField: "_id",
+                            as: "senderPlayer",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'players',
-                            localField: 'receiver',
-                            foreignField: '_id',
-                            as: 'receiverDetails',
+                            from: "users",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverUser",
                         },
                     },
                     {
                         $lookup: {
-                            from: 'users',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'senderDetails',
-                        },
-                    },
-                    {
-                        $lookup: {
-                            from: 'users',
-                            localField: 'receiver',
-                            foreignField: '_id',
-                            as: 'receiverDetails',
+                            from: "players",
+                            localField: "receiver",
+                            foreignField: "_id",
+                            as: "receiverPlayer",
                         },
                     },
                     {
                         $unwind: {
-                            path: '$senderDetails',
+                            path: "$senderUser",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $unwind: {
-                            path: '$receiverDetails',
+                            path: "$senderPlayer",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$receiverUser",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$receiverPlayer",
                             preserveNullAndEmptyArrays: true,
                         },
                     },
                     {
                         $project: {
-                            'senderDetails.username': 1,
-                            'receiverDetails.username': 1,
+                            sender: {
+                                $cond: {
+                                    if: { $ifNull: ["$senderUser.username", false] },
+                                    then: "$senderUser.username",
+                                    else: "$senderPlayer.username",
+                                },
+                            },
+                            receiver: {
+                                $cond: {
+                                    if: { $ifNull: ["$receiverUser.username", false] },
+                                    then: "$receiverUser.username",
+                                    else: "$receiverPlayer.username",
+                                },
+                            },
                             amount: 1,
                             type: 1,
                             date: 1,
                         },
-                    },
+                    }
                 ]);
                 const [bets, transactions] = yield Promise.all([betsAggregation, transactionsAggregation]);
                 return res.status(200).json({ bets, transactions });

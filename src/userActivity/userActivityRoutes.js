@@ -9,5 +9,5 @@ const userActivityController_1 = __importDefault(require("./userActivityControll
 const userActivityRoutes = express_1.default.Router();
 userActivityRoutes.get("/", (0, middleware_1.verifyRole)(["admin"]), userActivityController_1.default.getActivitiesByDate);
 userActivityRoutes.get("/:player", (0, middleware_1.verifyRole)(["admin"]), userActivityController_1.default.getAllDailyActivitiesOfAPlayer);
-userActivityRoutes.post("/", (0, middleware_1.verifyRole)(['admin']), userActivityController_1.default.getBetsAndTransactionsInActivitySession);
+userActivityRoutes.post("/", (0, middleware_1.verifyRole)(["admin"]), userActivityController_1.default.getBetsAndTransactionsInActivitySession);
 exports.default = userActivityRoutes;
