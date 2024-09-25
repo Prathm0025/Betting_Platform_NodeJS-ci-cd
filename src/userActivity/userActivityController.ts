@@ -42,7 +42,7 @@ class UserActivityController {
       },
         { new: true, useFindAndModify: false }
       )
-      console.log(savedNewActivitySession, dailyActivity);
+      // console.log(savedNewActivitySession, dailyActivity);
 
     } catch (error) {
       console.error("Error creating activity:", error.message);

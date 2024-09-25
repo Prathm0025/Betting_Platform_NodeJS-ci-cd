@@ -367,10 +367,10 @@ class Store {
   }
     
   public async updateLiveData() {
-    console.log(activeRooms.values(), "AcTiVe");
+    // console.log(activeRooms.values(), "AcTiVe");
     
     const currentActive =this.removeInactiveRooms();
-    console.log("currentActive", currentActive);
+    // console.log("currentActive", currentActive);
 
     for (const sport of currentActive) {
       const liveData = await this.getOdds(sport);
