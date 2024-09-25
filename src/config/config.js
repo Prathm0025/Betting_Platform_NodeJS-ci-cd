@@ -29,3 +29,6 @@ const _config = {
     cloud_folder: process.env.CLOUDINARY_FOLDER_NAME,
 };
 exports.config = Object.freeze(_config);
+if (['production'].includes(process.env.NODE_ENV)) {
+    console.log = () => { };
+}

@@ -27,22 +27,151 @@ const playerModel_1 = __importDefault(require("./playerModel"));
 const betController_1 = __importDefault(require("../bets/betController"));
 const storeController_1 = __importDefault(require("../store/storeController"));
 const socket_1 = require("../socket/socket");
-// import { updateLiveData } from "../workers/initWorker";
+const redisclient_1 = require("../redisclient");
 class Player {
-    constructor(socket, userId, username, credits, io // Initialize io instance in constructor
-    ) {
+    constructor(socket, userId, username, credits, io) {
         this.socket = socket;
         this.userId = userId;
         this.username = username;
         this.credits = credits;
-        this.io = io; // Assign io instance
+        this.io = io;
+        this.betSlip = new Map();
         this.initializeHandlers();
+        this.initializeRedis();
         this.betHandler();
+    }
+    initializeRedis() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                this.redisGetAsync = redisclient_1.redisClient.get.bind(redisclient_1.redisClient);
+                this.redisSetAsync = redisclient_1.redisClient.set.bind(redisclient_1.redisClient);
+            }
+            catch (error) {
+                console.error("Redis client connection error:", error);
+                this.redisGetAsync = () => __awaiter(this, void 0, void 0, function* () { return null; });
+                this.redisSetAsync = () => __awaiter(this, void 0, void 0, function* () { return null; });
+            }
+        });
     }
     updateSocket(socket) {
         this.socket = socket;
         this.initializeHandlers();
         this.betHandler();
+    }
+    addBetToSlip(bet) {
+        var _a;
+        const betId = bet.id;
+        if (this.betSlip.has(betId)) {
+            // console.log(`Bet with ID ${betId} already exists in the bet slip.`);
+            return;
+        }
+        this.betSlip.set(betId, bet);
+        socket_1.eventRooms.set(bet.sport_key, new Set());
+        this.joinEventRoom(bet.sport_key, bet.event_id);
+        if (!socket_1.playerBets.has(this.username)) {
+            socket_1.playerBets.set(this.username, new Set());
+        }
+        (_a = socket_1.playerBets.get(this.username)) === null || _a === void 0 ? void 0 : _a.add(bet.event_id);
+    }
+    updateBetAmount(bet, amount) {
+        const betId = this.generateBetId(bet);
+        const existingBet = this.betSlip.get(betId);
+        if (!existingBet) {
+            // console.log(`Bet with ID ${betId} not found in the bet slip.`);
+            return;
+        }
+        existingBet.amount = amount;
+        // console.log("BET SLIP UPDATED : ", this.betSlip.get(betId));
+        this.sendBetSlip();
+    }
+    removeBetFromSlip(betId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const bet = (_a = this.betSlip) === null || _a === void 0 ? void 0 : _a.get(betId);
+            if (this.betSlip.has(betId)) {
+                this.betSlip.delete(betId);
+                const roomKey = `${bet.sport_key}:${bet.event_id}`;
+                this.socket.leave(roomKey);
+                const playerEvents = socket_1.playerBets.get(this.username);
+                if (playerEvents) {
+                    playerEvents.delete(bet.event_id);
+                    if (playerEvents.size === 0) {
+                        socket_1.playerBets.delete(this.username);
+                    }
+                }
+                const hasRemainingBets = Array.from(this.betSlip.values()).some(b => b.sport_key === bet.sport_key && b.event_id === bet.event_id);
+                if (!hasRemainingBets) {
+                    const redisKey = "globalEventRooms";
+                    const eventRoomsData = yield this.redisGetAsync(redisKey);
+                    let eventRoomsMap = eventRoomsData
+                        ? new Map(JSON.parse(eventRoomsData, (key, value) => {
+                            if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+                                return new Set(value);
+                            }
+                            return value;
+                        }))
+                        : new Map();
+                    const eventRedisSet = eventRoomsMap.get(bet.sport_key);
+                    if (eventRedisSet) {
+                        eventRedisSet.delete(bet.event_id);
+                        if (eventRedisSet.size === 0) {
+                            eventRoomsMap.delete(bet.sport_key);
+                        }
+                    }
+                    // Update Redis with the modified eventRooms
+                    yield this.redisSetAsync(redisKey, JSON.stringify(Array.from(eventRoomsMap.entries(), ([key, set]) => [
+                        key,
+                        Array.from(set),
+                    ])), "EX", 300);
+                    // In-memory update (optional, in case you're maintaining another state)
+                    const eventSet = socket_1.eventRooms.get(bet.sport_key);
+                    if (eventSet) {
+                        eventSet.delete(bet.event_id);
+                        if (eventSet.size === 0) {
+                            socket_1.eventRooms.delete(bet.sport_key);
+                        }
+                    }
+                }
+                // console.log("BET SLIP REMOVED: ", bet);
+                this.sendBetSlip();
+            }
+            else {
+                this.sendError(`Bet with ID ${betId} not found in the slip.`);
+            }
+        });
+    }
+    removeAllBetsFromSlip() {
+        for (const [betId, bet] of this.betSlip.entries()) {
+            const roomKey = `${bet.sport_key}:${bet.event_id}`;
+            this.socket.leave(roomKey);
+            const playerEvents = socket_1.playerBets.get(this.userId.toString());
+            if (playerEvents) {
+                playerEvents.delete(bet.event_id);
+                if (playerEvents.size === 0) {
+                    socket_1.playerBets.delete(this.userId.toString());
+                }
+            }
+            const hasRemainingBets = Array.from(this.betSlip.values()).some(b => b.sport_key === bet.sport_key && b.event_id === bet.event_id);
+            if (!hasRemainingBets) {
+                const eventSet = socket_1.eventRooms.get(bet.sport_key);
+                if (eventSet) {
+                    eventSet.delete(bet.event_id);
+                    if (eventSet.size === 0) {
+                        socket_1.eventRooms.delete(bet.sport_key);
+                    }
+                }
+            }
+            this.betSlip.clear();
+            console.log("All bets removed from bet slip");
+            this.sendBetSlip();
+        }
+    }
+    sendBetSlip() {
+        const betSlipData = Array.from(this.betSlip.values());
+        this.sendAlert({ type: "BET_SLIP", payload: betSlipData }); // Send the bet slip to the client
+    }
+    generateBetId(betDetails) {
+        return `${betDetails.event_id}_${betDetails.bet_on.name}_${betDetails.category}_${betDetails.bet_on.odds}`;
     }
     updateBalance(type, amount) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -55,11 +184,11 @@ class Player {
                     else if (type === "debit") {
                         player.credits -= amount;
                         if (player.credits < 0) {
-                            player.credits = 0; // Ensure credits do not go below zero
+                            player.credits = 0;
                         }
                     }
                     yield player.save();
-                    this.credits = player.credits; // Update the local credits value
+                    this.credits = player.credits;
                     this.sendAlert({ credits: this.credits });
                 }
                 else {
@@ -148,6 +277,7 @@ class Player {
                         const eventOddsData = yield storeController_1.default.getEventOdds(res.payload.sport, res.payload.eventId, res.payload.markets, res.payload.regions, res.payload.oddsFormat, res.payload.dateFormat);
                         const { bookmakers } = eventOddsData, data = __rest(eventOddsData, ["bookmakers"]);
                         this.sendData({ type: "GET event odds", data: data });
+                        this.joinEventRoom(res.payload.sport, res.payload.eventId);
                         break;
                     case "SPORTS":
                         const sportsData = yield storeController_1.default.getSports();
@@ -201,8 +331,41 @@ class Player {
                             callback({ status: "error", message: "Failed to place bet." });
                         }
                         break;
-                    case "START":
-                        // Handle "START" action if needed
+                    case "ADD_TO_BETSLIP":
+                        try {
+                            const { data } = payload;
+                            this.addBetToSlip(data);
+                            callback({ status: "success", message: `Bet added successfully.` });
+                        }
+                        catch (error) {
+                            console.error("Error adding bet to bet slip:", error);
+                            callback({ status: "error", message: "Failed to add bet to bet slip." });
+                        }
+                        break;
+                    case "REMOVE_FROM_BETSLIP":
+                        let betId;
+                        try {
+                            betId = payload.betId;
+                            this.removeBetFromSlip(betId);
+                            callback({ status: "success", message: `Bet with ID ${betId} removed successfully.` });
+                        }
+                        catch (error) {
+                            console.error("Error removing bet from bet slip:", error);
+                            callback({ status: "error", message: `Failed to remove bet with ID ${betId}.` });
+                        }
+                        break;
+                    case "REMOVE_ALL_FROM_BETSLIP":
+                        try {
+                            this.removeAllBetsFromSlip();
+                            callback({ status: "success", message: "All bets removed from the bet slip." });
+                        }
+                        catch (error) {
+                            console.error("Error removing all bets from bet slip:", error);
+                            callback({ status: "error", message: "Failed to remove all bets from the bet slip." });
+                        }
+                        break;
+                    case "UPDATE_BET_AMOUNT":
+                        this.updateBetAmount(payload.bet, payload.amount);
                         break;
                     default:
                         console.log("UNKNOWN ACTION: ", payload);
@@ -232,8 +395,46 @@ class Player {
         }
         socket_1.activeRooms.add(room);
         // updateLiveData(activeRooms);
+        console.log(socket_1.activeRooms.values());
         this.socket.join(room);
         this.currentRoom = room;
+    }
+    joinEventRoom(sportKey, eventId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const redisKey = "globalEventRooms";
+            const eventRoomsData = yield this.redisGetAsync(redisKey);
+            let eventRoomsMap;
+            if (eventRoomsData) {
+                eventRoomsMap = new Map(JSON.parse(eventRoomsData, (key, value) => {
+                    if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+                        return new Set(value);
+                    }
+                    return value;
+                }));
+            }
+            else {
+                eventRoomsMap = new Map();
+            }
+            if (!eventRoomsMap.has(sportKey)) {
+                eventRoomsMap.set(sportKey, new Set());
+            }
+            const eventRedisSet = eventRoomsMap.get(sportKey);
+            eventRedisSet === null || eventRedisSet === void 0 ? void 0 : eventRedisSet.add(eventId);
+            const serializedMap = JSON.stringify(Array.from(eventRoomsMap.entries(), ([key, set]) => [
+                key,
+                Array.from(set),
+            ]));
+            yield this.redisSetAsync(redisKey, serializedMap, "EX", 300);
+            if (!socket_1.eventRooms.has(sportKey)) {
+                socket_1.eventRooms.set(sportKey, new Set());
+            }
+            // Retrieve the Set of event IDs for the sportKey
+            const eventSet = socket_1.eventRooms.get(sportKey);
+            eventSet === null || eventSet === void 0 ? void 0 : eventSet.add(eventId);
+            this.socket.join(`${sportKey}:${eventId}`);
+            this.currentRoom = `${sportKey}:${eventId}`;
+            // console.log(`Joined room: ${this.currentRoom}`);
+        });
     }
 }
 exports.default = Player;

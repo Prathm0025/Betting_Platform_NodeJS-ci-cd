@@ -26,28 +26,71 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BetDetail = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const BetDetailSchema = new mongoose_1.Schema({
-    key: { type: mongoose_1.Schema.Types.ObjectId, ref: "Bet", required: true }, // Reference to the parent Bet
+    key: { type: mongoose_1.Schema.Types.ObjectId, ref: "Bet", required: true },
+    teams: [
+        {
+            name: { type: String, required: true },
+            odds: { type: Number, required: true }
+        }
+    ],
+    bet_on: {
+        name: {
+            type: String,
+            required: true,
+        },
+        odds: {
+            type: Number,
+            required: true
+        },
+        points: {
+            type: Number,
+            required: false
+        }
+    },
     event_id: { type: String, required: true },
     sport_title: { type: String, required: true },
     sport_key: { type: String, required: true },
     commence_time: { type: Date, required: true },
-    home_team: {
-        name: { type: String, required: true },
-        odds: { type: Number, required: true },
-        points: { type: Number, required: false },
-    },
-    away_team: {
-        name: { type: String, required: true },
-        odds: { type: Number, required: true },
-        points: { type: Number, required: false },
-    },
-    market: { type: String, required: true },
-    bet_on: {
+    category: { type: String, required: true },
+    bookmaker: { type: String, required: true },
+    oddsFormat: { type: String, required: true },
+    status: {
         type: String,
-        // enum: ["home_team", "away_team", "Over", "Under"],
+        enum: ["won", "lost", "draw", "pending", "redeem", "failed"],
         required: true,
     },
-    selected: { type: String, required: true },
+    isResolved: {
+        type: Boolean,
+        default: false,
+    }
+}, { timestamps: true });
+const BetDetailTotalsSchema = new mongoose_1.Schema({
+    key: { type: mongoose_1.Schema.Types.ObjectId, ref: "Bet", required: true },
+    teams: [
+        {
+            name: { type: String, required: true }
+        }
+    ],
+    bet_on: {
+        name: {
+            type: String,
+            required: true,
+        },
+        odds: {
+            type: Number,
+            required: true
+        },
+        points: {
+            type: Number,
+            required: true
+        }
+    },
+    event_id: { type: String, required: true },
+    sport_title: { type: String, required: true },
+    sport_key: { type: String, required: true },
+    commence_time: { type: Date, required: true },
+    category: { type: String, required: true },
+    bookmaker: { type: String, required: true },
     oddsFormat: { type: String, required: true },
     status: {
         type: String,
