@@ -3,7 +3,7 @@ import { BetDetail } from "../bets/betModel";
 export async function migrateLegacyBet(betDetail: any) {
     try {
         if (betDetail.home_team && betDetail.away_team) {
-            console.log(`Migrating legacy bet with ID ${betDetail._id}...`);
+            // console.log(`Migrating legacy bet with ID ${betDetail._id}...`);
 
             const newTeams = [
                 { name: betDetail.home_team?.name, odds: betDetail.home_team?.odds },
@@ -51,17 +51,17 @@ export async function migrateLegacyBet(betDetail: any) {
             );
 
             if (result) {
-                console.log("Updated BetDetail:", result);
+                // console.log("Updated BetDetail:", result);
             }
             else {
-                console.log("Failed to update BetDetail:", result);
+                // console.log("Failed to update BetDetail:", result);
             }
 
-            console.log(`Bet with ID ${betDetail._id} successfully migrated.`);
+            // console.log(`Bet with ID ${betDetail._id} successfully migrated.`);
         } else {
-            console.log(`Bet with ID ${betDetail._id} is already fully migrated, skipping.`);
+            // console.log(`Bet with ID ${betDetail._id} is already fully migrated, skipping.`);
         }
     } catch (error) {
-        console.error(`Error migrating legacy bet with ID ${betDetail}:`, error);
+        // console.error(`Error migrating legacy bet with ID ${betDetail}:`, error);
     }
 }

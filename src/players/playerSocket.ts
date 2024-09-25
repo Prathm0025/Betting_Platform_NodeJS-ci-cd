@@ -134,7 +134,7 @@ export default class Player {
                     key,
                     Array.from(set),
                 ])
-            ));
+            ),  "EX", 300);
 
             // In-memory update (optional, in case you're maintaining another state)
             const eventSet = eventRooms.get(bet.sport_key);
@@ -157,6 +157,14 @@ export default class Player {
     for (const [betId, bet] of this.betSlip.entries()) {
       const roomKey = `${bet.sport_key}:${bet.event_id}`;
       this.socket.leave(roomKey);
+      
+      const playerEvents = playerBets.get(this.userId.toString());
+      if (playerEvents) {
+        playerEvents.delete(bet.event_id);
+        if (playerEvents.size === 0) {
+          playerBets.delete(this.userId.toString());
+        }
+      }
 
       const hasRemainingBets = Array.from(this.betSlip.values()).some(
         b => b.sport_key === bet.sport_key && b.event_id === bet.event_id
@@ -199,11 +207,11 @@ export default class Player {
         } else if (type === "debit") {
           player.credits -= amount;
           if (player.credits < 0) {
-            player.credits = 0; // Ensure credits do not go below zero
+            player.credits = 0; 
           }
         }
         await player.save();
-        this.credits = player.credits; // Update the local credits value
+        this.credits = player.credits;
         this.sendAlert({ credits: this.credits });
       } else {
         console.error(`Player with ID ${this.userId} not found.`);
@@ -458,14 +466,17 @@ export default class Player {
 
       if (!clients || clients.size === 0) {
         activeRooms.delete(this.currentRoom);
-        // console.log(`Room ${this.currentRoom} removed from activeRooms.`);
+        console.log(`Room ${this.currentRoom} removed from activeRooms.`);
       }
     }
 
 
+
+
     activeRooms.add(room);
     // updateLiveData(activeRooms);
-
+   console.log(activeRooms.values());
+   
     this.socket.join(room);
     this.currentRoom = room;
 

@@ -15,6 +15,7 @@ class Store {
     this.initializeRedis();
   }
 
+
   private async initializeRedis() {
     try {
       this.redisGetAsync = redisClient.get.bind(redisClient);
@@ -364,10 +365,12 @@ class Store {
       throw new Error("Failed to fetch category sports");
     }
   }
-
+    
   public async updateLiveData() {
-    const currentActive = Array.from(activeRooms);
-    console.log("currentActive", currentActive);
+    console.log(activeRooms.values(), "AcTiVe");
+    
+    const currentActive =this.removeInactiveRooms();
+    // console.log("currentActive", currentActive);
 
     for (const sport of currentActive) {
       const liveData = await this.getOdds(sport);
