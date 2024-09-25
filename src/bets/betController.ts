@@ -2,7 +2,6 @@ import Bet, { BetDetail } from "./betModel";
 import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
-
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
@@ -17,6 +16,24 @@ import { removeFromWaitingQueue } from "../utils/WaitingQueue";
 import { removeItem } from "../utils/ProcessingQueue";
 
 class BetController {
+  private redisGetAsync;
+  private redisSetAsync;
+
+  constructor() {
+    this.initializeRedis();
+  }
+
+  private async initializeRedis() {
+    try {
+      this.redisGetAsync = redisClient.get.bind(redisClient);
+      this.redisSetAsync = redisClient.set.bind(redisClient);
+    } catch (error) {
+      console.error("Redis client connection error:", error);
+      this.redisGetAsync = async () => null;
+      this.redisSetAsync = async () => null;
+    }
+  }
+
   public async placeBet(
     playerRef: Player,
     betDetails: IBetDetail[],
@@ -26,6 +43,10 @@ class BetController {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
+
+      // const tempBetId = betDetailIds.id
+
+
       // Check if the player is connected to the socket
       const playerSocket = users.get(playerRef.username);
       if (!playerSocket) {
@@ -52,15 +73,82 @@ class BetController {
         throw new Error("Betting amount can't be zero");
       }
 
-      // Check if the player already has a pending bet on the same team
+
+      // for (const betDetailData of betDetails) {
+
+      //   const cacheKey = `eventOdds:${betDetailData.sport_key}:${betDetailData.event_id}:${betDetailData.category}`;
+        
+      //   let cachedOddsData:any = await redisClient.get(cacheKey);
+        
+      //   if (!cachedOddsData) {
+      //     const oddsData = await Store.getEventOdds(
+      //       betDetailData.sport_key,
+      //       betDetailData.event_id,
+      //       betDetailData.category,
+      //       'us',
+      //       'decimal',
+      //       'iso'
+      //     );
+          
+      //     cachedOddsData = JSON.stringify(oddsData);
+          
+      //     await redisClient.set(cacheKey, cachedOddsData, 'EX', 30);
+      //   }
+      
+      //   cachedOddsData = JSON.parse(cachedOddsData);
+      //   console.log(cachedOddsData, "cached odds data");
+      
+      //   let cachedEvent = null;
+      
+      //   if (Array.isArray(cachedOddsData)) {
+      //     cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+      //   } else if (cachedOddsData && cachedOddsData.id === betDetailData.event_id) {
+      //     cachedEvent = cachedOddsData;
+      //   }
+        
+      //   if (!cachedEvent) {
+      //     throw new Error(`Event with ID ${betDetailData.event_id} not found in cached data.`);
+      //   }
+      
+      //   const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
+      
+      //   if (!cachedBookmaker) {
+      //     throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
+      //   }
+      
+      //   const cachedMarket = cachedBookmaker.markets.find(market => market.key === betDetailData.category);
+      
+      //   if (!cachedMarket) {
+      //     throw new Error("Market not found in cached data");
+      //   }
+      
+      //   const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
+      //   console.log(cachedOutcome, "co");
+      
+      //   if (!cachedOutcome) {
+      //     throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
+      //   }
+        
+      //   console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
+      
+      //   // Compare cached odds with submitted odds
+      //   if (cachedOutcome.price !== betDetailData.bet_on.odds) {
+      //     playerSocket.sendData({
+      //       type: "ODDS_MISMATCH",
+      //       message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
+      //     });
+      //     throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
+      //   }
+      // }
+      
+
       for (const betDetailData of betDetails) {
         const existingBetDetails = await BetDetail.find({
           event_id: betDetailData.event_id,
           status: "pending",
-          market: betDetailData.market,
+          category: betDetailData.category,
         }).session(session);
 
-        // Check if there are any existing bet details
         if (existingBetDetails.length > 0) {
           for (const data of existingBetDetails) {
             const bet = await Bet.findById(data.key).session(session);
@@ -70,18 +158,7 @@ class BetController {
             const betPlayer = await PlayerModel.findById(bet.player).session(
               session
             );
-            if (betPlayer._id.equals(player._id)) {
-              // Use `.equals` for MongoDB ObjectId comparison
-              if (data.bet_on === betDetailData.bet_on) {
-                throw new Error(
-                  `You already have a pending bet on ${betDetailData.bet_on}.`
-                );
-              } else {
-                throw new Error(
-                  `This is not a valid bet since the other bet is not yet resolved!`
-                );
-              }
-            }
+
           }
         }
       }
@@ -89,52 +166,31 @@ class BetController {
       // Deduct the bet amount from the player's credits
       player.credits -= amount;
       await player.save({ session });
-
       playerSocket.sendData({ type: "CREDITS", credits: player.credits });
 
-      // Manually generate the Bet's _id
       const betId = new mongoose.Types.ObjectId();
       const betDetailIds: mongoose.Types.ObjectId[] = [];
-      let cumulativeOdds = 1; // Initialize cumulative odds
+      let cumulativeOdds = 1;
 
-      // Loop through each BetDetail and create it
       for (const betDetailData of betDetails) {
-        // Calculate the selected team's odds
-        let selectedOdds;
-        switch (betDetailData.bet_on) {
-          case "home_team":
-            selectedOdds = betDetailData.home_team.odds;
-            break;
-          case "away_team":
-            selectedOdds = betDetailData.away_team.odds;
-            break;
-          case "Over":
-            selectedOdds = betDetailData.home_team.odds;
-            break;
-          case "Under":
-            selectedOdds = betDetailData.away_team.odds;
-            break;
-          default:
-            break;
-        }
+        const tempBetId = betDetailData.id;
 
+        const selectedOdds = betDetailData.bet_on.odds;
         cumulativeOdds *= selectedOdds;
 
-        // Create the BetDetail document
         const betDetail = new BetDetail({
           ...betDetailData,
           key: betId,
-          status: "pending", // Set the betId as the key in BetDetail
+          status: "pending",
         });
 
         await betDetail.save({ session });
-        betDetailIds.push(betDetail._id); // No need to cast, using mongoose.Types.ObjectId
-
-        // Schedule the job for this BetDetail based on its commence_time
+        betDetailIds.push(betDetail._id);
+        playerSocket.sendAlert({ type: "BET_PLACED", payload: { betId: tempBetId } });
+        playerSocket.removeBetFromSlip(tempBetId);
         await this.scheduleBetDetailJob(betDetail);
       }
 
-      // Calculate the possible winning amount
       const possibleWinningAmount = cumulativeOdds * amount;
 
       // Create the Bet document with the manually generated _id
@@ -165,15 +221,8 @@ class BetController {
 
       playerSocket.sendData({ type: "MYBETS", bets: playerBets });
 
-      const selectedTeamName =
-        betDetails[0].bet_on === "home_team"
-          ? betDetails[0].home_team.name
-          : betDetails[0].away_team.name;
-
-      const selectedOdds =
-        betDetails[0].bet_on === "home_team"
-          ? betDetails[0].home_team.odds
-          : betDetails[0].away_team.odds;
+      const selectedTeamName = betDetails[0].bet_on.name;
+      const selectedOdds = betDetails[0].bet_on.odds;
 
       let playerResponseMessage;
       let agentResponseMessage;
@@ -201,6 +250,8 @@ class BetController {
         })
       );
 
+
+
       // Commit the transaction
       await session.commitTransaction();
       session.endSession();
@@ -210,7 +261,7 @@ class BetController {
       // Rollback the transaction in case of error
       await session.abortTransaction();
       session.endSession();
-      console.error("Error placing bet:", error.message);
+      console.error("Error placing bet:", error);
       playerRef.sendError(error.message);
     }
   }
@@ -243,38 +294,8 @@ class BetController {
     }
   }
 
-  private calculatePossibleWinning(data: any) {
-    const selectedTeam =
-      data.bet_on === "home_team" ? data.home_team : data.away_team;
-    const oddsFormat = data.oddsFormat;
-    const betAmount = parseFloat(data.amount.toString());
-
-    let possibleWinningAmount = 0;
-
-    switch (oddsFormat) {
-      case "decimal":
-        possibleWinningAmount = selectedTeam.odds * betAmount;
-        break;
-
-      case "american":
-        if (selectedTeam.odds > 0) {
-          possibleWinningAmount =
-            (selectedTeam.odds / 100) * betAmount + betAmount;
-        } else {
-          possibleWinningAmount =
-            (100 / Math.abs(selectedTeam.odds)) * betAmount + betAmount;
-        }
-        break;
-
-      default:
-        console.log("INVALID ODDS FORMAT");
-    }
-
-    return possibleWinningAmount;
-  }
 
   //GET BETS OF PLAYERS UNDER AN AGENT
-
   async getAgentBets(req: Request, res: Response, next: NextFunction) {
     try {
       const { agentId } = req.params;
@@ -315,7 +336,6 @@ class BetController {
   }
 
   //GET ALL BETS FOR ADMIN
-
   async getAdminBets(req: Request, res: Response, next: NextFunction) {
     try {
       const { date } = req.query;
@@ -348,7 +368,6 @@ class BetController {
   }
 
   //GET BETS FOR A PLAYER
-
   async getBetForPlayer(req: Request, res: Response, next: NextFunction) {
     try {
       const { player } = req.params;
@@ -432,39 +451,20 @@ class BetController {
       let totalNewOdds = 1;
 
       for (const betDetails of betDetailsArray) {
-        let selectedTeam;
-        switch (betDetails.bet_on) {
-          case "home_team":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "away_team":
-            selectedTeam = betDetails.away_team;
-            break;
-          case "Over":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "Under":
-            selectedTeam = betDetails.away_team;
-            break;
-          default:
-            break;
-        }
-
-        const oldOdds = selectedTeam.odds;
-
+        const oldOdds = betDetails.bet_on.odds;
         totalOldOdds *= oldOdds;
 
         const currentData = await Store.getEventOdds(
           betDetails.sport_key,
           betDetails.event_id,
-          betDetails.market,
+          betDetails.category,
           "us",
           betDetails.oddsFormat,
           "iso"
         );
 
         const currentBookmakerData = currentData?.bookmakers?.find(
-          (item) => item?.key === betDetails.selected
+          (item) => item?.key === betDetails.bookmaker
         );
 
         //the earlier selected bookmaker is not available anymore
@@ -473,15 +473,14 @@ class BetController {
           break;
         } else {
           const marketDetails = currentBookmakerData?.markets?.find(
-            (item) => item.key === betDetails.market
+            (item) => item.key === betDetails.category
           );
+
           const newOdds = marketDetails.outcomes.find((item) => {
-            if (betDetails.market !== "totals") {
-              return item.name === selectedTeam.name;
-            } else {
-              return item.name === betDetails.bet_on;
+            if (betDetails.category !== "totals") {
+              return item.name === betDetails.bet_on.name;
             }
-          }).price;
+          }).price
           totalNewOdds *= newOdds;
         }
       }
@@ -506,6 +505,8 @@ class BetController {
 
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
+    console.log("HERE");
+    
     try {
       const _req = req as AuthRequest;
       const { userId } = _req.user;
@@ -543,58 +544,41 @@ class BetController {
           betId: betDetails._id.toString(),
           commence_time: new Date(betDetails.commence_time),
         };
+
         removeFromWaitingQueue(JSON.stringify(data));
-        let selectedTeam;
-        switch (betDetails.bet_on) {
-          case "home_team":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "away_team":
-            selectedTeam = betDetails.away_team;
-            break;
-          case "Over":
-            selectedTeam = betDetails.home_team;
-            break;
-          case "Under":
-            selectedTeam = betDetails.away_team;
-            break;
-          default:
-            break;
-        }
-
-        const oldOdds = selectedTeam.odds;
-
+        const oldOdds = betDetails.bet_on.odds;
         totalOldOdds *= oldOdds;
 
         const currentData = await Store.getEventOdds(
           betDetails.sport_key,
           betDetails.event_id,
-          betDetails.market,
+          betDetails.category,
           "us",
           betDetails.oddsFormat,
           "iso"
         );
 
         const currentBookmakerData = currentData?.bookmakers?.find(
-          (item) => item?.key === betDetails.selected
+          (item) => item?.key === betDetails.bookmaker
         );
 
         //the earlier selected bookmaker is not available anymore
         if (!currentBookmakerData) {
+          console.log(failed);
+          
           failed = true;
           break;
         } else {
+          console.log(currentBookmakerData, "DD");
+          
           const marketDetails = currentBookmakerData?.markets?.find(
-            (item) => item.key === betDetails.market
+            (item) => item.key === betDetails.category
           );
-
+         console.log(marketDetails, "MD");
+         
           const newOdds = marketDetails.outcomes.find((item) => {
-            if (betDetails.market !== "totals") {
-              return item.name === selectedTeam.name;
-            } else {
-              return item.name === betDetails.bet_on;
-            }
-          }).price;
+              return item.name === betDetails.bet_on.name;
+          }).price
           totalNewOdds *= newOdds;
 
           betDetails.status = "redeem";
@@ -656,11 +640,10 @@ class BetController {
             playerMessage: `A Bet (ID: ${betId}) redeemed successfully with a payout of ${finalPayout.toFixed(
               2
             )}!`,
-            agentMessage: `A Player ${
-              player.username
-            } redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(
-              2
-            )}`,
+            agentMessage: `A Player ${player.username
+              } redeemed a bet (ID: ${betId}) with a payout of ${finalPayout.toFixed(
+                2
+              )}`,
           })
         );
         res.status(200).json({ message: "Bet Redeemed Successfully" });
@@ -756,37 +739,37 @@ class BetController {
       console.log(JSON.stringify(req.body));
 
       if (!betId || !betData) {
-        throw createHttpError(400, "Invalid Input");
+        throw createHttpError(400, "Invalid Input")
       }
-      const { detailId , ...updateData } = betDetails as any;
+      const { detailId, ...updateData } = betDetails as any;
 
       const existingBetDetails = await BetDetail.findById(detailId);
 
-      if(!existingBetDetails){
+      if (!existingBetDetails) {
 
         throw createHttpError(404, "Bet Detail Not found")
 
       }
 
-     //Handling removing the bet from processing queue or waiting queue
+      //Handling removing the bet from processing queue or waiting queue
 
-     if(existingBetDetails.status==="pending" && betDetails.status!=="pending" ){
+      if (existingBetDetails.status === "pending" && betDetails.status !== "pending") {
         const now = new Date().getTime();
         const commenceTime = existingBetDetails.commence_time;
-        if (now >= new Date(commenceTime).getTime()){
+        if (now >= new Date(commenceTime).getTime()) {
           const data = {
             betId: existingBetDetails._id.toString(),
             commence_time: new Date(existingBetDetails.commence_time),
           }
           await removeFromWaitingQueue(JSON.stringify(data));
-        }else{
+        } else {
           await removeItem(JSON.stringify(existingBetDetails));
 
         }
       }
-    
+
       const existingParentBet = await Bet.findById(betId);
-      if(!existingParentBet){
+      if (!existingParentBet) {
         throw createHttpError(404, "Bet Not Found")
       }
 
@@ -794,12 +777,12 @@ class BetController {
       const session = await mongoose.startSession();
       session.startTransaction();
       const newupdateData = {
-        ...updateData,  
-        isResolved: true       
+        ...updateData,
+        isResolved: true
       };
       await BetDetail.findByIdAndUpdate(detailId, newupdateData, { new: true }).session(session);
       const updatedBet = await Bet.findByIdAndUpdate(betId, betData, { new: true }).session(session);
-    
+
       if (!updatedBet) {
         await session.abortTransaction();
         session.endSession();
@@ -814,13 +797,13 @@ class BetController {
       // const hasNotWonOrLost = allBetDetails.some(
       //   (detail) => detail.status !== 'won' && detail.status !== 'lost'
       // );
-      
+
 
       let playerResponseMessage;
       let agentResponseMessage;
       const playerId = parentBet.player;
       const possibleWinningAmount = parentBet.possibleWinningAmount;
-      const player= await PlayerModel.findById(playerId);
+      const player = await PlayerModel.findById(playerId);
 
       if (!hasNotWon && parentBet.status !== "won") {
         if (player) {
@@ -837,9 +820,9 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
         playerResponseMessage = `Bet Won!. Bet Amount: $${parentBet.amount}`;
-        agentResponseMessage = `Your Player ${player.username} has won a bet. Bet Amount: $${parentBet.amount}` 
-       
-      }else if(existingParentBet.status==="won" && hasNotWon){
+        agentResponseMessage = `Your Player ${player.username} has won a bet. Bet Amount: $${parentBet.amount}`
+
+      } else if (existingParentBet.status === "won" && hasNotWon) {
         if (player) {
           player.credits -= possibleWinningAmount;
           await player.save();
@@ -854,11 +837,11 @@ class BetController {
           playerSocket.sendData({ type: "CREDITS", credits: player.credits });
         }
         playerResponseMessage = `Bet lost!. Bet Amount: $${parentBet.amount}`;
-        agentResponseMessage = `Your Player ${player.username} has lost a bet. Bet Amount: $${parentBet.amount}` 
-      }else{
+        agentResponseMessage = `Your Player ${player.username} has lost a bet. Bet Amount: $${parentBet.amount}`
+      } else {
 
         playerResponseMessage = `Bet ${parentBet.status}!. Bet Amount: $${parentBet.amount}`;
-        agentResponseMessage = `Your Player ${player.username}'s bet has  ${parentBet.status}. Bet Amount: $${parentBet.amount}` 
+        agentResponseMessage = `Your Player ${player.username}'s bet has  ${parentBet.status}. Bet Amount: $${parentBet.amount}`
       }
 
       redisClient.publish(

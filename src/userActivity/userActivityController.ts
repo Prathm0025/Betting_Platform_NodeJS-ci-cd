@@ -42,7 +42,7 @@ class UserActivityController {
       },
         { new: true, useFindAndModify: false }
       )
-      console.log(savedNewActivitySession, dailyActivity);
+      // console.log(savedNewActivitySession, dailyActivity);
 
     } catch (error) {
       console.error("Error creating activity:", error.message);
@@ -83,184 +83,207 @@ class UserActivityController {
     }
   }
 
-  async getBetsAndTransactionsInActivitySession(req:Request, res:Response , next:NextFunction) {
-    try{
+  async getBetsAndTransactionsInActivitySession(req: Request, res: Response, next: NextFunction) {
+    try {
       console.log("red");
-      
-      const { startTime, endTime, playerId } = req.body; 
+
+      const { startTime, endTime, playerId } = req.body;
       const betsAggregation = Bet.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startTime, $lte: endTime },
-          player: playerId, // Filter by playerId
+        {
+          $match: {
+            createdAt: { $gte: new Date(startTime), $lte: new Date(endTime) },
+            player: playerId, // Filter by playerId
+          },
+        },
+        {
+          $lookup: {
+            from: 'players',
+            localField: 'player',
+            foreignField: '_id',
+            as: 'playerDetails',
+          },
+        },
+        {
+          $unwind: '$playerDetails',
+        },
+        {
+          $lookup: {
+            from: 'betdetails',
+            localField: 'data',
+            foreignField: '_id',
+            as: 'betDetails',
+          },
+        },
+        {
+          $project: {
+            'playerDetails.username': 1,
+            'betDetails.commence_time': 1,
+            'betDetails.home_team.name': 1,
+            'betDetails.away_team.name': 1,
+            amount: 1,
+            status: 1,
+          },
+        },
+      ]);
 
+      const transactionsAggregation = Transaction.aggregate([
+        {
+          $match: {
+            date: { $gte: new Date(startTime), $lte: new Date(endTime) },
+          }
         },
-      },
-      {
-        $lookup: {
-          from: 'players',
-          localField: 'player',
-          foreignField: '_id',
-          as: 'playerDetails',
+        {
+          $lookup: {
+            from: "users",
+            localField: "sender",
+            foreignField: "_id",
+            as: "senderUser",
+          },
         },
-      },
-      {
-        $unwind: '$playerDetails',
-      },
-      {
-        $lookup: {
-          from: 'betdetails',
-          localField: 'data',
-          foreignField: '_id',
-          as: 'betDetails',
+        {
+          $lookup: {
+            from: "players",
+            localField: "sender",
+            foreignField: "_id",
+            as: "senderPlayer",
+          },
         },
-      },
-      {
-        $project: {
-          'playerDetails.username': 1,
-          'betDetails.commence_time': 1,
-          'betDetails.home_team.name': 1,
-          'betDetails.away_team.name': 1,
-          amount: 1,
-          status: 1,
+        {
+          $lookup: {
+            from: "users",
+            localField: "receiver",
+            foreignField: "_id",
+            as: "receiverUser",
+          },
         },
-      },
-    ]);
+        {
+          $lookup: {
+            from: "players",
+            localField: "receiver",
+            foreignField: "_id",
+            as: "receiverPlayer",
+          },
+        },
+        {
+          $unwind: {
+            path: "$senderUser",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: "$senderPlayer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: "$receiverUser",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: "$receiverPlayer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            sender: {
+              $cond: {
+                if: { $ifNull: ["$senderUser.username", false] },
+                then: "$senderUser.username",
+                else: "$senderPlayer.username",
+              },
+            },
+            receiver: {
+              $cond: {
+                if: { $ifNull: ["$receiverUser.username", false] },
+                then: "$receiverUser.username",
+                else: "$receiverPlayer.username",
+              },
+            },
+            amount: 1,
+            type: 1,
+            date: 1,
+          },
+        }
+      ]);
 
-    const transactionsAggregation = Transaction.aggregate([
-      {
-        $match: {
-          date: { $gte: startTime, $lte: endTime },
-        },
-      },
-      {
-        $lookup: {
-          from: 'players',
-          localField: 'sender',
-          foreignField: '_id',
-          as: 'senderDetails',
-        },
-      },
-      {
-        $lookup: {
-          from: 'players',
-          localField: 'receiver',
-          foreignField: '_id',
-          as: 'receiverDetails',
-        },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'sender',
-          foreignField: '_id',
-          as: 'senderDetails',
-        },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'receiver',
-          foreignField: '_id',
-          as: 'receiverDetails',
-        },
-      },
-      {
-        $unwind: {
-          path: '$senderDetails',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $unwind: {
-          path: '$receiverDetails',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $project: {
-          'senderDetails.username': 1,
-          'receiverDetails.username': 1,
-          amount: 1,
-          type: 1,
-          date: 1,
-        },
-      },
-    ]);
+      const [bets, transactions] = await Promise.all([betsAggregation, transactionsAggregation]);
 
-    const [bets, transactions] = await Promise.all([betsAggregation, transactionsAggregation]);
+      return res.status(200).json({ bets, transactions }
+      );
 
-    return res.status(200).json(    { bets, transactions }
-    );
+    } catch (error) {
 
-  }catch(error){
-
-  }
+    }
   };
 
 
 
 
 
-  async  getActivitiesByDate(req: Request, res: Response, next: NextFunction) {
+  async getActivitiesByDate(req: Request, res: Response, next: NextFunction) {
     try {
-        const { date, playerId } = req.query;
-        console.log(date, playerId);
-        
-        if (!date) {
-            throw createHttpError(400, "Date query parameter is required");
-        }
+      const { date, playerId } = req.query;
+      console.log(date, playerId);
 
-        if (!playerId) {
-            throw createHttpError(400, "Player ID query parameter is required");
-        }
+      if (!date) {
+        throw createHttpError(400, "Date query parameter is required");
+      }
 
-        // Validate the date format
-        const parsedDate = new Date(date as string);
-        if (isNaN(parsedDate.getTime())) {
-            throw createHttpError(400, "Invalid date format");
-        }
+      if (!playerId) {
+        throw createHttpError(400, "Player ID query parameter is required");
+      }
 
-   
-        const playerObjectId = new mongoose.Types.ObjectId(playerId as string);
+      // Validate the date format
+      const parsedDate = new Date(date as string);
+      if (isNaN(parsedDate.getTime())) {
+        throw createHttpError(400, "Invalid date format");
+      }
 
-        // Find activities by date and player
-        const activities = await DailyActivity.findOne({
-            date: parsedDate,
-            player: playerObjectId // Adjust this if playerId needs to be an ObjectId
+
+      const playerObjectId = new mongoose.Types.ObjectId(playerId as string);
+
+      // Find activities by date and player
+      const activities = await DailyActivity.findOne({
+        date: parsedDate,
+        player: playerObjectId // Adjust this if playerId needs to be an ObjectId
+      })
+        .populate({
+          path: 'actvity', // Check field name; assumed to be 'activity' based on context
         })
         .populate({
-            path: 'actvity', // Check field name; assumed to be 'activity' based on context
-        })
-        .populate({
-            path: 'player',
-            model: 'Player'
+          path: 'player',
+          model: 'Player'
         });
-        const populatedActivities = activities.actvity;
+      const populatedActivities = activities.actvity;
 
-        return res.status(200).json(populatedActivities);
+      return res.status(200).json(populatedActivities);
     } catch (error) {
       console.log(error);
-      
-        next(error);
-    }
-}
 
-async getAllDailyActivitiesOfAPlayer(req: Request, res: Response, next:NextFunction){
-  try {
+      next(error);
+    }
+  }
+
+  async getAllDailyActivitiesOfAPlayer(req: Request, res: Response, next: NextFunction) {
+    try {
       const { player } = req.params;
-      const playerDetails = await Player.findOne({username:player});
-      if(!playerDetails){
+      const playerDetails = await Player.findOne({ username: player });
+      if (!playerDetails) {
         throw createHttpError(404, "Player not found")
       }
-      const getDailyActivitiesOfAPlayer = await DailyActivity.find({player:playerDetails._id})
+      const getDailyActivitiesOfAPlayer = await DailyActivity.find({ player: playerDetails._id })
       console.log(getDailyActivitiesOfAPlayer, playerDetails._id);
-      
+
       return res.status(200).json(getDailyActivitiesOfAPlayer);
-  } catch (error) {
-     next(error)
+    } catch (error) {
+      next(error)
+    }
   }
-}
 }
 
 export default new UserActivityController()

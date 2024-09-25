@@ -15,6 +15,7 @@ class Store {
     this.initializeRedis();
   }
 
+
   private async initializeRedis() {
     try {
       this.redisGetAsync = redisClient.get.bind(redisClient);
@@ -43,7 +44,7 @@ class Store {
         params: { ...params, apiKey: config.oddsApi.key },
       });
 
-      let cacheDuration = 60; // Default to 1 minute (60 seconds)
+      let cacheDuration = 30; // Default to 1 minute (60 seconds)
 
       if (cacheKey === 'sportsList') {
         cacheDuration = 43200; // 12 hours (12 * 60 * 60 = 43200 seconds)
@@ -217,7 +218,7 @@ class Store {
     const oddsResponse = await this.fetchFromApi(
       `${config.oddsApi.url}/sports/${sport}/odds`,
       {
-        // markets: "h2h", // Default to 'h2h' if not provided
+        markets: "h2h,spreads,totals", // Default to 'h2h' if not provided
         regions: "us", // Default to 'us' if not provided
         oddsFormat: "decimal",
       },
@@ -247,8 +248,8 @@ class Store {
       ?.flatMap((item) => item?.events)
       ?.find((event) => event?.key === sport)?.has_outrights;
 
-    markets = has_outrights ? "outright" : "h2h,spreads,totals";
-
+    markets = has_outrights ? "outrights" : "h2h,spreads,totals";
+    regions = "us"
     const cacheKey = `eventOdds_${sport}_${eventId}_${regions}_${markets}_${dateFormat || "iso"
       }_${oddsFormat || "decimal"}`;
 
@@ -364,10 +365,12 @@ class Store {
       throw new Error("Failed to fetch category sports");
     }
   }
-
+    
   public async updateLiveData() {
-    const currentActive = Array.from(activeRooms);
-    console.log("currentActive", currentActive);
+    console.log(activeRooms.values(), "AcTiVe");
+    
+    const currentActive =this.removeInactiveRooms();
+    // console.log("currentActive", currentActive);
 
     for (const sport of currentActive) {
       const liveData = await this.getOdds(sport);
