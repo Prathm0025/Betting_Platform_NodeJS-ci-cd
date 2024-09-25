@@ -505,6 +505,8 @@ class BetController {
 
   //REDEEM PLAYER BET
   async redeemPlayerBet(req: Request, res: Response, next: NextFunction) {
+    console.log("HERE");
+    
     try {
       const _req = req as AuthRequest;
       const { userId } = _req.user;
@@ -562,17 +564,20 @@ class BetController {
 
         //the earlier selected bookmaker is not available anymore
         if (!currentBookmakerData) {
+          console.log(failed);
+          
           failed = true;
           break;
         } else {
+          console.log(currentBookmakerData, "DD");
+          
           const marketDetails = currentBookmakerData?.markets?.find(
             (item) => item.key === betDetails.category
           );
-
+         console.log(marketDetails, "MD");
+         
           const newOdds = marketDetails.outcomes.find((item) => {
-            if (betDetails.category !== "totals") {
               return item.name === betDetails.bet_on.name;
-            }
           }).price
           totalNewOdds *= newOdds;
 
