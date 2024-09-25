@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import { activeRooms, playerBets, users } from "../socket/socket";
+import { playerBets, users } from "../socket/socket";
 import { startWorkers } from "../workers/initWorker";
 import { Redis } from "ioredis";
 import Store from "../store/storeController";
@@ -109,9 +109,6 @@ const connectDB = async () => {
     });
 
     await mongoose.connect(config.databaseUrl as string);
-
-    const activeRoomsData = Array.from(activeRooms);
-    console.log(activeRoomsData, activeRooms);
     startWorkers();
   } catch (err) {
     console.error("Failed to connect to database.", err);

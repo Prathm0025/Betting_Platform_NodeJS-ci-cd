@@ -2,10 +2,6 @@ import Bet, { BetDetail } from "./betModel";
 import { IBetDetail } from "./betsType";
 import createHttpError from "http-errors";
 import { NextFunction, Request, Response } from "express";
-
-
-
-
 import { AuthRequest } from "../utils/utils";
 import mongoose from "mongoose";
 import PlayerModel from "../players/playerModel";
@@ -78,59 +74,73 @@ class BetController {
       }
 
 
-      // for (const betDetailData of betDetails) {
+      for (const betDetailData of betDetails) {
 
-      //   const oddsData = await Store.getEventOdds(betDetailData.sport_key, betDetailData.event_id, betDetailData.category, 'us', 'decimal', 'iso');
-      //   const oddsDataString = JSON.stringify(oddsData); //no need to stringify and parse but doing it just to be on safer side 
-      //   const cachedOddsData = JSON.parse(oddsDataString);
-      //   console.log(cachedOddsData, "cached odds data");
+        const cacheKey = `eventOdds:${betDetailData.sport_key}:${betDetailData.event_id}:${betDetailData.category}`;
         
-      //   let cachedEvent = null;
-
-      //   if (Array.isArray(cachedOddsData)) {
-      //     cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
-      //   } else if (cachedOddsData && cachedOddsData.id === betDetailData.event_id) {
-      //     cachedEvent = cachedOddsData;
-      //   }
+        let cachedOddsData:any = await redisClient.get(cacheKey);
         
-      //   if (!cachedEvent) {
-      //     throw new Error(`Event with ID ${betDetailData.event_id} not found in cached data.`);
-      //   }
+        if (!cachedOddsData) {
+          const oddsData = await Store.getEventOdds(
+            betDetailData.sport_key,
+            betDetailData.event_id,
+            betDetailData.category,
+            'us',
+            'decimal',
+            'iso'
+          );
+          
+          cachedOddsData = JSON.stringify(oddsData);
+          
+          await redisClient.set(cacheKey, cachedOddsData, 'EX', 30);
+        }
+      
+        cachedOddsData = JSON.parse(cachedOddsData);
+        console.log(cachedOddsData, "cached odds data");
+      
+        let cachedEvent = null;
+      
+        if (Array.isArray(cachedOddsData)) {
+          cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+        } else if (cachedOddsData && cachedOddsData.id === betDetailData.event_id) {
+          cachedEvent = cachedOddsData;
+        }
         
-      //   if (!cachedEvent) {
-      //     throw new Error("Event not found in cached data");
-      //   }
-
-      //   const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
-
-      //   if (!cachedBookmaker) {
-      //     throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
-      //   }
-      //   console.log(betDetailData.category);
+        if (!cachedEvent) {
+          throw new Error(`Event with ID ${betDetailData.event_id} not found in cached data.`);
+        }
+      
+        const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
+      
+        if (!cachedBookmaker) {
+          throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
+        }
+      
+        const cachedMarket = cachedBookmaker.markets.find(market => market.key === betDetailData.category);
+      
+        if (!cachedMarket) {
+          throw new Error("Market not found in cached data");
+        }
+      
+        const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
+        console.log(cachedOutcome, "co");
+      
+        if (!cachedOutcome) {
+          throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
+        }
         
-      //   const cachedMarket = cachedBookmaker.markets.find(market => market.key === betDetailData.category);
-
-      //   if (!cachedMarket) {
-      //     throw new Error("Market not found in cached data");
-      //   }
-
-      //   const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
-      //   console.log(cachedOutcome, "co");
-
-      //   if (!cachedOutcome) {
-      //     throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
-      //   }
-      //   console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
-      //   // Compare cached odds with submitted odds
-      //   if (cachedOutcome.price !== betDetailData.bet_on.odds) {
-      //     playerSocket.sendData({
-      //       type: "ODDS_MISMATCH",
-      //       message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
-      //     });
-      //     throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
-
-      //   }
-      // }
+        console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
+      
+        // Compare cached odds with submitted odds
+        if (cachedOutcome.price !== betDetailData.bet_on.odds) {
+          playerSocket.sendData({
+            type: "ODDS_MISMATCH",
+            message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
+          });
+          throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
+        }
+      }
+      
 
       for (const betDetailData of betDetails) {
         const existingBetDetails = await BetDetail.find({
