@@ -5,9 +5,9 @@ pipeline {
         Token = credentials('GITHUB_TOKEN')  // Fetch GitHub token from Jenkins credentials
     }
 
-     triggers {
+    triggers {
         // Trigger the pipeline whenever there is a push or merge on the 'dev' branch
-        pollSCM('H/5 * * * *')  // Optional: Polls every 5 minutes for changes, can be removed if webhooks are configured
+        pollSCM('H/1 * * * *')  // Optional: Polls every 5 minutes for changes, can be removed if webhooks are configured
     }
 
     stages {
@@ -46,10 +46,20 @@ pipeline {
                     // Configure Git with user details
                     sh 'git config user.email "you@example.com"'
                     sh 'git config user.name "Your Name"'
+
+                    // Check if there are any changes to commit
+                    def changes = sh(script: 'git status --porcelain', returnStdout: true).trim()
+                    if (changes) {
+                        // There are changes, proceed with commit
+                        sh 'git add .' // Add your build artifacts from the correct folder
+                        sh 'git commit -m "Add new build artifacts"'
+                    } else {
+                        echo 'No changes to commit'
+                    }
+
+                    // Force push to the 'dev-build' branch, overwriting any conflicts
                     sh 'git remote set-url origin https://${Token}@github.com/Prathm0025/TypeScript-Build.git'
-                    sh 'git add .' // Add your build artifacts from the correct folder
-                    sh 'git commit -m "Add new build artifacts"'
-                    sh 'git push origin dev-build'
+                    sh 'git push --force origin dev-build'
                 }
             }
         }
