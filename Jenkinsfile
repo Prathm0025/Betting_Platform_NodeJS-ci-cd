@@ -44,24 +44,17 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        git config user.email "moreprathmesh849@gmail.com"
-                        git config user.name "prathammore0025"
-
-                        # Stash any local changes (though this step is redundant if there are no changes)
-                        git stash
-
-                        # Force checkout to the dev-build branch and clean untracked files
-                        git checkout -f dev-build
-                        git clean -fd
-
-                        # Pull in changes from the dev branch and add the new artifacts
-                        git checkout dev -- .
-                        git add .
-                        git commit -m "Added Builds folder from dev branch"
-
-                        # Force push to dev-build branch
-                        git remote set-url origin https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
-                        git push --force origin dev-build
+                     git init
+                     git config user.email "moreprathmesh849@gmail.com"
+                     git config user.name "Prathm0025"
+                     git add dist/*, app.js
+                     git commit -m "Add build"
+                     git remote add origin https://github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
+                     if (changes) {
+                        sh 'git push https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git dev-build --force'
+                    } else {
+                        echo 'No changes to commit'
+                    }
                     '''
                 }
             }
