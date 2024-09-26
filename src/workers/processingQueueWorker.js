@@ -202,6 +202,7 @@ class ProcessingQueueWorker {
                         return;
                     }
                     currentBetDetail.status = result;
+                    currentBetDetail.isResolved = true;
                     yield currentBetDetail.save();
                     console.log(`BetDetail with ID ${currentBetDetail._id} updated to '${result}'`);
                     yield this.checkAndUpdateParentBet(parentBet, player, agentId);
