@@ -52,7 +52,7 @@ pipeline {
                      if [ -n "$(git status --porcelain)" ]; then
                         git commit -m "Add build"
                         git branch -M dev-build
-                        git remote add origin https://github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
+                        git remote set-url origin https://github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
                         git push https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git dev-build --force
                      else
                         echo 'No changes to commit'
