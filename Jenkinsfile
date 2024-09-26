@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        Token = credentials('GITHUB_TOKEN')  // Fetch GitHub token from Jenkins credentials
+        Token = credentials('GITHUB')  // Fetch GitHub token from Jenkins credentials
     }
 
     triggers {
