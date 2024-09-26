@@ -47,9 +47,9 @@ pipeline {
                     sh 'git config user.email "you@example.com"'
                     sh 'git config user.name "Your Name"'
                     sh 'git remote set-url origin https://${Token}@github.com/Prathm0025/TypeScript-Build.git'
-                    sh 'git add dist/*' // Add your build artifacts from the correct folder
+                    sh 'git add .' // Add your build artifacts from the correct folder
                     sh 'git commit -m "Add new build artifacts"'
-                    sh 'git push origin master'
+                    sh 'git push origin dev-build'
                 }
             }
         }
