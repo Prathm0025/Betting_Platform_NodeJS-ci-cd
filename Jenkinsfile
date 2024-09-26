@@ -46,12 +46,12 @@ pipeline {
                     sh  '''
                         git stash 
                         git checkout dev-build
-                        git checkout dev -- Builds
-                        git add Builds
+                        git checkout dev -- .
+                        git add .
                         git commit -m "Added Builds folder from dev branch"
                         git config user.email "moreprathmesh849@gmail.com"
                         git config user.name "prathammore0025"
-                        git remote set-url origin https://${Token}@github.com/prathammore0025/Slot-Vikings-dev.git
+                        git remote set-url origin https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
                         git push origin dev-build
                         '''
                 }
