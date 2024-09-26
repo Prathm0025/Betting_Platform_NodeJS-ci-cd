@@ -1,0 +1,24 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const transactionController_1 = __importDefault(require("./transactionController"));
+const middleware_1 = require("../utils/middleware");
+const transactionRoutes = express_1.default.Router();
+transactionRoutes.post("/", (0, middleware_1.verifyRole)(["admin", "agent", "distributor", "subdistributor"]), transactionController_1.default.transaction);
+transactionRoutes.get("/", (0, middleware_1.verifyRole)(["admin"]), transactionController_1.default.getAllTransactions);
+transactionRoutes.get("/:userId", (0, middleware_1.verifyRole)(["admin"]), transactionController_1.default.getSpecificUserTransactions);
+transactionRoutes.get("/:superior/subordinate", transactionController_1.default.getSuperiorSubordinateTransaction);
+transactionRoutes.get("/:player/players", middleware_1.checkUser, (0, middleware_1.verifyRole)(["admin", "distributor", "subdistributor", "agent"]), transactionController_1.default.getSpecificPlayerTransactions);
+exports.default = transactionRoutes;
+// import express from "express";
+// import { TransactionController } from "./transactionController";
+// import { checkUser } from "../utils/middleware";
+// const transactionController = new TransactionController();
+// const transactionRoutes = express.Router();
+// transactionRoutes.get("/all", checkUser, transactionController.getAllTransactions);
+// transactionRoutes.get("/", checkUser, transactionController.getTransactions);
+// transactionRoutes.get("/:subordinateId", checkUser, transactionController.getTransactionsBySubId);
+// export default transactionRoutes;
