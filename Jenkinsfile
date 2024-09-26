@@ -58,7 +58,7 @@ pipeline {
                     }
 
                     // Force push to the 'dev-build' branch, overwriting any conflicts
-                    sh 'git remote set-url origin https://${Token}@github.com/Prathm0025/TypeScript-Build.git'
+                    sh 'git remote set-url origin https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git'
                     sh 'git push --force origin dev-build'
                 }
             }
