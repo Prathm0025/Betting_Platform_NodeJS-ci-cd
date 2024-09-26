@@ -47,14 +47,17 @@ pipeline {
                      git init
                      git config user.email "moreprathmesh849@gmail.com"
                      git config user.name "Prathm0025"
-                     git add dist/*, app.js
-                     git commit -m "Add build"
-                     git remote add origin https://github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
-                     if (changes) {
-                        sh 'git push https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git dev-build --force'
-                    } else {
+                     git add dist/* 
+                     git add app.js
+
+                     if [ -n "$(git status --porcelain)" ]; then
+                        git commit -m "Add build"
+                        git branch -M dev-build
+                        git remote add origin https://github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git
+                        git push https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git dev-build --force
+                     else
                         echo 'No changes to commit'
-                    }
+                     fi
                     '''
                 }
             }
