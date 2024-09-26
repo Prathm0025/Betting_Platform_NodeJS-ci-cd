@@ -162,6 +162,7 @@ function migrateAllBetsFromWaitingQueue() {
 function migrateLegacyResolvedBets() {
     return __awaiter(this, void 0, void 0, function* () {
         const bets = yield betModel_1.BetDetail.find({ status: { $ne: 'pending' } }).lean();
+
         for (const bet of bets) {
             try {
                 yield (0, migration_1.migrateLegacyBet)(bet);
