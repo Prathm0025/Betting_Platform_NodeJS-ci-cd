@@ -5,11 +5,6 @@ pipeline {
         Token = credentials('GITHUB')  // Fetch GitHub token from Jenkins credentials
     }
 
-    triggers {
-        // Trigger the pipeline whenever there is a push or merge on the 'dev' branch
-        pollSCM('H/1 * * * *')  // Optional: Polls every minute for changes, can be removed if webhooks are configured
-    }
-
     stages {
         stage('Clone Repository') {
             steps {
