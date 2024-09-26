@@ -7,7 +7,7 @@ pipeline {
 
     triggers {
         // Trigger on pull request to 'dev' branch
-        githubPullRequest(
+        githubPullRequests(
             useGitHubHooks: true,  // Use GitHub webhooks for automatic builds
             targetBranches: ['dev']  // Only trigger on PRs targeting 'dev' branch
         )
