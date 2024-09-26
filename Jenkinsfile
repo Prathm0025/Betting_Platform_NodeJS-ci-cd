@@ -6,10 +6,11 @@ pipeline {
     }
 
     triggers {
-        // Trigger on pull request to 'dev' branch
-        githubPullRequests(
-            useGitHubHooks: true,  // Use GitHub webhooks for automatic builds
-            targetBranches: ['dev']  // Only trigger on PRs targeting 'dev' branch
+        // Trigger when a pull request is created or updated, using GitHub hooks
+        githubPullRequest(
+            orgWhitelist: ['Prathm0025'],  // Whitelist the organization or user
+            cron: '',  // Disable polling; rely only on GitHub hooks
+            triggerMode: 'HEAVY_HOOKS'  // Use GitHub webhooks to trigger the job
         )
     }
 
