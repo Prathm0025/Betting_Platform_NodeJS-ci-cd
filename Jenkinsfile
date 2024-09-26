@@ -5,13 +5,9 @@ pipeline {
         Token = credentials('GITHUB_TOKEN')  // Fetch GitHub token from Jenkins credentials
     }
 
-    triggers {
-        // Trigger when a pull request is created or updated, using GitHub hooks
-        githubPullRequests(
-            orgWhitelist: ['Prathm0025'],  // Whitelist the organization or user
-            cron: '',  // Disable polling; rely only on GitHub hooks
-            triggerMode: 'HEAVY_HOOKS'  // Use GitHub webhooks to trigger the job
-        )
+     triggers {
+        // Trigger the pipeline whenever there is a push or merge on the 'dev' branch
+        pollSCM('H/5 * * * *')  // Optional: Polls every 5 minutes for changes, can be removed if webhooks are configured
     }
 
     stages {
