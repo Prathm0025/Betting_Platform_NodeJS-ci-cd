@@ -43,23 +43,17 @@ pipeline {
             }
             steps {
                 script {
-                    // Configure Git with user details
-                    sh 'git config user.email "you@example.com"'
-                    sh 'git config user.name "Your Name"'
-
-                    // Check if there are any changes to commit
-                    def changes = sh(script: 'git status --porcelain', returnStdout: true).trim()
-                    if (changes) {
-                        // There are changes, proceed with commit
-                        sh 'git add .' // Add your build artifacts from the correct folder
-                        sh 'git commit -m "Add new build artifacts"'
-                    } else {
-                        echo 'No changes to commit'
-                    }
-
-                    // Force push to the 'dev-build' branch, overwriting any conflicts
-                    sh 'git remote set-url origin https://${Token}@github.com/Prathm0025/Betting_Platform_NodeJS-ci-cd.git'
-                    sh 'git push --force origin dev-build'
+                    sh  '''
+                        git stash 
+                        git checkout dev-build
+                        git checkout dev -- Builds
+                        git add Builds
+                        git commit -m "Added Builds folder from dev branch"
+                        git config user.email "moreprathmesh849@gmail.com"
+                        git config user.name "prathammore0025"
+                        git remote set-url origin https://${Token}@github.com/prathammore0025/Slot-Vikings-dev.git
+                        git push origin dev-build
+                        '''
                 }
             }
         }
