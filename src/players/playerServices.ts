@@ -1,5 +1,0 @@
-class PlayerService {
-    async getCredits() {
-
-    }
-}
