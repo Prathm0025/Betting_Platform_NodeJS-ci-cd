@@ -48,7 +48,6 @@ pipeline {
                      git config user.email "moreprathmesh849@gmail.com"
                      git config user.name "Prathm0025"
                      git add dist/* 
-                     git add app.js
 
                      if [ -n "$(git status --porcelain)" ]; then
                         git commit -m "Add build"
