@@ -47,7 +47,13 @@ pipeline {
                      git init
                      git config user.email "moreprathmesh849@gmail.com"
                      git config user.name "Prathm0025"
-                     git add dist/* 
+
+                     # Copy the src folder and app.js to the root of the workspace
+                     cp -r dist/src .
+                     cp dist/app.js .
+
+                     # Add only src folder and app.js to the commit
+                     git add src app.js 
 
                      if [ -n "$(git status --porcelain)" ]; then
                         git commit -m "Add build"
