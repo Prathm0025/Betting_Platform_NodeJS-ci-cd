@@ -7,7 +7,7 @@ pipeline {
 
     triggers {
         // Trigger when a pull request is created or updated, using GitHub hooks
-        githubPullRequest(
+        githubPullRequests(
             orgWhitelist: ['Prathm0025'],  // Whitelist the organization or user
             cron: '',  // Disable polling; rely only on GitHub hooks
             triggerMode: 'HEAVY_HOOKS'  // Use GitHub webhooks to trigger the job
