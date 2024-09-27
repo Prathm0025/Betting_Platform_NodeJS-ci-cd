@@ -75,20 +75,16 @@ function checkBetsCommenceTime() {
                     const betParent = yield betModel_1.default.findById(betDetail.key).lean();
                     if (!betDetail || !betParent) {
                         console.log(`BetDetail or BetParent not found for betId: ${betId}, removing from queue`);
-                        // Remove the problematic bet from the waiting queue
                         yield redisclient_1.redisClient.zrem('waitingQueue', bet);
-                        continue; // Skip further processing for this bet
+                        continue;
                     }
                     const multi = redisclient_1.redisClient.multi();
-                    // Add the entire betDetail data to the processing queue
                     multi.lpush('processingQueue', JSON.stringify(betDetail));
-                    // Remove the bet from the waiting queue
                     multi.zrem('waitingQueue', bet);
                     yield multi.exec();
                 }
                 catch (error) {
                     console.log(`Error processing bet with ID ${betId}:`, error);
-                    // Remove the problematic bet from the waiting queue if an error occurs
                     yield redisclient_1.redisClient.zrem('waitingQueue', bet);
                 }
             }
@@ -162,7 +158,6 @@ function migrateAllBetsFromWaitingQueue() {
 function migrateLegacyResolvedBets() {
     return __awaiter(this, void 0, void 0, function* () {
         const bets = yield betModel_1.BetDetail.find({ status: { $ne: 'pending' } }).lean();
-
         for (const bet of bets) {
             try {
                 yield (0, migration_1.migrateLegacyBet)(bet);
@@ -173,6 +168,35 @@ function migrateLegacyResolvedBets() {
         }
     });
 }
+function migrateLegacyPendingBets() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // Get all the bets in the waiting queue in one go
+            const queueBets = yield redisclient_1.redisClient.zrange('waitingQueue', 0, -1);
+            // Extract bet IDs and store them in a Set for quick lookup
+            const waitingQueueBetIds = new Set(queueBets.map(bet => JSON.parse(bet).betId));
+            // Find bets with status 'pending' and isResolved as false
+            const pendingBets = yield betModel_1.BetDetail.find({ status: 'pending', isResolved: false }).lean();
+            for (const bet of pendingBets) {
+                try {
+                    // Check if the bet is in the waiting queue
+                    if (waitingQueueBetIds.has(bet._id.toString())) {
+                        console.log(`Bet with ID ${bet._id} is in the waiting queue, skipping migration.`);
+                        continue; // Skip this bet if it's in the waiting queue
+                    }
+                    // If not in the queue, migrate the bet
+                    yield (0, migration_1.migrateLegacyBet)(bet);
+                }
+                catch (error) {
+                    console.log(`Error migrating pending bet with ID ${bet._id}:`, error);
+                }
+            }
+        }
+        catch (error) {
+            console.error("Error during migration of legacy pending bets:", error);
+        }
+    });
+}
 function startWorker() {
     return __awaiter(this, void 0, void 0, function* () {
         console.log("Waiting Queue Worker Started");
@@ -180,6 +204,7 @@ function startWorker() {
             try {
                 yield migrateAllBetsFromWaitingQueue();
                 yield migrateLegacyResolvedBets();
+                yield migrateLegacyPendingBets();
                 yield checkBetsCommenceTime();
                 yield getLatestOddsForAllEvents();
             }
