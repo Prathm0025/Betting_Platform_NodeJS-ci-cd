@@ -1,43 +1,105 @@
 import mongoose from "mongoose";
 import { config } from "./config";
-import Agenda, { Job } from "agenda";
-import path from "path";
-import { Worker } from "worker_threads";
-import betServices from "../bets/betServices";
-import storeController from "../store/storeController";
-import { activeRooms } from "../socket/socket";
-
-let agenda: Agenda;
-
-const workerFilePath = path.resolve(__dirname, "../bets/betWorkerScheduler.js");
-
-const startWorker = (queueData: any[], activeRoomsData: string[]) => {
-  const worker = new Worker(workerFilePath, {
-    workerData: { queueData, activeRoomsData },
-  });
-
-  worker.on("message", (message) => {
-    console.log("Worker message:", message);
-
-    if (message.type === "updateLiveData") {
-      const { livedata } = message;
-      storeController.updateLiveData(livedata);
-    }
-  });
-
-  worker.on("error", (error) => {
-    console.error("Worker error:", error);
-  });
-
-  worker.on("exit", (code) => {
-    if (code !== 0) {
-      console.error(`Worker stopped with exit code ${code}`);
-    }
-  });
-};
+import { playerBets, users } from "../socket/socket";
+import { startWorkers } from "../workers/initWorker";
+import { Redis } from "ioredis";
+import Store from "../store/storeController";
+import Notification from "../notifications/notificationController";
+import { agents } from "../utils/utils";
 
 const connectDB = async () => {
   try {
+    (async () => {
+      try {
+        const redisForSub = new Redis(config.redisUrl);
+        await redisForSub.subscribe("live-update");
+        await redisForSub.subscribe("bet-notifications");
+        await redisForSub.subscribe("live-update-odds");
+        redisForSub.on("message", async (channel, message) => {
+          if (channel === "bet-notifications") {
+            try {
+              const notificationData = JSON.parse(message);
+              const {
+                type,
+                player,
+                agent,
+                betId,
+                playerMessage,
+                agentMessage,
+              } = notificationData;
+
+              const playerNotification = await Notification.createNotification(
+                "alert",
+                { message: playerMessage, betId: betId },
+                player._id
+              );
+
+              const agentNotification = await Notification.createNotification(
+                "alert",
+                {
+                  message: agentMessage,
+                  betId: betId,
+                  player: player.username,
+                },
+                agent
+              );
+
+              const playerSocket = users.get(player.username);
+
+              if (playerSocket && playerSocket.socket.connected) {
+                playerSocket.sendAlert({
+                  type: "NOTIFICATION",
+                  payload: playerNotification,
+                });
+              }
+
+              const agentRes = agents.get(agent)
+              // console.log(agentRes, "agentRes");
+              if (agentRes) {
+                agentRes.write(
+                  `data: ${JSON.stringify(agentNotification)}\n\n`
+                );
+              }
+              // console.log(`Notification of type ${type} for bet ID ${betId} processed.`);
+            } catch (error) {
+              console.error("Error processing notification:", error);
+            }
+          } else if (channel === "live-update") {
+            await Store.updateLiveData();
+          }else if(channel === "live-update-odds"){
+            
+            const oddsUpdate = JSON.parse(message);
+            const {eventId, latestOdds } = oddsUpdate;
+            const playersToNotify = [];
+
+            // console.log(playerBets, "SET");
+            for (const [username, eventIds] of playerBets.entries()) {
+              for (const event_id of eventIds) {
+                if (event_id === eventId) {
+                  const playerSocket = users.get(username);
+                  if (playerSocket && playerSocket.socket.connected) {
+                    playersToNotify.push(playerSocket);
+                  }
+                }
+              }
+            }
+
+            playersToNotify.forEach(playerSocket => {
+              playerSocket.sendAlert({
+                type: "ODDS_UPDATE",
+                payload: { eventId, latestOdds },
+              });
+            });
+            
+            // console.log(`Received live update for event: ${eventId}, odds:`, latestOdds);
+
+          }
+        });
+      } catch (err) {
+        console.log(err);
+      }
+    })();
+
     mongoose.connection.on("connected", async () => {
       console.log("Connected to database successfully");
     });
@@ -47,31 +109,11 @@ const connectDB = async () => {
     });
 
     await mongoose.connect(config.databaseUrl as string);
-
-    agenda = new Agenda({
-      db: { address: config.databaseUrl as string, collection: "jobs" },
-    });
-
-    agenda.define("add bet to queue", async (job: Job) => {
-      const { betDetailId } = job.attrs.data;
-      await betServices.addBetToQueueAtCommenceTime(betDetailId);
-      console.log(`Bet ${betDetailId} is added to processing queue`);
-    });
-
-    await agenda.start();
-
-    // setInterval(async () => {
-    //   const queueData = betServices.getPriorityQueueData();
-    //   const activeRoomsData = Array.from(activeRooms);
-    //   console.log(activeRoomsData, activeRooms);
-
-    //   startWorker(queueData, activeRoomsData);
-    // }, 30000);
+    startWorkers();
   } catch (err) {
     console.error("Failed to connect to database.", err);
     process.exit(1);
   }
 };
 
-export { agenda };
 export default connectDB;

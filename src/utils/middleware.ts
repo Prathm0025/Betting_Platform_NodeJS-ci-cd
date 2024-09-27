@@ -42,7 +42,6 @@ export function checkUser(req: Request, res: Response, next: NextFunction) {
             username: decoded!.username,
             role: decoded!.role,
           };
-          console.log(_req.user);
 
           next();
         }

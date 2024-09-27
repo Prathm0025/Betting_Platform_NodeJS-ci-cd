@@ -1,11 +1,15 @@
 import { Server, Socket } from "socket.io";
 import { verifySocketToken } from "./socketMiddleware";
 import Player from "../players/playerSocket";
+import userActivityController from "../userActivity/userActivityController";
 
 export let users: Map<string, Player> = new Map();
 export const activeRooms: Set<string> = new Set();
+export const eventRooms: Map<string, Set<string>> = new Map();
+export const playerBets: Map<string, Set<string>> = new Map();
 
-const socketController = (io: Server) => {
+
+const socketController = async (io: Server) => {
   // socket authentication middleware
   io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
@@ -57,27 +61,31 @@ const socketController = (io: Server) => {
         io
       );
       users.set(username, newUser);
-      console.log(`Player ${username} entered the platform.`);
+      // console.log(`Player ${username} entered the platform.`);
+      await userActivityController.createActiviySession(username, new Date(Date.now()))
     }
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       const player = users.get(username);
       if (player) {
         const room = player.currentRoom;
-        player.currentRoom = ""; 
-        users.delete(username); 
+        player.currentRoom = "";
+        users.delete(username);
         console.log(`Player ${username} left the platform.`);
-  
+
         const clients = io.sockets.adapter.rooms.get(room);
         if (!clients || clients.size === 0) {
-          activeRooms.delete(room); 
+          activeRooms.delete(room);
           console.log(`Room ${room} removed from activeRooms.`);
         }
+        await userActivityController.endSession(username, new Date(Date.now()));
+
+
       }
+
     });
   });
 
-  
 };
 
 export default socketController;

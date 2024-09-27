@@ -6,11 +6,21 @@ const betRoutes = express.Router();
 
 betRoutes.get("/", verifyRole(["admin"]), betController.getAdminBets);
 
+betRoutes.get(
+  "/redeem/:betId",
+  checkUser,
+  checkBetCommision,
+  betController.redeemBetInfo
+);
 betRoutes.get("/:agentId", betController.getAgentBets);
-
-// betRoutes.get("/all/:adminId",verifyRole(["admin"]), betController.getAdminAgentBets)
-
 betRoutes.get("/:player/bets", betController.getBetForPlayer);
-betRoutes.put("/:betId", checkBetCommision, betController.redeemPlayerBet);
+betRoutes.put(
+  "/:betId",
+  checkUser,
+  checkBetCommision,
+  betController.redeemPlayerBet
+);
+betRoutes.put("/resolve/:betDetailId", verifyRole(["admin","agent"]), betController.resolveBet)
+betRoutes.put("/", verifyRole(["admin", "agent"]), betController.updateBet)
 
 export default betRoutes;
