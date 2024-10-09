@@ -44,9 +44,9 @@ const config_1 = require("../config/config");
 const playerModel_1 = __importDefault(require("../players/playerModel"));
 const redisclient_1 = require("../redisclient");
 const migration_1 = require("../utils/migration");
+const utils_1 = require("../utils/utils");
 class ProcessingQueueWorker {
     constructor() {
-        this.tick = 0;
         this.redisClient = redisclient_1.redisClient;
         this.connectDB();
     }
@@ -70,16 +70,16 @@ class ProcessingQueueWorker {
     startWorker() {
         return __awaiter(this, void 0, void 0, function* () {
             console.log("Processing Queue Worker Started");
-            setInterval(() => __awaiter(this, void 0, void 0, function* () {
+            while (true) {
                 try {
-                    console.log("Processing Bet.........");
                     this.redisClient.publish('live-update', 'true');
                     yield this.processBetsFromQueue();
                 }
                 catch (error) {
-                    console.error("Error in setInterval Waiting Queue Worker:", error);
+                    console.error("Error Processing Queue Worker:", error);
                 }
-            }), 30000);
+                yield new Promise((resolve) => setTimeout(resolve, 30000));
+            }
         });
     }
     processBetsFromQueue() {
@@ -184,14 +184,17 @@ class ProcessingQueueWorker {
                     const agentId = player.createdBy.toString();
                     let result;
                     switch (currentBetDetail.category) {
-                        case "h2h":
+                        case utils_1.BETTYPE.H2H:
                             result = this.checkH2HBetResult(currentBetDetail, gameData);
                             break;
-                        case "spread":
+                        case utils_1.BETTYPE.SPREAD:
                             result = this.checkSpreadBetResult(currentBetDetail, gameData);
                             break;
-                        case "totals":
+                        case utils_1.BETTYPE.TOTAL:
                             result = this.checkTotalsBetResult(currentBetDetail, gameData);
+                            break;
+                        case utils_1.BETTYPE.OUTRIGHT:
+                            result = this.checkOutrightsBetResult(currentBetDetail, gameData);
                             break;
                         default:
                             console.error(`Unknown bet category: ${currentBetDetail.category}`);
@@ -236,6 +239,8 @@ class ProcessingQueueWorker {
             const updatedBetDetails = yield betModel_1.BetDetail.find({ _id: { $in: parentBet.data } });
             const anyBetLost = updatedBetDetails.some(detail => detail.status === 'lost');
             const anyBetFailed = updatedBetDetails.some(detail => detail.status === 'failed');
+            const anyBetDrawn = updatedBetDetails.some(detail => detail.status === 'draw');
+            const betOnDrawn = updatedBetDetails.every(detail => detail.bet_on.name === 'Draw');
             if (anyBetLost) {
                 yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
                 yield this.publishRedisNotification("BET_LOST", player._id.toString(), player.username, agentId, parentBet._id.toString(), `Unfortunately, you lost your bet (ID: ${parentBet._id}). Better luck next time!`, `A player's bet (ID: ${parentBet._id}) has lost. Please review the details.`);
@@ -246,15 +251,26 @@ class ProcessingQueueWorker {
                 yield this.publishRedisNotification("BET_FAILED", player._id.toString(), player.username, agentId, parentBet._id.toString(), `Bet failed! We have raised a ticket to your agent. You can contact your agent for further assistance.`, `Player ${player.username}'s bet has failed. Please resolve the bet as soon as possible.`);
                 return;
             }
+            if (anyBetDrawn && !betOnDrawn) {
+                yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'lost', isResolved: true });
+                yield this.publishRedisNotification("BET_LOST", player._id.toString(), player.username, agentId, parentBet._id.toString(), `Unfortunately, you lost your bet (ID: ${parentBet._id}). Better luck next time!`, `A player's bet (ID: ${parentBet._id}) has lost. Please review the details.`);
+                return;
+            }
             const allBetsWon = updatedBetDetails.every(detail => detail.status === 'won');
+            const allBetsDrawn = updatedBetDetails.every(detail => detail.status === 'draw');
             if (allBetsWon) {
                 yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'won', isResolved: true });
                 yield this.awardWinningsToPlayer(parentBet.player, parentBet.possibleWinningAmount);
                 yield this.publishRedisNotification("BET_WON", player._id.toString(), player.username, agentId, parentBet._id.toString(), `Congratulations! Bet with ID ${parentBet._id} has won. You have been awarded $${parentBet.possibleWinningAmount}.`, `Player ${player.username} has won the bet with ID ${parentBet._id}, and the winnings of $${parentBet.possibleWinningAmount} have been awarded.`);
             }
+            else if (allBetsDrawn && betOnDrawn) {
+                yield betModel_1.default.findByIdAndUpdate(parentBet._id, { status: 'draw', isResolved: true });
+                yield this.awardWinningsToPlayer(parentBet.player, parentBet.possibleWinningAmount);
+                yield this.publishRedisNotification("BET_DRAWN", player._id.toString(), player.username, agentId, parentBet._id.toString(), `Congratulations! Bet with ID ${parentBet._id} has drawn. You have been awarded $${parentBet.possibleWinningAmount}.`, `Player ${player.username} has won the bet with ID ${parentBet._id}, and the winnings of $${parentBet.possibleWinningAmount} have been awarded.`);
+            }
             else {
-                yield betModel_1.default.findByIdAndUpdate(parentBet._id, { isResolved: true });
-                console.log(`Parent Bet with ID ${parentBet._id} has been resolved.`);
+                yield betModel_1.default.findByIdAndUpdate(parentBet._id, { isResolved: false });
+                console.log(`Parent Bet with ID ${parentBet._id} has not been resolved.`);
             }
         });
     }
@@ -292,7 +308,7 @@ class ProcessingQueueWorker {
             return "failed";
         }
         if (homeTeamScore === awayTeamScore) {
-            return "draw";
+            return betOnTeam === "draw" ? "won" : "draw";
         }
         const gameWinner = homeTeamScore > awayTeamScore ? homeTeamName : awayTeamName;
         return betOnTeam === gameWinner ? "won" : "lost";
@@ -365,6 +381,40 @@ class ProcessingQueueWorker {
         }
         else if (betOn === "Under") {
             return totalScore < totalLine ? "won" : "lost";
+        }
+        return "pending";
+    }
+    checkOutrightsBetResult(betDetail, gameData) {
+        const betOn = betDetail.bet_on.name;
+        if (!gameData.completed) {
+            return "pending";
+        }
+        const betOnTeam = gameData.scores.find((team) => team.name === betOn);
+        if (!betOnTeam) {
+            return "failed";
+        }
+        const betOnTeamScore = betOnTeam.score;
+        if (betOnTeamScore == null || betOnTeamScore < 0) {
+            console.error("Error: Invalid scores found (negative values or not defined).");
+            return "failed";
+        }
+        const allScores = gameData.scores.map((team) => team.score);
+        const maxScore = Math.max(...allScores);
+        const teamsWithMaxScore = gameData.scores.filter((team) => team.score === maxScore);
+        if (teamsWithMaxScore.length > 1) {
+            const isBetOnTeamInDraw = teamsWithMaxScore.some((team) => team.name === betOn);
+            if (isBetOnTeamInDraw) {
+                return "draw";
+            }
+            else {
+                return "lost";
+            }
+        }
+        if (teamsWithMaxScore[0].name === betOn) {
+            return "won";
+        }
+        else {
+            return "lost";
         }
         return "pending";
     }
