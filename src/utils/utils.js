@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hasPermission = exports.rolesHierarchy = exports.agents = void 0;
+exports.BETTYPE = exports.hasPermission = exports.rolesHierarchy = exports.agents = void 0;
 exports.sanitizeInput = sanitizeInput;
 const validator_1 = __importDefault(require("validator"));
 const userModel_1 = __importDefault(require("../users/userModel"));
@@ -50,3 +50,10 @@ const hasPermission = (requestingUserId, targetUserId, requestingUserRole) => __
     return allowedRoles.includes(targetUser.role);
 });
 exports.hasPermission = hasPermission;
+var BETTYPE;
+(function (BETTYPE) {
+    BETTYPE["H2H"] = "h2h";
+    BETTYPE["TOTAL"] = "totals";
+    BETTYPE["SPREAD"] = "spreads";
+    BETTYPE["OUTRIGHT"] = "outrights";
+})(BETTYPE || (exports.BETTYPE = BETTYPE = {}));

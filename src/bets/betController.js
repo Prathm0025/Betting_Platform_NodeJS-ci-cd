@@ -79,6 +79,8 @@ class BetController {
             const session = yield mongoose_1.default.startSession();
             session.startTransaction();
             try {
+                // console.log(betDetails, "BET DETAILS");
+                // return;
                 // const tempBetId = betDetailIds.id
                 // Check if the player is connected to the socket
                 const playerSocket = socket_1.users.get(playerRef.username);
@@ -98,54 +100,71 @@ class BetController {
                 if (amount === 0) {
                     throw new Error("Betting amount can't be zero");
                 }
-                // for (const betDetailData of betDetails) {
-                //   const cacheKey = `eventOdds:${betDetailData.sport_key}:${betDetailData.event_id}:${betDetailData.category}`;
-                //   let cachedOddsData:any = await redisClient.get(cacheKey);
-                //   if (!cachedOddsData) {
-                //     const oddsData = await Store.getEventOdds(
-                //       betDetailData.sport_key,
-                //       betDetailData.event_id,
-                //       betDetailData.category,
-                //       'us',
-                //       'decimal',
-                //       'iso'
-                //     );
-                //     cachedOddsData = JSON.stringify(oddsData);
-                //     await redisClient.set(cacheKey, cachedOddsData, 'EX', 30);
-                //   }
-                //   cachedOddsData = JSON.parse(cachedOddsData);
-                //   console.log(cachedOddsData, "cached odds data");
-                //   let cachedEvent = null;
-                //   if (Array.isArray(cachedOddsData)) {
-                //     cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
-                //   } else if (cachedOddsData && cachedOddsData.id === betDetailData.event_id) {
-                //     cachedEvent = cachedOddsData;
-                //   }
-                //   if (!cachedEvent) {
-                //     throw new Error(`Event with ID ${betDetailData.event_id} not found in cached data.`);
-                //   }
-                //   const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
-                //   if (!cachedBookmaker) {
-                //     throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
-                //   }
-                //   const cachedMarket = cachedBookmaker.markets.find(market => market.key === betDetailData.category);
-                //   if (!cachedMarket) {
-                //     throw new Error("Market not found in cached data");
-                //   }
-                //   const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
-                //   console.log(cachedOutcome, "co");
-                //   if (!cachedOutcome) {
-                //     throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
-                //   }
-                //   console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
-                //   // Compare cached odds with submitted odds
-                //   if (cachedOutcome.price !== betDetailData.bet_on.odds) {
-                //     playerSocket.sendData({
-                //       type: "ODDS_MISMATCH",
-                //       message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
-                //     });
-                //     throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
-                //   }
+                //   for (const betDetailData of betDetails) {
+                //     const cacheKey = `eventOdds:${betDetailData.sport_key}:${betDetailData.event_id}:${betDetailData.category}`;
+                //     let cachedOddsData:any = await redisClient.get(cacheKey);
+                //     // Fetch new odds and set cache if no cached data found
+                //     if (!cachedOddsData) {
+                //       const oddsData = await Store.getEventOdds(
+                //         betDetailData.sport_key,
+                //         betDetailData.event_id,
+                //         betDetailData.category,
+                //         'us',
+                //         'decimal',
+                //         'iso'
+                //       );
+                //       cachedOddsData = JSON.stringify(oddsData);
+                //       // Set cache with expiration time reduced to 3 seconds
+                //       await redisClient.set(cacheKey, cachedOddsData, 'EX', 3);
+                //     }
+                //     cachedOddsData = JSON.parse(cachedOddsData);
+                //     let cachedEvent = null;
+                //     if (Array.isArray(cachedOddsData)) {
+                //       cachedEvent = cachedOddsData.find(event => event.id === betDetailData.event_id);
+                //     } else if (cachedOddsData && cachedOddsData.id === betDetailData.event_id) {
+                //       cachedEvent = cachedOddsData;
+                //     }
+                //     if (!cachedEvent) {
+                //       throw new Error(`Event with ID ${betDetailData.event_id} not found in cached data.`);
+                //     }
+                //     const cachedBookmaker = cachedEvent.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker);
+                //     if (!cachedBookmaker) {
+                //       throw new Error(`Bookmaker ${betDetailData.bookmaker} not found for event`);
+                //     }
+                //     const cachedMarket = cachedBookmaker.markets.find(market => market.key === betDetailData.category);
+                //     if (!cachedMarket) {
+                //       throw new Error("Market not found in cached data");
+                //     }
+                //     const cachedOutcome = cachedMarket.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
+                //     if (!cachedOutcome) {
+                //       throw new Error(`Outcome for ${betDetailData.bet_on.name} not found in cached data`);
+                //     }
+                //     console.log(cachedOutcome.price, betDetailData.bet_on.odds, "cache ODDS");
+                //     // Compare cached odds with submitted odds
+                //     if (cachedOutcome.price !== betDetailData.bet_on.odds) {
+                //       // Fetch fresh odds before error if mismatch is found
+                //       const freshOddsData = await Store.getEventOdds(
+                //         betDetailData.sport_key,
+                //         betDetailData.event_id,
+                //         betDetailData.category,
+                //         'us',
+                //         'decimal',
+                //         'iso'
+                //       );
+                //       const freshMarket = freshOddsData.bookmakers.find(bookmaker => bookmaker.key === betDetailData.bookmaker)
+                //                                ?.markets.find(market => market.key === betDetailData.category);
+                //       const freshOutcome = freshMarket?.outcomes.find(outcome => outcome.name === betDetailData.bet_on.name);
+                //       if (freshOutcome && freshOutcome.price === betDetailData.bet_on.odds) {
+                //         // Update cache with fresh data to avoid errors in future bets
+                //         await redisClient.set(cacheKey, JSON.stringify(freshOddsData), 'EX', 3);
+                //       } else {
+                //         playerSocket.sendData({
+                //           type: "ODDS_MISMATCH",
+                //           message: `Odds for ${betDetailData.bet_on.name} have changed. Please refresh and try again.`
+                //         });
+                //         throw new Error(`Odds for ${betDetailData.bet_on.name} have changed.`);
+                //       }
+                //     }
                 // }
                 for (const betDetailData of betDetails) {
                     const existingBetDetails = yield betModel_1.BetDetail.find({
@@ -267,7 +286,7 @@ class BetController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { agentId } = req.params;
-                const { date } = req.query;
+                const { date, page = 1, limit = 10 } = req.query;
                 if (!agentId)
                     throw (0, http_errors_1.default)(400, "Agent Id not Found");
                 const agent = yield userModel_1.default.findById(agentId);
@@ -284,6 +303,9 @@ class BetController {
                 if (playerUnderAgent.length === 0)
                     return res.status(200).json({ message: "No Players Under Agent" });
                 const bets = yield betModel_1.default.find(Object.assign({ player: { $in: playerUnderAgent } }, query))
+                    .sort({ createdAt: -1 })
+                    .skip((+page - 1) * +limit)
+                    .limit(+limit)
                     .populate("player", "username _id")
                     .populate({
                     path: "data",
@@ -292,7 +314,14 @@ class BetController {
                         select: "event_id sport_title commence_time status",
                     },
                 });
-                res.status(200).json(bets);
+                const totalBets = yield betModel_1.default.countDocuments(Object.assign({ player: { $in: playerUnderAgent } }, query));
+                res.status(200).json({
+                    totalBets,
+                    page: +page,
+                    limit: +limit,
+                    totalPages: Math.ceil(totalBets / +limit),
+                    data: bets,
+                });
             }
             catch (error) {
                 next(error);
@@ -303,7 +332,7 @@ class BetController {
     getAdminBets(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { date } = req.query;
+                const { date, page = 1, limit = 10 } = req.query;
                 const query = {};
                 if (date) {
                     const filterDate = new Date(date);
@@ -313,6 +342,8 @@ class BetController {
                 }
                 const bets = yield betModel_1.default.find(query)
                     .sort({ createdAt: -1 })
+                    .skip((+page - 1) * +limit)
+                    .limit(+limit)
                     .populate("player", "username _id")
                     .populate({
                     path: "data",
@@ -321,8 +352,14 @@ class BetController {
                         select: "event_id sport_title commence_time status",
                     },
                 });
-                console.log(bets);
-                res.status(200).json(bets);
+                const totalBets = yield betModel_1.default.countDocuments(query);
+                res.status(200).json({
+                    totalBets,
+                    page: +page,
+                    limit: +limit,
+                    totalPages: Math.ceil(totalBets / +limit),
+                    data: bets,
+                });
             }
             catch (error) {
                 console.log(error);
@@ -335,7 +372,7 @@ class BetController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { player } = req.params;
-                const { type, status, date, search } = req.query;
+                const { type, status, date, search, page = 1, limit = 10 } = req.query;
                 const query = {};
                 if (date) {
                     const filterDate = new Date(date);
@@ -359,6 +396,8 @@ class BetController {
                 }
                 const playerBets = yield betModel_1.default.find(Object.assign(Object.assign(Object.assign({ player: playerDoc._id }, (status === "combo" || status === "all" ? {} : { status })), (status === "combo" && { betType: "combo" })), query))
                     .sort({ createdAt: -1 })
+                    .skip((+page - 1) * +limit) // Pagination
+                    .limit(+limit) // Limit results per page
                     .populate("player", "username _id")
                     .populate({
                     path: "data",
@@ -367,7 +406,14 @@ class BetController {
                         select: "event_id sport_title commence_time status",
                     },
                 });
-                res.status(200).json(playerBets);
+                const totalBets = yield betModel_1.default.countDocuments(Object.assign(Object.assign(Object.assign({ player: playerDoc._id }, (status === "combo" || status === "all" ? {} : { status })), (status === "combo" && { betType: "combo" })), query));
+                res.status(200).json({
+                    totalBets,
+                    page: +page,
+                    limit: +limit,
+                    totalPages: Math.ceil(totalBets / +limit),
+                    data: playerBets,
+                });
             }
             catch (error) {
                 console.log(error);
