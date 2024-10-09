@@ -60,7 +60,6 @@ function connectDB() {
         }
     });
 }
-connectDB();
 function checkBetsCommenceTime() {
     return __awaiter(this, void 0, void 0, function* () {
         const now = new Date().getTime();
@@ -199,23 +198,24 @@ function migrateLegacyPendingBets() {
 }
 function startWorker() {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log("Waiting Queue Worker Started");
-        setInterval(() => __awaiter(this, void 0, void 0, function* () {
+        while (true) {
             try {
+                yield checkBetsCommenceTime();
+                yield getLatestOddsForAllEvents();
                 yield migrateAllBetsFromWaitingQueue();
                 yield migrateLegacyResolvedBets();
                 yield migrateLegacyPendingBets();
-                yield checkBetsCommenceTime();
-                yield getLatestOddsForAllEvents();
             }
             catch (error) {
-                console.error("Error in setInterval Waiting Queue Worker:", error);
+                console.log("Error in Waiting Queue Worker:", error);
             }
-        }), 30000); // Runs every 30 seconds
+            yield new Promise((resolve) => setTimeout(resolve, 30000));
+        }
     });
 }
 worker_threads_1.parentPort.on('message', (message) => __awaiter(void 0, void 0, void 0, function* () {
     if (message === "start") {
-        startWorker();
+        yield connectDB();
+        yield startWorker();
     }
 }));

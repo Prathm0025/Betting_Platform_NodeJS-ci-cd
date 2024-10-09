@@ -91,8 +91,18 @@ class PlayerController {
     getAllPlayers(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const players = yield playerModel_1.default.find();
-                res.status(200).json(players);
+                const { page = 1, limit = 10 } = req.query;
+                const players = yield playerModel_1.default.find()
+                    .skip((+page - 1) * +limit)
+                    .limit(+limit);
+                const totalPlayers = yield playerModel_1.default.countDocuments();
+                res.status(200).json({
+                    totalPlayers,
+                    page: +page,
+                    limit: +limit,
+                    totalPages: Math.ceil(totalPlayers / +limit),
+                    data: players,
+                });
             }
             catch (error) {
                 next(error);
@@ -108,8 +118,11 @@ class PlayerController {
                 const _req = req;
                 const { userId, role } = _req.user;
                 const sanitizedUsername = username ? (0, utils_1.sanitizeInput)(username) : undefined;
-                const sanitizedPassword = password ? (0, utils_1.sanitizeInput)(password) : undefined;
+                const sanitizedPassword = password && password.trim() !== ''
+                    ? (0, utils_1.sanitizeInput)(password)
+                    : undefined;
                 const sanitizedStatus = status ? (0, utils_1.sanitizeInput)(status) : undefined;
+                // Prepare the update data, only including password if it's provided and non-empty
                 const updateData = Object.assign(Object.assign(Object.assign({}, (sanitizedUsername && { username: sanitizedUsername })), (sanitizedPassword && {
                     password: yield bcrypt_1.default.hash(sanitizedPassword, PlayerController.saltRounds),
                 })), (sanitizedStatus && { status: sanitizedStatus }));
@@ -142,9 +155,14 @@ class PlayerController {
                 if (!updatedPlayer) {
                     throw (0, http_errors_1.default)(404, "Player not found");
                 }
+                // Notify player via socket if their status is updated
                 const playerSocket = socket_1.users.get(updatedPlayer === null || updatedPlayer === void 0 ? void 0 : updatedPlayer.username);
                 if (playerSocket) {
-                    playerSocket.sendMessage({ type: "STATUS", payload: updatedPlayer.status === "active" ? true : false, message: "" });
+                    playerSocket.sendMessage({
+                        type: "STATUS",
+                        payload: updatedPlayer.status === "active" ? true : false,
+                        message: "",
+                    });
                 }
                 res.status(200).json({
                     message: "Player updated successfully",

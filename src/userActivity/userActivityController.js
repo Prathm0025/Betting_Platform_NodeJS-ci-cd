@@ -109,13 +109,16 @@ class UserActivityController {
     getBetsAndTransactionsInActivitySession(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                console.log("red");
                 const { startTime, endTime, playerId } = req.body;
+                const playerObjectId = new mongoose_1.default.Types.ObjectId(playerId);
+                const start = new Date(startTime);
+                const end = endTime ? new Date(endTime) : new Date(); // Default to current time if endTime is not provided
+                console.log(start, end, playerId, "here");
                 const betsAggregation = betModel_1.default.aggregate([
                     {
                         $match: {
-                            createdAt: { $gte: new Date(startTime), $lte: new Date(endTime) },
-                            player: playerId, // Filter by playerId
+                            createdAt: { $gte: start, $lte: end },
+                            player: playerObjectId,
                         },
                     },
                     {
@@ -151,7 +154,15 @@ class UserActivityController {
                 const transactionsAggregation = transactionModel_1.default.aggregate([
                     {
                         $match: {
-                            date: { $gte: new Date(startTime), $lte: new Date(endTime) },
+                            $and: [
+                                { date: { $gte: start, $lte: end } },
+                                {
+                                    $or: [
+                                        { sender: playerObjectId },
+                                        { receiver: playerObjectId },
+                                    ]
+                                }
+                            ]
                         }
                     },
                     {
@@ -233,9 +244,12 @@ class UserActivityController {
                     }
                 ]);
                 const [bets, transactions] = yield Promise.all([betsAggregation, transactionsAggregation]);
+                // console.log(bets, transactions, "here is the bets and transactions");
                 return res.status(200).json({ bets, transactions });
             }
             catch (error) {
+                // console.log(error, "error");
+                next(error);
             }
         });
     }
@@ -243,34 +257,41 @@ class UserActivityController {
     getActivitiesByDate(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const { date, playerId } = req.query;
-                console.log(date, playerId);
+                const { date, playerId, page = 1, limit = 10 } = req.query;
                 if (!date) {
                     throw (0, http_errors_1.default)(400, "Date query parameter is required");
                 }
                 if (!playerId) {
                     throw (0, http_errors_1.default)(400, "Player ID query parameter is required");
                 }
-                // Validate the date format
                 const parsedDate = new Date(date);
                 if (isNaN(parsedDate.getTime())) {
                     throw (0, http_errors_1.default)(400, "Invalid date format");
                 }
                 const playerObjectId = new mongoose_1.default.Types.ObjectId(playerId);
-                // Find activities by date and player
-                const activities = yield userActivityModel_1.default.findOne({
+                const activities = yield userActivityModel_1.default.find({
                     date: parsedDate,
-                    player: playerObjectId // Adjust this if playerId needs to be an ObjectId
+                    player: playerObjectId,
                 })
+                    .skip((Number(page) - 1) * Number(limit))
+                    .limit(Number(limit))
                     .populate({
-                    path: 'actvity', // Check field name; assumed to be 'activity' based on context
+                    path: 'activity',
                 })
                     .populate({
                     path: 'player',
                     model: 'Player'
                 });
-                const populatedActivities = activities.actvity;
-                return res.status(200).json(populatedActivities);
+                const totalActivities = yield userActivityModel_1.default.countDocuments({
+                    date: parsedDate,
+                    player: playerObjectId,
+                });
+                return res.status(200).json({
+                    totalActivities,
+                    currentPage: Number(page),
+                    totalPages: Math.ceil(totalActivities / Number(limit)),
+                    data: activities,
+                });
             }
             catch (error) {
                 console.log(error);
@@ -282,13 +303,21 @@ class UserActivityController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { player } = req.params;
+                const { page = 1, limit = 10 } = req.query;
                 const playerDetails = yield playerModel_1.default.findOne({ username: player });
                 if (!playerDetails) {
                     throw (0, http_errors_1.default)(404, "Player not found");
                 }
-                const getDailyActivitiesOfAPlayer = yield userActivityModel_1.default.find({ player: playerDetails._id });
-                console.log(getDailyActivitiesOfAPlayer, playerDetails._id);
-                return res.status(200).json(getDailyActivitiesOfAPlayer);
+                const getDailyActivitiesOfAPlayer = yield userActivityModel_1.default.find({ player: playerDetails._id })
+                    .skip((Number(page) - 1) * Number(limit))
+                    .limit(Number(limit));
+                const totalActivities = yield userActivityModel_1.default.countDocuments({ player: playerDetails._id });
+                return res.status(200).json({
+                    totalActivities,
+                    currentPage: Number(page),
+                    totalPages: Math.ceil(totalActivities / Number(limit)),
+                    data: getDailyActivitiesOfAPlayer,
+                });
             }
             catch (error) {
                 next(error);

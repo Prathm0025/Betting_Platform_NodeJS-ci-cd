@@ -270,25 +270,13 @@ class Store {
     }
     updateLiveData() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log(socket_1.activeRooms.values(), "AcTiVe");
+            console.log([...socket_1.activeRooms], "Active Rooms");
             const currentActive = this.removeInactiveRooms();
-            // console.log("currentActive", currentActive);
             for (const sport of currentActive) {
-                const liveData = yield this.getOdds(sport);
-                // console.log("livedata", liveData);
-                const liveGamesForSport = liveData.live_games;
-                const todaysUpcomingGamesForSport = liveData.todays_upcoming_games;
-                const futureUpcomingGamesForSport = liveData.future_upcoming_games;
-                // const liveGamesForSport = livedata.live_games.filter(
-                //   (game: any) => game.sport_key === sport
-                // );
-                // const todaysUpcomingGamesForSport = livedata.todays_upcoming_games.filter(
-                //   (game: any) => game.sport_key === sport
-                // );
-                // const futureUpcomingGamesForSport = livedata.future_upcoming_games.filter(
-                //   (game: any) => game.sport_key === sport
-                // );
-                // Check if there's any data for the current sport before emitting
+                const liveData = (yield this.getOdds(sport)) || {};
+                const liveGamesForSport = liveData.live_games || {};
+                const todaysUpcomingGamesForSport = liveData.todays_upcoming_games || {};
+                const futureUpcomingGamesForSport = liveData.future_upcoming_games || {};
                 if (liveGamesForSport.length > 0 ||
                     todaysUpcomingGamesForSport.length > 0 ||
                     futureUpcomingGamesForSport.length > 0) {
@@ -310,13 +298,17 @@ class Store {
     }
     removeInactiveRooms() {
         const rooms = server_1.io.sockets.adapter.rooms;
+        console.log(rooms, "Socket.io Rooms");
         const currentRooms = new Set(rooms.keys());
+        console.log(currentRooms, "Currently Active Rooms");
+        console.log([...socket_1.activeRooms], "Initial Active Rooms Set");
         socket_1.activeRooms.forEach((room) => {
             if (!currentRooms.has(room)) {
-                socket_1.activeRooms.delete(room);
+                socket_1.activeRooms.delete(room); // Remove inactive rooms
             }
         });
-        return socket_1.activeRooms;
+        console.log([...socket_1.activeRooms], "Updated Active Rooms Set");
+        return socket_1.activeRooms; // Return the updated set of active rooms
     }
 }
 exports.default = new Store();

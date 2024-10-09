@@ -73,8 +73,9 @@ class TransactionController {
     //GET ALL TRANSCATIONS FOR ADMIN
     getAllTransactions(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             try {
-                const { search, date } = req.query;
+                const { search, date, page = 1, limit = 10 } = req.query;
                 // Initial match conditions
                 const matchConditions = [];
                 // Add search filters
@@ -185,11 +186,32 @@ class TransactionController {
                             date: 1,
                         },
                     },
+                    {
+                        $sort: { date: -1 }, // Sort by date in descending order
+                    },
                 ];
-                const allTransactions = yield transactionModel_1.default.aggregate(pipeline).sort({
-                    date: -1,
+                // Pagination logic
+                const skip = (+page - 1) * +limit;
+                pipeline.push({ $skip: skip }, { $limit: +limit });
+                // Get total count of documents
+                const totalTransactionsPipeline = [
+                    ...(matchConditions.length > 0
+                        ? [{ $match: { $and: matchConditions } }]
+                        : []),
+                    {
+                        $count: "total",
+                    },
+                ];
+                const totalTransactionsResult = yield transactionModel_1.default.aggregate(totalTransactionsPipeline);
+                const totalTransactions = ((_a = totalTransactionsResult[0]) === null || _a === void 0 ? void 0 : _a.total) || 0;
+                const allTransactions = yield transactionModel_1.default.aggregate(pipeline);
+                res.status(200).json({
+                    totalTransactions,
+                    page: +page,
+                    limit: +limit,
+                    totalPages: Math.ceil(totalTransactions / +limit),
+                    data: allTransactions,
                 });
-                res.status(200).json(allTransactions);
             }
             catch (error) {
                 console.log(error);
@@ -202,8 +224,13 @@ class TransactionController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { userId } = req.params;
+                const { page = 1, limit = 10 } = req.query; // Default to page 1 and limit 10
                 if (!userId)
                     throw (0, http_errors_1.default)(400, "User Id not Found");
+                // Convert page and limit to numbers
+                const pageNumber = Number(page);
+                const limitNumber = Number(limit);
+                // Find transactions for the specified user
                 const transactionsOfAgent = yield transactionModel_1.default.find({
                     $or: [{ sender: userId }, { receiver: userId }],
                 })
@@ -215,8 +242,20 @@ class TransactionController {
                     .populate({
                     path: "receiver",
                     select: "-password",
+                })
+                    .skip((pageNumber - 1) * limitNumber) // Pagination skip
+                    .limit(limitNumber); // Pagination limit
+                // Count total transactions for pagination metadata
+                const totalTransactions = yield transactionModel_1.default.countDocuments({
+                    $or: [{ sender: userId }, { receiver: userId }],
                 });
-                res.status(200).json(transactionsOfAgent);
+                // Response with pagination details
+                res.status(200).json({
+                    totalTransactions,
+                    currentPage: pageNumber,
+                    totalPages: Math.ceil(totalTransactions / limitNumber),
+                    data: transactionsOfAgent,
+                });
             }
             catch (error) {
                 next(error);
@@ -226,9 +265,10 @@ class TransactionController {
     // //SUPERIOR AND HIS SUBORDINATE TRANSACTIONS
     getSuperiorSubordinateTransaction(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             try {
                 const { superior } = req.params;
-                const { type, search, date } = req.query;
+                const { type, search, date, page = 1, limit = 10 } = req.query;
                 let superiorUser;
                 // Fetching superior user based on type (id or username)
                 if (type === "id") {
@@ -260,6 +300,7 @@ class TransactionController {
                         ],
                     },
                 ];
+                // Add search filters
                 if (search) {
                     if (!isNaN(Number(search))) {
                         matchConditions.push({ amount: Number(search) });
@@ -277,6 +318,7 @@ class TransactionController {
                         });
                     }
                 }
+                // Add date filter
                 if (date) {
                     const dateRange = new Date(date);
                     matchConditions.push({
@@ -286,6 +328,7 @@ class TransactionController {
                         },
                     });
                 }
+                // Base aggregation pipeline
                 const pipeline = [
                     {
                         $lookup: {
@@ -367,11 +410,33 @@ class TransactionController {
                             date: 1,
                         },
                     },
+                    {
+                        $sort: { date: -1 }, // Sort by date in descending order
+                    },
                 ];
-                const transactions = yield transactionModel_1.default.aggregate(pipeline).sort({
-                    date: -1,
+                // Pagination logic: skip and limit
+                const skip = (Number(page) - 1) * Number(limit);
+                pipeline.push({ $skip: skip }, { $limit: Number(limit) });
+                // Total count of transactions without pagination
+                const totalPipeline = [
+                    ...(matchConditions.length > 0
+                        ? [{ $match: { $and: matchConditions } }]
+                        : []),
+                    {
+                        $count: "total",
+                    },
+                ];
+                const totalTransactionsResult = yield transactionModel_1.default.aggregate(totalPipeline);
+                const totalTransactions = ((_a = totalTransactionsResult[0]) === null || _a === void 0 ? void 0 : _a.total) || 0;
+                // Fetch paginated transactions
+                const transactions = yield transactionModel_1.default.aggregate(pipeline);
+                // Response with pagination details
+                res.status(200).json({
+                    totalTransactions,
+                    currentPage: Number(page),
+                    totalPages: Math.ceil(totalTransactions / Number(limit)),
+                    data: transactions,
                 });
-                res.status(200).json(transactions);
             }
             catch (error) {
                 console.log(error);
@@ -450,7 +515,7 @@ class TransactionController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { player } = req.params;
-                const { type, search, date } = req.query;
+                const { type, search, date, page = 1, limit = 10 } = req.query;
                 let playerData;
                 if (type === "id") {
                     playerData = yield playerModel_1.default.findById(player);
@@ -527,9 +592,7 @@ class TransactionController {
                             as: "receiverPlayer",
                         },
                     },
-                    ...(matchConditions.length > 0
-                        ? [{ $match: { $and: matchConditions } }]
-                        : []),
+                    ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
                     {
                         $unwind: {
                             path: "$senderUser",
@@ -577,19 +640,20 @@ class TransactionController {
                         },
                     },
                 ];
-                const playerTransactions = yield transactionModel_1.default.aggregate(pipeline).sort({
-                    date: -1,
+                const totalTransactions = yield transactionModel_1.default.aggregate([
+                    ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+                    { $count: "count" },
+                ]);
+                const playerTransactions = yield transactionModel_1.default.aggregate(pipeline)
+                    .sort({ date: -1 })
+                    .skip((Number(page) - 1) * Number(limit))
+                    .limit(Number(limit));
+                res.status(200).json({
+                    totalTransactions: totalTransactions.length > 0 ? totalTransactions[0].count : 0,
+                    currentPage: Number(page),
+                    totalPages: Math.ceil((totalTransactions.length > 0 ? totalTransactions[0].count : 0) / Number(limit)),
+                    data: playerTransactions,
                 });
-                // Map transactions to the desired format
-                const formattedTransactions = playerTransactions.map((transaction) => ({
-                    _id: transaction._id,
-                    type: transaction.type,
-                    amount: transaction.amount,
-                    date: transaction.date,
-                    sender: transaction.sender,
-                    receiver: transaction.receiver,
-                }));
-                res.status(200).json(formattedTransactions);
             }
             catch (error) {
                 console.log(error);
