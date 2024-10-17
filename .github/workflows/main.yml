@@ -31,15 +31,15 @@ jobs:
         run: npm run build
    
       - name: Push updated package.json to main branch
-  env:
-    GITHUB_TOKEN: ${{ secrets.G_TOKEN }}
-  run: |
-    git fetch origin main:main # Fetch the main branch
-    git checkout main
-    cp package.json ../package.json
-    git add ../package.json
-    git commit -m "update package.json"
-    git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.G_TOKEN }}
+        run: |
+          git fetch origin main:main # Fetch the main branch
+          git checkout main
+          cp package.json ../package.json
+          git add ../package.json
+          git commit -m "update package.json"
+          git push origin main
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v3
@@ -100,6 +100,7 @@ jobs:
             -H "Authorization: token ${{ secrets.G_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/merge
+
   cleanup:
     if: ${{ always() }}
     needs: [merge_pull_request, build]
