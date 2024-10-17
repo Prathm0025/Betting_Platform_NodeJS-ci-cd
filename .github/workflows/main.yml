@@ -34,10 +34,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.G_TOKEN }}
         run: |
-          git fetch origin main:main # Fetch the main branch
+          git fetch origin main:main 
           git checkout main
+          git config user.name "Prathm" 
+          git config user.email "prathm@123.com"
           git add package.json
-          git commit -m "update package.json"
+          git commit -m "update package.json" || echo "No changes to commit"
           git push --force origin main
 
       - name: Upload Build Artifacts
