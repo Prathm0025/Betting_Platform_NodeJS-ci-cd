@@ -36,10 +36,9 @@ jobs:
         run: |
           git fetch origin main:main # Fetch the main branch
           git checkout main
-          cp package.json ../package.json
-          git add ../package.json
+          git add package.json
           git commit -m "update package.json"
-          git push origin main
+          git push --force origin main
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v3
